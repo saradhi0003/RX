@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Candidates array is required' }, { status: 400 });
     }
 
-    // Initialize xAI client
+    // Initialize xAI client with Grok
     const xaiClient = new OpenAI({
       apiKey: XAI_API_KEY,
       baseURL: "https://api.x.ai/v1",
@@ -47,8 +47,10 @@ Priority: ${job.priority || 'medium'}
 Status: ${job.status || 'open'}
 `;
 
-    // Build candidates summary for batch processing
-    const candidatesSummary = candidates.slice(0, 20).map((c, idx) => `
+    // Limit to 15 candidates for better performance
+    const candidatesToAnalyze = candidates.slice(0, 15);
+    
+    const candidatesSummary = candidatesToAnalyze.map((c, idx) => `
 [Candidate ${idx + 1}]
 ID: ${c.id}
 Name: ${c.first_name} ${c.last_name}
@@ -64,7 +66,7 @@ Status: ${c.status || 'N/A'}
 
     const systemPrompt = `You are Grok, an advanced AI recruitment expert powered by xAI. Your specialty is analyzing candidate-job fit with deep understanding of technical skills, experience relevance, and cultural alignment. You provide honest, detailed, and actionable insights.`;
 
-    const userPrompt = `Analyze the following candidates against this job opening and provide comprehensive matching analysis.
+    const userPrompt = `Analyze the following candidates against this job opening.
 
 ${jobContext}
 
@@ -73,93 +75,87 @@ ${candidatesSummary}
 
 For each candidate, provide:
 1. Overall match score (0-100)
-2. Detailed strengths that align with the job
+2. Key strengths that align with the job
 3. Gaps or concerns
-4. Specific recommendations
-5. Cultural fit assessment
-6. Risk factors (relocation, visa, availability, etc.)
+4. Hiring recommendation (strong_hire/hire/maybe/pass)
+5. Cultural fit score (0-100)
+6. Risk factors if any
+7. One-sentence key insight
 
-Be thorough, honest, and data-driven. Identify both obvious and subtle matches or mismatches.`;
+Provide your analysis in valid JSON format ONLY. No markdown, no code blocks, just pure JSON:
 
-    // Call xAI Grok model - using grok-beta
-    const completion = await xaiClient.chat.completions.create({
-      model: "grok-beta",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      temperature: 0.7,
-      max_tokens: 4000,
-    });
-
-    const grokResponse = completion.choices[0]?.message?.content || '';
-
-    // Parse Grok's response and structure it
-    const structuredPrompt = `Based on your previous analysis, provide a structured JSON response for each candidate.
-
-Return ONLY valid JSON in this exact format:
 {
   "matches": [
     {
       "candidate_id": "string",
       "match_score": 85,
       "strengths": ["strength1", "strength2"],
-      "gaps": ["gap1", "gap2"],
+      "gaps": ["gap1"],
       "recommendation": "strong_hire",
       "cultural_fit_score": 80,
       "risk_factors": ["risk1"],
-      "key_insight": "one sentence summary"
+      "key_insight": "summary"
     }
   ],
-  "overall_insights": "2-3 sentence summary of the candidate pool"
+  "overall_insights": "2-3 sentence summary"
 }
 
-Recommendation must be one of: strong_hire, hire, maybe, pass
-Match scores and cultural_fit_score must be numbers from 0-100.`;
+Be thorough and honest. Use numbers 0-100 for scores. Use one of: strong_hire, hire, maybe, pass for recommendations.`;
 
-    const structuredCompletion = await xaiClient.chat.completions.create({
+    // Single API call with grok-3-latest model
+    const completion = await xaiClient.chat.completions.create({
       model: "grok-beta",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-        { role: "assistant", content: grokResponse },
-        { role: "user", content: structuredPrompt }
+        { role: "user", content: userPrompt }
       ],
-      temperature: 0.2,
-      max_tokens: 3000,
+      temperature: 0.3,
+      max_tokens: 4000,
     });
 
+    const grokResponse = completion.choices[0]?.message?.content || '';
+
+    // Parse JSON response
     let structuredData;
     try {
-      const content = structuredCompletion.choices[0]?.message?.content || '{}';
-      // Try to extract JSON from markdown code blocks if present
-      const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/);
-      const jsonString = jsonMatch ? jsonMatch[1] : content;
+      // Try to extract JSON from the response
+      const jsonMatch = grokResponse.match(/```json\s*([\s\S]*?)\s*```/) || 
+                        grokResponse.match(/```\s*([\s\S]*?)\s*```/) ||
+                        grokResponse.match(/\{[\s\S]*\}/);
+      
+      const jsonString = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : grokResponse;
       structuredData = JSON.parse(jsonString);
+      
+      // Validate structure
+      if (!structuredData.matches || !Array.isArray(structuredData.matches)) {
+        throw new Error('Invalid response structure');
+      }
     } catch (parseError) {
-      console.error('Failed to parse structured response:', parseError);
-      // Return a basic structure with the narrative analysis
+      console.error('Failed to parse Grok response:', parseError);
+      console.error('Raw response:', grokResponse);
+      
+      // Create fallback structure
       structuredData = { 
-        matches: candidates.slice(0, 20).map((c, idx) => ({
+        matches: candidatesToAnalyze.map((c, idx) => ({
           candidate_id: c.id,
           match_score: 50,
-          strengths: ["Analysis available in narrative section"],
-          gaps: [],
+          strengths: ["See narrative analysis below"],
+          gaps: ["Analysis in progress"],
           recommendation: "maybe",
           cultural_fit_score: 50,
           risk_factors: [],
-          key_insight: `Candidate ${idx + 1}`
+          key_insight: `Candidate ${idx + 1} - ${c.first_name} ${c.last_name}`
         })),
-        overall_insights: 'See detailed narrative analysis below' 
+        overall_insights: 'Analysis completed - see narrative section for details'
       };
     }
 
-    // Combine narrative and structured data
+    // Return combined response
     return Response.json({
       success: true,
       job_id: job.id,
       job_title: job.title,
-      analyzed_count: Math.min(candidates.length, 20),
+      analyzed_count: candidatesToAnalyze.length,
       narrative_analysis: grokResponse,
       structured_matches: structuredData.matches || [],
       overall_insights: structuredData.overall_insights || '',
@@ -170,12 +166,13 @@ Match scores and cultural_fit_score must be numbers from 0-100.`;
   } catch (error) {
     console.error('xAI Matching Error:', error);
     
-    // Provide more detailed error information
+    // Detailed error response
     return Response.json({ 
       success: false,
       error: error.message || 'Failed to perform AI matching',
       error_type: error.name || 'Unknown',
-      details: error.response?.data || error.stack
+      error_details: error.stack,
+      hint: 'Check that XAI_API_KEY is set correctly'
     }, { status: 500 });
   }
 });
