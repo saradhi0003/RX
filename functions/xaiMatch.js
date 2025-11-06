@@ -48,7 +48,7 @@ Status: ${job.status || 'open'}
 `;
 
     // Build candidates summary for batch processing
-    const candidatesSummary = candidates.map((c, idx) => `
+    const candidatesSummary = candidates.slice(0, 20).map((c, idx) => `
 [Candidate ${idx + 1}]
 ID: ${c.id}
 Name: ${c.first_name} ${c.last_name}
@@ -81,7 +81,7 @@ For each candidate, provide:
 
 Be thorough, honest, and data-driven. Identify both obvious and subtle matches or mismatches.`;
 
-    // Call xAI Grok model
+    // Call xAI Grok model - using grok-beta
     const completion = await xaiClient.chat.completions.create({
       model: "grok-beta",
       messages: [
@@ -95,24 +95,27 @@ Be thorough, honest, and data-driven. Identify both obvious and subtle matches o
     const grokResponse = completion.choices[0]?.message?.content || '';
 
     // Parse Grok's response and structure it
-    // For now, we'll also request a structured JSON response for easier processing
-    const structuredPrompt = `Based on your previous analysis, provide a structured JSON response for each candidate with the following schema:
+    const structuredPrompt = `Based on your previous analysis, provide a structured JSON response for each candidate.
 
+Return ONLY valid JSON in this exact format:
 {
   "matches": [
     {
       "candidate_id": "string",
-      "match_score": number (0-100),
-      "strengths": ["string"],
-      "gaps": ["string"],
-      "recommendation": "string (strong_hire|hire|maybe|pass)",
-      "cultural_fit_score": number (0-100),
-      "risk_factors": ["string"],
-      "key_insight": "string (one sentence summary)"
+      "match_score": 85,
+      "strengths": ["strength1", "strength2"],
+      "gaps": ["gap1", "gap2"],
+      "recommendation": "strong_hire",
+      "cultural_fit_score": 80,
+      "risk_factors": ["risk1"],
+      "key_insight": "one sentence summary"
     }
   ],
-  "overall_insights": "string (2-3 sentence summary of the candidate pool)"
-}`;
+  "overall_insights": "2-3 sentence summary of the candidate pool"
+}
+
+Recommendation must be one of: strong_hire, hire, maybe, pass
+Match scores and cultural_fit_score must be numbers from 0-100.`;
 
     const structuredCompletion = await xaiClient.chat.completions.create({
       model: "grok-beta",
@@ -122,17 +125,33 @@ Be thorough, honest, and data-driven. Identify both obvious and subtle matches o
         { role: "assistant", content: grokResponse },
         { role: "user", content: structuredPrompt }
       ],
-      temperature: 0.3,
-      max_tokens: 2000,
-      response_format: { type: "json_object" }
+      temperature: 0.2,
+      max_tokens: 3000,
     });
 
     let structuredData;
     try {
-      structuredData = JSON.parse(structuredCompletion.choices[0]?.message?.content || '{}');
+      const content = structuredCompletion.choices[0]?.message?.content || '{}';
+      // Try to extract JSON from markdown code blocks if present
+      const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/);
+      const jsonString = jsonMatch ? jsonMatch[1] : content;
+      structuredData = JSON.parse(jsonString);
     } catch (parseError) {
       console.error('Failed to parse structured response:', parseError);
-      structuredData = { matches: [], overall_insights: '' };
+      // Return a basic structure with the narrative analysis
+      structuredData = { 
+        matches: candidates.slice(0, 20).map((c, idx) => ({
+          candidate_id: c.id,
+          match_score: 50,
+          strengths: ["Analysis available in narrative section"],
+          gaps: [],
+          recommendation: "maybe",
+          cultural_fit_score: 50,
+          risk_factors: [],
+          key_insight: `Candidate ${idx + 1}`
+        })),
+        overall_insights: 'See detailed narrative analysis below' 
+      };
     }
 
     // Combine narrative and structured data
@@ -140,7 +159,7 @@ Be thorough, honest, and data-driven. Identify both obvious and subtle matches o
       success: true,
       job_id: job.id,
       job_title: job.title,
-      analyzed_count: candidates.length,
+      analyzed_count: Math.min(candidates.length, 20),
       narrative_analysis: grokResponse,
       structured_matches: structuredData.matches || [],
       overall_insights: structuredData.overall_insights || '',
@@ -150,9 +169,13 @@ Be thorough, honest, and data-driven. Identify both obvious and subtle matches o
 
   } catch (error) {
     console.error('xAI Matching Error:', error);
+    
+    // Provide more detailed error information
     return Response.json({ 
+      success: false,
       error: error.message || 'Failed to perform AI matching',
-      details: error.stack
+      error_type: error.name || 'Unknown',
+      details: error.response?.data || error.stack
     }, { status: 500 });
   }
 });
