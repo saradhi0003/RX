@@ -346,7 +346,25 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
         rows.slice(0, 5)
       );
       
-      setMapping(aiMap);
+      // Ensure no duplicate mappings (one CSV column → one target field only)
+      const cleanedMapping = {};
+      const usedTargetFields = new Set();
+      
+      // Sort by confidence to prioritize high-confidence mappings
+      const sortedEntries = Object.entries(aiMap).sort((a, b) => {
+        const confA = aiConf[a[0]] || 0;
+        const confB = aiConf[b[0]] || 0;
+        return confB - confA;
+      });
+      
+      for (const [srcCol, targetField] of sortedEntries) {
+        if (targetField && targetField !== "null" && !usedTargetFields.has(targetField)) {
+          cleanedMapping[srcCol] = targetField;
+          usedTargetFields.add(targetField);
+        }
+      }
+      
+      setMapping(cleanedMapping);
       setConfidence(aiConf);
       setReasoning(aiReas);
       setHint("✨ AI mapping complete! Review and adjust mappings below.");
@@ -627,7 +645,7 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
         if (obj[k] === "" || obj[k] === null) delete obj[k];
       });
 
-      const requiredFields = Array.isArray(schemaObj.required) ? schemaObj.required : [];
+      const requiredFields = Array.isArray(schema.required) ? schema.required : [];
       const ok = requiredFields.every((f) => obj[f] !== undefined && obj[f] !== "");
       if (ok) out.push(obj);
       else skippedLocal += 1;
@@ -735,7 +753,7 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
           if (idSet.has(val)) return r;
           const id = nameMap.get(val.toLowerCase());
           if (id) return { ...r, company_id: id };
-          return { ...r, company_id: undefined, __invalid_company__: val };
+          return { ...r, company_id: undefined, "__invalid_company__": val };
         });
         const valid = [];
         for (const r of rowsToInsert) {
@@ -854,6 +872,61 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
     return "bg-red-100 text-red-800 border-red-300";
   };
 
+  // Track which target fields are already mapped to prevent duplicates
+  const mappedTargetFields = React.useMemo(() => {
+    return new Set(Object.values(mapping).filter(Boolean));
+  }, [mapping]);
+
+  // Handler to update mapping with duplicate prevention
+  const handleMappingChange = (sourceCol, newTargetField) => {
+    const newMapping = { ...mapping };
+    
+    // Get the currently mapped target field for this source column
+    const oldTargetFieldForSource = newMapping[sourceCol];
+    
+    // If the user is unmapping the current source column (setting to null/empty)
+    if (!newTargetField || newTargetField === "null") {
+      delete newMapping[sourceCol]; // Remove the mapping for this source column
+      setMapping(newMapping);
+      return;
+    }
+
+    // Check if this new target field is already mapped by another source column
+    // and if that other source column is NOT the current one being changed
+    const existingSourceForTarget = Object.entries(newMapping).find(
+      ([src, tgt]) => tgt === newTargetField && src !== sourceCol
+    );
+    
+    if (existingSourceForTarget) {
+      // Prompt user for confirmation to replace existing mapping
+      const shouldReplace = window.confirm(
+        `The field "${newTargetField}" is already mapped from CSV column "${existingSourceForTarget[0]}".\n\n` +
+        `Do you want to map CSV column "${sourceCol}" to "${newTargetField}" instead and unmap "${existingSourceForTarget[0]}"?`
+      );
+      
+      if (shouldReplace) {
+        // Remove the old mapping from the conflicting source column
+        delete newMapping[existingSourceForTarget[0]];
+        // Apply the new mapping for the current source column
+        newMapping[sourceCol] = newTargetField;
+      } else {
+        // User cancelled, keep the existing mapping as it was.
+        // If there was an old mapping for 'sourceCol', ensure it's preserved.
+        if (oldTargetFieldForSource) {
+          newMapping[sourceCol] = oldTargetFieldForSource;
+        } else {
+          // If there was no previous mapping, just don't add the new one.
+          delete newMapping[sourceCol];
+        }
+      }
+    } else {
+      // No conflict, or user confirmed replacement, apply the new mapping
+      newMapping[sourceCol] = newTargetField;
+    }
+    
+    setMapping(newMapping);
+  };
+
   if (!open) return null;
 
   return (
@@ -918,6 +991,7 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
 
         <CardContent className="flex-1 overflow-hidden p-0">
           <div className="p-4 space-y-4">
+            {/* Status badges */}
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <Badge variant="secondary">
                 {busy
@@ -949,17 +1023,22 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
               )}
               {skipped > 0 && <span className="text-amber-700">• Skipped {skipped}</span>}
             </div>
+
+            {/* Error display */}
             {error && (
               <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded p-3">
                 <AlertTriangle className="w-4 h-4" /> {error}
               </div>
             )}
+
+            {/* Hint display */}
             {hint && (
               <div className="text-sm text-blue-600 bg-blue-50 border border-blue-200 rounded p-3">
                 {hint}
               </div>
             )}
 
+            {/* Ready state - file upload */}
             {step === "ready" && (
               <div className="border-2 border-dashed rounded-lg p-8 bg-gradient-to-br from-blue-50 to-purple-50">
                 <div className="flex flex-col items-center gap-4 text-center">
@@ -985,8 +1064,10 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
               </div>
             )}
 
+            {/* Mapping state - column mapping table */}
             {step === "mapping" && preview.length > 0 && (
               <div className="space-y-3">
+                {/* Filter tabs and info */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50 p-4 rounded-lg">
                   <div className="flex items-center gap-3">
                     <Badge variant="secondary" className="gap-1">
@@ -1031,6 +1112,7 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
                   </div>
                 </div>
 
+                {/* Search */}
                 <Input 
                   placeholder="Search columns or sample data..." 
                   value={q} 
@@ -1038,26 +1120,29 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
                   className="max-w-md"
                 />
 
+                {/* Mapping table */}
                 <div className="border rounded-lg overflow-hidden shadow-sm">
                   <div className="overflow-auto max-h-[55vh]">
                     <table className="min-w-full text-sm">
                       <thead className="bg-slate-100 sticky top-0 z-10">
                         <tr>
-                          <th className="text-left px-4 py-3 font-semibold text-slate-700 w-[25%]">CSV Column</th>
-                          <th className="text-left px-4 py-3 font-semibold text-slate-700 w-[25%]">Sample Data</th>
-                          <th className="text-left px-4 py-3 font-semibold text-slate-700 w-[30%]">
+                          <th className="text-left px-4 py-3 font-semibold text-slate-700 w-[20%]">CSV Column</th>
+                          <th className="text-left px-4 py-3 font-semibold text-slate-700 w-[20%]">Sample Data</th>
+                          <th className="text-left px-4 py-3 font-semibold text-slate-700 w-[35%]">
                             <div className="flex items-center gap-2">
                               <Sparkles className="w-4 h-4 text-purple-600" />
                               AI Suggested Field
                             </div>
                           </th>
-                          <th className="text-left px-4 py-3 font-semibold text-slate-700 w-[20%]">Confidence</th>
+                          <th className="text-left px-4 py-3 font-semibold text-slate-700 w-[25%]">Confidence</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredColumns.map((col) => {
                           const conf = confidence[col] || 0;
                           const reason = reasoning[col] || "";
+                          const mappedField = mapping[col];
+                          const isHighConfidence = conf >= 80 && mappedField;
                           
                           return (
                             <tr key={col} className="border-t hover:bg-slate-50 transition-colors">
@@ -1069,38 +1154,61 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
                               </td>
                               <td className="px-4 py-3">
                                 <Select
-                                  value={mapping[col] || ""}
-                                  onValueChange={(v) => setMapping({ ...mapping, [col]: v })}
+                                  value={mappedField || ""}
+                                  onValueChange={(v) => handleMappingChange(col, v)}
                                 >
-                                  <SelectTrigger className={`w-full ${mapping[col] ? 'border-green-300 bg-green-50' : ''}`}>
-                                    <SelectValue placeholder="Select field or ignore" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {Object.keys(schemaProps).map((k) => (
-                                      <SelectItem key={k} value={k}>
+                                  <SelectTrigger className={`w-full ${mappedField ? 'border-green-300 bg-green-50' : ''}`}>
+                                    <SelectValue placeholder="— Select field or ignore —">
+                                      {mappedField ? (
                                         <div className="flex items-center gap-2">
-                                          <span>{k}</span>
-                                          {mapping[col] === k && conf >= 80 && (
-                                            <Badge className="text-xs bg-green-100 text-green-800">
-                                              AI Match
+                                          <span className="font-medium">{mappedField}</span>
+                                          {isHighConfidence && (
+                                            <Badge className="text-xs bg-green-100 text-green-800 border-green-300">
+                                              ✓ AI Match
                                             </Badge>
                                           )}
                                         </div>
-                                      </SelectItem>
-                                    ))}
-                                    <SelectItem value={null}>
+                                      ) : (
+                                        "— Select field or ignore —"
+                                      )}
+                                    </SelectValue>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {Object.keys(schemaProps).map((k) => {
+                                      const isAlreadyMapped = mappedTargetFields.has(k) && mapping[col] !== k;
+                                      const mappedFrom = isAlreadyMapped 
+                                        ? Object.entries(mapping).find(([src, tgt]) => tgt === k)?.[0]
+                                        : null;
+                                      
+                                      return (
+                                        <SelectItem key={k} value={k} disabled={isAlreadyMapped}>
+                                          <div className="flex items-center gap-2">
+                                            <span className={isAlreadyMapped ? "text-slate-400" : ""}>{k}</span>
+                                            {isAlreadyMapped && mappedFrom && (
+                                              <span className="text-xs text-orange-600">(mapped from {mappedFrom})</span>
+                                            )}
+                                            {mappedField === k && conf >= 80 && (
+                                              <Badge className="text-xs bg-green-100 text-green-800">
+                                                AI Match
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        </SelectItem>
+                                      );
+                                    })}
+                                    <SelectItem value={"null"}>
                                       <span className="text-slate-400">— Ignore Column —</span>
                                     </SelectItem>
                                   </SelectContent>
                                 </Select>
                                 {reason && (
                                   <p className="text-xs text-slate-500 mt-1 italic">
-                                    {reason}
+                                    💡 {reason}
                                   </p>
                                 )}
                               </td>
                               <td className="px-4 py-3">
-                                {mapping[col] && conf > 0 ? (
+                                {mappedField && conf > 0 ? (
                                   <Badge className={getConfidenceColor(conf)}>
                                     {conf}% confident
                                   </Badge>
@@ -1122,6 +1230,7 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
                     </table>
                   </div>
 
+                  {/* Footer with actions */}
                   <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-t sticky bottom-0">
                     <div className="text-xs text-slate-600">
                       <div className="flex items-center gap-2">
@@ -1148,6 +1257,7 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
               </div>
             )}
 
+            {/* Inserting state */}
             {step === "inserting" && (
               <div className="flex flex-col items-center gap-3 py-8">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -1155,6 +1265,7 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
               </div>
             )}
 
+            {/* Done state */}
             {step === "done" && (
               <div className="flex flex-col items-center gap-4 py-8">
                 <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
