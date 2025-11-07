@@ -480,6 +480,17 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
     [confidence, mapping]
   );
 
+  // NEW: Check which required fields are mapped
+  const requiredFieldsStatus = React.useMemo(() => {
+    const required = Array.isArray(schema.required) ? schema.required : [];
+    const mappedTargets = new Set(Object.values(mapping).filter(Boolean));
+    
+    const missing = required.filter(field => !mappedTargets.has(field));
+    const mapped = required.filter(field => mappedTargets.has(field));
+    
+    return { missing, mapped, total: required.length };
+  }, [mapping, schema.required]);
+
   const busy = uploading || parsing || aiMapping;
 
   // Type coercion helpers + row shaping
@@ -1016,6 +1027,12 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
                   {highConfidenceCount} high confidence
                 </Badge>
               )}
+              {/* NEW: Show required fields status */}
+              {step === "mapping" && requiredFieldsStatus.total > 0 && (
+                <Badge className={requiredFieldsStatus.missing.length === 0 ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}>
+                  Required: {requiredFieldsStatus.mapped.length}/{requiredFieldsStatus.total}
+                </Badge>
+              )}
               {inserted > 0 && (
                 <span className="flex items-center gap-1 text-green-700">
                   <CheckCircle2 className="w-4 h-4" /> Inserted {inserted}
@@ -1023,6 +1040,36 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
               )}
               {skipped > 0 && <span className="text-amber-700">• Skipped {skipped}</span>}
             </div>
+
+            {/* NEW: Required fields warning */}
+            {step === "mapping" && requiredFieldsStatus.missing.length > 0 && (
+              <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-semibold text-amber-900 mb-1">
+                      ⚠️ Missing Required Fields
+                    </p>
+                    <p className="text-sm text-amber-800 mb-2">
+                      The following required fields are not mapped from your CSV:
+                    </p>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {requiredFieldsStatus.missing.map(field => (
+                        <Badge key={field} className="bg-amber-200 text-amber-900">
+                          {field}
+                        </Badge>
+                      ))}
+                    </div>
+                    <p className="text-xs text-amber-700 mt-2">
+                      <strong>What will happen:</strong> Rows without these required fields will be skipped during import. 
+                      {requiredFieldsStatus.missing.includes('email') && (
+                        <span> You can manually add email addresses after importing the other data.</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Error display */}
             {error && (
@@ -1143,6 +1190,7 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
                           const reason = reasoning[col] || "";
                           const mappedField = mapping[col];
                           const isHighConfidence = conf >= 80 && mappedField;
+                          const isRequiredField = mappedField && (schema.required || []).includes(mappedField);
                           
                           return (
                             <tr key={col} className="border-t hover:bg-slate-50 transition-colors">
@@ -1162,7 +1210,12 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
                                       {mappedField ? (
                                         <div className="flex items-center gap-2">
                                           <span className="font-medium">{mappedField}</span>
-                                          {isHighConfidence && (
+                                          {isRequiredField && (
+                                            <Badge className="text-xs bg-red-100 text-red-800 border-red-300">
+                                              Required
+                                            </Badge>
+                                          )}
+                                          {isHighConfidence && !isRequiredField && (
                                             <Badge className="text-xs bg-green-100 text-green-800 border-green-300">
                                               ✓ AI Match
                                             </Badge>
@@ -1179,11 +1232,15 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
                                       const mappedFrom = isAlreadyMapped 
                                         ? Object.entries(mapping).find(([src, tgt]) => tgt === k)?.[0]
                                         : null;
+                                      const isRequired = (schema.required || []).includes(k);
                                       
                                       return (
                                         <SelectItem key={k} value={k} disabled={isAlreadyMapped}>
                                           <div className="flex items-center gap-2">
-                                            <span className={isAlreadyMapped ? "text-slate-400" : ""}>{k}</span>
+                                            <span className={`${isAlreadyMapped ? "text-slate-400" : ""} ${isRequired ? "font-semibold text-red-600" : ""}`}>{k}</span>
+                                            {isRequired && (
+                                              <span className="text-xs text-red-600">*</span>
+                                            )}
                                             {isAlreadyMapped && mappedFrom && (
                                               <span className="text-xs text-orange-600">(mapped from {mappedFrom})</span>
                                             )}
@@ -1238,6 +1295,11 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
                         <span>
                           Mapped {mappedCount}/{sourceColumns.length} columns
                           {highConfidenceCount > 0 && ` • ${highConfidenceCount} high confidence matches`}
+                          {requiredFieldsStatus.missing.length > 0 && (
+                            <span className="text-amber-600 ml-2">
+                              • {requiredFieldsStatus.missing.length} required field(s) missing
+                            </span>
+                          )}
                         </span>
                       </div>
                     </div>
