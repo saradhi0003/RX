@@ -493,6 +493,57 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
 
   const busy = uploading || parsing || aiMapping;
 
+  // NEW: Estimate how many rows will be imported vs skipped based on sample data
+  const dataQualityEstimate = React.useMemo(() => {
+    if (preview.length === 0 || Object.keys(mapping).length === 0) {
+      return { validRows: 0, invalidRows: 0, totalRows: preview.length };
+    }
+
+    const requiredFields = Array.isArray(schema.required) ? schema.required : [];
+    const mappedRequiredFields = requiredFields.filter(field => 
+      Object.values(mapping).includes(field)
+    );
+
+    // Check first 20 rows as sample
+    const sampleSize = Math.min(preview.length, 20);
+    const sampleRows = preview.slice(0, sampleSize);
+    let validCount = 0;
+    let invalidCount = 0;
+
+    sampleRows.forEach(row => {
+      const hasAllRequired = mappedRequiredFields.every(requiredField => {
+        // Find which source column maps to this required field
+        const sourceColumn = Object.entries(mapping).find(([src, tgt]) => tgt === requiredField)?.[0];
+        if (!sourceColumn) return false;
+        
+        const value = row[sourceColumn];
+        return value !== undefined && value !== null && String(value).trim() !== "";
+      });
+
+      if (hasAllRequired) {
+        validCount++;
+      } else {
+        invalidCount++;
+      }
+    });
+
+    // Estimate for all rows
+    const totalRows = preview.length;
+    let estimatedValid = 0;
+    if (sampleSize > 0) {
+      estimatedValid = Math.round((validCount / sampleSize) * totalRows);
+    }
+    const estimatedInvalid = totalRows - estimatedValid;
+
+    return {
+      validRows: estimatedValid,
+      invalidRows: estimatedInvalid,
+      totalRows: totalRows,
+      sampleValid: validCount,
+      sampleSize: sampleSize
+    };
+  }, [preview, mapping, schema.required]);
+
   // Type coercion helpers + row shaping
   const applyMapping = (rows, map, schemaObj) => {
     const props = schemaObj.properties || {};
@@ -979,7 +1030,7 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
                   title={mappedCount === 0 ? "Map at least one column to enable upload" : "Upload mapped rows"}
                 >
                   <Upload className="w-4 h-4" />
-                  Upload {mappedCount > 0 ? `(${mappedCount} mapped)` : ''}
+                  Import (~{dataQualityEstimate.validRows} rows)
                 </Button>
               </>
             )}
@@ -1027,7 +1078,6 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
                   {highConfidenceCount} high confidence
                 </Badge>
               )}
-              {/* NEW: Show required fields status */}
               {step === "mapping" && requiredFieldsStatus.total > 0 && (
                 <Badge className={requiredFieldsStatus.missing.length === 0 ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}>
                   Required: {requiredFieldsStatus.mapped.length}/{requiredFieldsStatus.total}
@@ -1041,31 +1091,68 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
               {skipped > 0 && <span className="text-amber-700">• Skipped {skipped}</span>}
             </div>
 
-            {/* NEW: Required fields warning */}
+            {/* NEW: Data Quality Estimate */}
+            {step === "mapping" && preview.length > 0 && dataQualityEstimate.totalRows > 0 && (
+              <div className="p-4 bg-blue-50 border-2 border-blue-300 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="font-semibold text-blue-900 mb-2">
+                      📊 Import Preview (based on {dataQualityEstimate.sampleSize} sample rows)
+                    </p>
+                    <div className="grid grid-cols-3 gap-4 mb-3">
+                      <div className="bg-white p-3 rounded-lg border border-blue-200">
+                        <div className="text-2xl font-bold text-green-600">{dataQualityEstimate.validRows}</div>
+                        <div className="text-xs text-slate-600">Will be imported</div>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-blue-200">
+                        <div className="text-2xl font-bold text-orange-600">{dataQualityEstimate.invalidRows}</div>
+                        <div className="text-xs text-slate-600">Will be skipped</div>
+                      </div>
+                      <div className="bg-white p-3 rounded-lg border border-blue-200">
+                        <div className="text-2xl font-bold text-blue-600">{dataQualityEstimate.totalRows}</div>
+                        <div className="text-xs text-slate-600">Total rows</div>
+                      </div>
+                    </div>
+                    {dataQualityEstimate.invalidRows > 0 && (
+                      <p className="text-xs text-blue-700">
+                        <strong>Why rows are skipped:</strong> Rows missing required fields ({requiredFieldsStatus.missing.join(", ") || "various"}) will be automatically skipped. 
+                        This is common with LinkedIn exports where email addresses may not be available for all profiles.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* UPDATED: Better required fields warning */}
             {step === "mapping" && requiredFieldsStatus.missing.length > 0 && (
               <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-lg">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
                   <div className="flex-1">
-                    <p className="font-semibold text-amber-900 mb-1">
-                      ⚠️ Missing Required Fields
+                    <p className="font-semibold text-amber-900 mb-2">
+                      ⚠️ Some Required Fields Are Not Mapped
                     </p>
                     <p className="text-sm text-amber-800 mb-2">
-                      The following required fields are not mapped from your CSV:
+                      Your CSV is missing or doesn't have mapping for these required fields:
                     </p>
-                    <div className="flex flex-wrap gap-2 mb-2">
+                    <div className="flex flex-wrap gap-2 mb-3">
                       {requiredFieldsStatus.missing.map(field => (
-                        <Badge key={field} className="bg-amber-200 text-amber-900">
+                        <Badge key={field} className="bg-amber-200 text-amber-900 border border-amber-400">
                           {field}
                         </Badge>
                       ))}
                     </div>
-                    <p className="text-xs text-amber-700 mt-2">
-                      <strong>What will happen:</strong> Rows without these required fields will be skipped during import. 
-                      {requiredFieldsStatus.missing.includes('email') && (
-                        <span> You can manually add email addresses after importing the other data.</span>
-                      )}
-                    </p>
+                    <div className="bg-white border border-amber-200 rounded p-3">
+                      <p className="text-sm text-amber-900 font-medium mb-2">✅ You can still proceed with import:</p>
+                      <ul className="text-xs text-amber-800 space-y-1 list-disc list-inside">
+                        <li><strong>Rows with all required fields will be imported</strong> (estimated: ~{dataQualityEstimate.validRows} rows)</li>
+                        <li><strong>Rows missing required fields will be skipped</strong> (estimated: ~{dataQualityEstimate.invalidRows} rows)</li>
+                        <li>This is normal for LinkedIn exports where not all profiles have email addresses</li>
+                        <li>You can manually add missing data after import, or try to find alternate columns in your CSV that contain this data</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1294,10 +1381,10 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
                         <Sparkles className="w-4 h-4 text-purple-600" />
                         <span>
                           Mapped {mappedCount}/{sourceColumns.length} columns
-                          {highConfidenceCount > 0 && ` • ${highConfidenceCount} high confidence matches`}
-                          {requiredFieldsStatus.missing.length > 0 && (
-                            <span className="text-amber-600 ml-2">
-                              • {requiredFieldsStatus.missing.length} required field(s) missing
+                          {highConfidenceCount > 0 && ` • ${highConfidenceCount} high confidence`}
+                          {dataQualityEstimate.validRows > 0 && (
+                            <span className="text-green-600 ml-2 font-medium">
+                              • ~{dataQualityEstimate.validRows} rows ready
                             </span>
                           )}
                         </span>
@@ -1307,11 +1394,16 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
                       <Button variant="outline" onClick={reset}>Cancel</Button>
                       <Button 
                         onClick={doInsert} 
-                        disabled={mappedCount === 0 || busy} 
+                        disabled={mappedCount === 0 || busy || dataQualityEstimate.validRows === 0} 
                         className="gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+                        title={
+                          dataQualityEstimate.validRows === 0 
+                            ? "No valid rows to import - all rows are missing required fields or no columns are mapped." 
+                            : `Import approximately ${dataQualityEstimate.validRows} rows`
+                        }
                       >
                         <Upload className="w-4 h-4" />
-                        Import {preview.length} Rows
+                        Import (~{dataQualityEstimate.validRows} Rows)
                       </Button>
                     </div>
                   </div>
