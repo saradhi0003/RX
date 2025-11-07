@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +16,9 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
-  Table
+  Table,
+  Sparkles, // Added Sparkles import
+  MailPlus // Added MailPlus import
 } from "lucide-react";
 import PageHeader from "@/components/common/PageHeader";
 import Breadcrumbs from "@/components/common/Breadcrumbs";
@@ -548,6 +551,34 @@ export default function BRD() {
             and internal recruiting teams. The system manages the complete recruitment lifecycle from candidate sourcing
             through placement and invoicing.
           </p>
+
+          {/* NEW: Recent Updates Section */}
+          <Card className="border-l-4 border-l-purple-500 bg-purple-50">
+            <CardContent className="p-4">
+              <h4 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                <Sparkles className="w-5 h-5" />
+                Latest Updates & Features
+              </h4>
+              <div className="space-y-2 text-sm text-purple-800">
+                <div className="flex items-start gap-2">
+                  <span className="font-semibold min-w-[120px]">AI Agents:</span>
+                  <span>Intelligent automation agents that trigger on entity events (e.g., job creation) to perform AI analysis, create applications, and execute complex workflows</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="font-semibold min-w-[120px]">Email Blast:</span>
+                  <span>Mass email campaign tool for reaching all company contacts with AI-generated content and CSV export capabilities</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="font-semibold min-w-[120px]">Advanced Matching:</span>
+                  <span>Configurable AI matching with weighted criteria, multiple reasoning models (o1, Claude 4.5, GPT-5), learning from feedback, and performance tracking</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="font-semibold min-w-[120px]">Workflow Automation:</span>
+                  <span>Auto-completion of related tasks, background AI job matching on creation, and contextual AI assistance across the platform</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="border-l-4 border-l-blue-500">
@@ -628,6 +659,8 @@ export default function BRD() {
               <li>Automated workflow rules and triggers</li>
               <li>Candidate screening and outreach automation</li>
               <li>Learning system with feedback loops</li>
+              <li className="font-semibold text-purple-700">NEW: AI Agents for entity-triggered workflows</li>
+              <li className="font-semibold text-purple-700">NEW: Background job matching on creation</li>
             </CardContent>
           </Card>
           
@@ -640,6 +673,149 @@ export default function BRD() {
               <li>Expense management with recurring support</li>
               <li>Recruiter performance metrics</li>
               <li>Role-based access control</li>
+              <li className="font-semibold text-purple-700">NEW: Email blast campaigns with AI content generation</li>
+            </CardContent>
+          </Card>
+        </div>
+      )
+    },
+    {
+      icon: Zap,
+      title: "AI Agent System",
+      description: "Intelligent automation and workflow agents",
+      content: (
+        <div className="space-y-4">
+          <p className="text-slate-700 leading-relaxed">
+            The AI Agent system enables intelligent, event-driven automation that can perform complex workflows,
+            AI analysis, and multi-step operations without manual intervention.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="border-l-4 border-l-purple-500">
+              <CardHeader>
+                <CardTitle className="text-base">Agent Triggers</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm space-y-2">
+                <li><strong>Entity Events:</strong> Triggered on create, update, or delete of specific entities</li>
+                <li><strong>Scheduled:</strong> Time-based execution (hourly, daily, weekly, monthly)</li>
+                <li><strong>Manual:</strong> User-initiated execution</li>
+                <li><strong>Conditional:</strong> With status and field-based conditions</li>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-blue-500">
+              <CardHeader>
+                <CardTitle className="text-base">Agent Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm space-y-2">
+                <li><strong>AI Analysis:</strong> Use o1, GPT-4o, Claude 4.5, or GPT-5 for reasoning</li>
+                <li><strong>Entity Operations:</strong> Create, update, query, or delete records</li>
+                <li><strong>Email Sending:</strong> Send templated or dynamic emails</li>
+                <li><strong>Task Creation:</strong> Auto-generate follow-up tasks</li>
+                <li><strong>Multi-step Workflows:</strong> Chain multiple actions together</li>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="bg-blue-50 border-blue-200">
+            <CardHeader>
+              <CardTitle className="text-base text-blue-900">Example: Job Matcher Agent</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-blue-800 space-y-2">
+              <p><strong>Trigger:</strong> When Job entity is created with status="open"</p>
+              <p><strong>Actions:</strong></p>
+              <ol className="list-decimal list-inside space-y-1 ml-4">
+                <li>Fetch all active candidates from database</li>
+                <li>Use AI (o1 reasoning model) to score each candidate against job requirements</li>
+                <li>Store match results in job metadata for instant access</li>
+                <li>Auto-create application records for top 10 matches (score ≥ 80)</li>
+              </ol>
+              <p><strong>Execution:</strong> Runs asynchronously in background with 5-minute timeout</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-green-50 border-green-200">
+            <CardHeader>
+              <CardTitle className="text-base text-green-900">Agent Configuration</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-green-800">
+              <p className="mb-2">Agents are configured via JSON files in the <code className="bg-white px-2 py-1 rounded">agents/</code> directory with:</p>
+              <ul className="space-y-1 ml-4">
+                <li>• Name, description, and instructions</li>
+                <li>• Trigger configuration (type, entity, conditions)</li>
+                <li>• Tool configurations (entity access permissions)</li>
+                <li>• Workflow steps with AI prompts and actions</li>
+                <li>• Execution settings (async, timeout, enabled state)</li>
+              </ul>
+            </CardContent>
+          </Card>
+        </div>
+      )
+    },
+    {
+      icon: MailPlus,
+      title: "Email Blast System",
+      description: "Mass communication and campaign management",
+      content: (
+        <div className="space-y-4">
+          <p className="text-slate-700 leading-relaxed">
+            The Email Blast system enables recruiters and admins to create targeted email campaigns
+            for all company contacts with AI-generated content and flexible export options.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="border-l-4 border-l-cyan-500">
+              <CardHeader>
+                <CardTitle className="text-base">Contact Collection</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm space-y-2">
+                <li>Aggregates all contacts from Company entities</li>
+                <li>Deduplicates email addresses</li>
+                <li>Displays statistics (total companies, contacts, unique emails)</li>
+                <li>Allows selective company inclusion/exclusion</li>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-purple-500">
+              <CardHeader>
+                <CardTitle className="text-base">AI Content Generation</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm space-y-2">
+                <li>Generates professional email content from subject line</li>
+                <li>Includes company introduction and value propositions</li>
+                <li>Adds call-to-action and service highlights</li>
+                <li>Professional signature template</li>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-orange-500">
+              <CardHeader>
+                <CardTitle className="text-base">Export Options</CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm space-y-2">
+                <li>Copy comma-separated list to clipboard</li>
+                <li>Export to CSV file</li>
+                <li>Open in email client with pre-filled content</li>
+                <li>BCC-ready for privacy compliance</li>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="bg-amber-50 border-amber-200">
+            <CardHeader>
+              <CardTitle className="text-base text-amber-900">Usage Workflow</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-amber-800">
+              <ol className="list-decimal list-inside space-y-2 ml-2">
+                <li>Navigate to <strong>Admin Controls → Email Blast</strong></li>
+                <li>Review statistics and select target companies</li>
+                <li>Enter email subject line</li>
+                <li>Either write message manually or use <strong>AI Generate</strong> button</li>
+                <li>Review and customize AI-generated content</li>
+                <li>Copy email list (or export to CSV)</li>
+                <li>Use <strong>Open in Email Client</strong> or paste into Gmail/Outlook BCC field</li>
+                <li>Send campaign</li>
+              </ol>
             </CardContent>
           </Card>
         </div>
