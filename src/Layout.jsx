@@ -116,6 +116,11 @@ const navigationItems = [
     icon: CheckSquare,
   },
   {
+    title: "Goals",
+    url: createPageUrl("Goals"),
+    icon: CheckCircle,
+  },
+  {
     title: "Duplicate Manager",
     url: createPageUrl("DuplicateManager"),
     icon: AlertTriangle,

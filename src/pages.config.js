@@ -1,87 +1,91 @@
-import Dashboard from './pages/Dashboard';
+import AIAgents from './pages/AIAgents';
+import AccessControl from './pages/AccessControl';
+import Approvals from './pages/Approvals';
+import AutomationRules from './pages/AutomationRules';
+import BRD from './pages/BRD';
+import Blog from './pages/Blog';
+import CandidateDetails from './pages/CandidateDetails';
 import Candidates from './pages/Candidates';
-import Consultants from './pages/Consultants';
-import Submissions from './pages/Submissions';
-import Tasks from './pages/Tasks';
-import Playbooks from './pages/Playbooks';
+import Careers from './pages/Careers';
 import Companies from './pages/Companies';
-import Jobs from './pages/Jobs';
+import CompanyDetails from './pages/CompanyDetails';
+import Consultants from './pages/Consultants';
+import Contact from './pages/Contact';
+import Dashboard from './pages/Dashboard';
+import DuplicateManager from './pages/DuplicateManager';
+import EmailBlast from './pages/EmailBlast';
+import EmailInbox from './pages/EmailInbox';
+import EmailSettings from './pages/EmailSettings';
+import EmailTemplateBuilder from './pages/EmailTemplateBuilder';
+import Expenses from './pages/Expenses';
+import Home from './pages/Home';
+import Invoices from './pages/Invoices';
 import JobDetails from './pages/JobDetails';
+import JobStack from './pages/JobStack';
+import Jobs from './pages/Jobs';
+import Landing from './pages/Landing';
+import Mobile from './pages/Mobile';
+import MyWork from './pages/MyWork';
+import PipelineAnalytics from './pages/PipelineAnalytics';
+import PlaybookDetails from './pages/PlaybookDetails';
+import Playbooks from './pages/Playbooks';
+import Products from './pages/Products';
+import Recruiters from './pages/Recruiters';
 import ResumeAnalysis from './pages/ResumeAnalysis';
 import ResumeBuilder from './pages/ResumeBuilder';
 import ResumeStudio from './pages/ResumeStudio';
-import AccessControl from './pages/AccessControl';
-import BRD from './pages/BRD';
-import Recruiters from './pages/Recruiters';
-import EmailSettings from './pages/EmailSettings';
-import CandidateDetails from './pages/CandidateDetails';
-import CompanyDetails from './pages/CompanyDetails';
-import TaskDetails from './pages/TaskDetails';
-import PlaybookDetails from './pages/PlaybookDetails';
-import MyWork from './pages/MyWork';
-import Approvals from './pages/Approvals';
-import Invoices from './pages/Invoices';
-import Expenses from './pages/Expenses';
-import Mobile from './pages/Mobile';
-import Products from './pages/Products';
 import Services from './pages/Services';
-import Contact from './pages/Contact';
-import Careers from './pages/Careers';
-import Blog from './pages/Blog';
-import EmailTemplateBuilder from './pages/EmailTemplateBuilder';
-import JobStack from './pages/JobStack';
-import EmailInbox from './pages/EmailInbox';
-import PipelineAnalytics from './pages/PipelineAnalytics';
-import AutomationRules from './pages/AutomationRules';
 import SkillMatrix from './pages/SkillMatrix';
-import DuplicateManager from './pages/DuplicateManager';
-import Landing from './pages/Landing';
-import EmailBlast from './pages/EmailBlast';
-import AIAgents from './pages/AIAgents';
+import Submissions from './pages/Submissions';
+import TaskDetails from './pages/TaskDetails';
+import Tasks from './pages/Tasks';
+import Goals from './pages/Goals';
 import __Layout from './Layout.jsx';
 
 
 export const PAGES = {
-    "Dashboard": Dashboard,
+    "AIAgents": AIAgents,
+    "AccessControl": AccessControl,
+    "Approvals": Approvals,
+    "AutomationRules": AutomationRules,
+    "BRD": BRD,
+    "Blog": Blog,
+    "CandidateDetails": CandidateDetails,
     "Candidates": Candidates,
-    "Consultants": Consultants,
-    "Submissions": Submissions,
-    "Tasks": Tasks,
-    "Playbooks": Playbooks,
+    "Careers": Careers,
     "Companies": Companies,
-    "Jobs": Jobs,
+    "CompanyDetails": CompanyDetails,
+    "Consultants": Consultants,
+    "Contact": Contact,
+    "Dashboard": Dashboard,
+    "DuplicateManager": DuplicateManager,
+    "EmailBlast": EmailBlast,
+    "EmailInbox": EmailInbox,
+    "EmailSettings": EmailSettings,
+    "EmailTemplateBuilder": EmailTemplateBuilder,
+    "Expenses": Expenses,
+    "Home": Home,
+    "Invoices": Invoices,
     "JobDetails": JobDetails,
+    "JobStack": JobStack,
+    "Jobs": Jobs,
+    "Landing": Landing,
+    "Mobile": Mobile,
+    "MyWork": MyWork,
+    "PipelineAnalytics": PipelineAnalytics,
+    "PlaybookDetails": PlaybookDetails,
+    "Playbooks": Playbooks,
+    "Products": Products,
+    "Recruiters": Recruiters,
     "ResumeAnalysis": ResumeAnalysis,
     "ResumeBuilder": ResumeBuilder,
     "ResumeStudio": ResumeStudio,
-    "AccessControl": AccessControl,
-    "BRD": BRD,
-    "Recruiters": Recruiters,
-    "EmailSettings": EmailSettings,
-    "CandidateDetails": CandidateDetails,
-    "CompanyDetails": CompanyDetails,
-    "TaskDetails": TaskDetails,
-    "PlaybookDetails": PlaybookDetails,
-    "MyWork": MyWork,
-    "Approvals": Approvals,
-    "Invoices": Invoices,
-    "Expenses": Expenses,
-    "Mobile": Mobile,
-    "Products": Products,
     "Services": Services,
-    "Contact": Contact,
-    "Careers": Careers,
-    "Blog": Blog,
-    "EmailTemplateBuilder": EmailTemplateBuilder,
-    "JobStack": JobStack,
-    "EmailInbox": EmailInbox,
-    "PipelineAnalytics": PipelineAnalytics,
-    "AutomationRules": AutomationRules,
     "SkillMatrix": SkillMatrix,
-    "DuplicateManager": DuplicateManager,
-    "Landing": Landing,
-    "EmailBlast": EmailBlast,
-    "AIAgents": AIAgents,
+    "Submissions": Submissions,
+    "TaskDetails": TaskDetails,
+    "Tasks": Tasks,
+    "Goals": Goals,
 }
 
 export const pagesConfig = {
