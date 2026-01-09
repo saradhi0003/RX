@@ -113,6 +113,7 @@ export default function SubmissionForm({ submission, candidates, jobs, onSuccess
   const [__externalReload, setExternalReload] = React.useState(0);
   const [candidateOptions, setCandidateOptions] = React.useState(candidates || []);
   const [jobOptions, setJobOptions] = React.useState(jobs || []);
+  const [userOptions, setUserOptions] = React.useState([]);
 
   useEffect(() => {
     setCandidateOptions(candidates || []);
@@ -136,6 +137,26 @@ export default function SubmissionForm({ submission, candidates, jobs, onSuccess
 
   useEffect(() => {
     base44.auth.me().then(setMe).catch(() => setMe(null));
+  }, []);
+
+  // Load users with Recruiter, Admin, or Accounts roles
+  useEffect(() => {
+    (async () => {
+      try {
+        const allUsers = await base44.entities.User.list();
+        const filteredUsers = (allUsers || []).filter(user => {
+          const role = (user.role || "").toLowerCase();
+          const roleName = (user.role_name || "").toLowerCase();
+          return role === "admin" || 
+                 role === "recruiter" || 
+                 roleName.includes("recruiter") || 
+                 roleName.includes("accounts");
+        });
+        setUserOptions(filteredUsers);
+      } catch (error) {
+        console.error("Error loading users:", error);
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -186,7 +207,7 @@ export default function SubmissionForm({ submission, candidates, jobs, onSuccess
         status: formData.status || "submitted",
         follow_up_date: followDate,
         notes: formData.notes || "",
-        recruiter_id: me?.id
+        recruiter_id: formData.recruiter_id || me?.id
       };
 
       if (submission?.id) {
@@ -204,7 +225,7 @@ export default function SubmissionForm({ submission, candidates, jobs, onSuccess
     setIsSubmitting(false);
   };
 
-  const canSave = formData.candidate_id && formData.job_id && me?.id;
+  const canSave = formData.candidate_id && formData.job_id && formData.recruiter_id;
 
   return (
     <div className="space-y-6">
@@ -251,12 +272,24 @@ export default function SubmissionForm({ submission, candidates, jobs, onSuccess
           />
         </div>
 
-        {/* Recruiter selection removed; auto-assigned to current user */}
         <div>
-          <Label>Assigned Recruiter</Label>
-          <div className="text-sm text-slate-600 p-2 border rounded bg-slate-50">
-            {me?.full_name || "Your account"} ({me?.email || "signed-in user"})
-          </div>
+          <Label htmlFor="recruiter_id">Assigned Recruiter *</Label>
+          <SearchableLookup
+            options={userOptions}
+            value={formData.recruiter_id}
+            onChange={(value) => setFormData({...formData, recruiter_id: value})}
+            placeholder="Select recruiter..."
+            searchFields={["full_name", "email", "role_name"]}
+            renderOption={(user) => (
+              <div>
+                <div className="font-medium">{user.full_name}</div>
+                <div className="text-sm text-slate-500">
+                  {user.email} • {user.role_name || user.role}
+                </div>
+              </div>
+            )}
+            emptyText="No recruiters found"
+          />
         </div>
 
         <div>
