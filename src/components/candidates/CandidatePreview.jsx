@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,9 +29,11 @@ const getStatusBadge = (s) => {
 
 export default function CandidatePreview({ candidate, onEdit, onUpdated }) {
   const [updating, setUpdating] = React.useState(false);
-  const [status, setStatus] = React.useState(candidate.status);
+  const [status, setStatus] = React.useState(candidate?.status);
 
-  React.useEffect(() => setStatus(candidate.status), [candidate.status]);
+  React.useEffect(() => {
+    if (candidate?.status) setStatus(candidate.status);
+  }, [candidate?.status]);
 
   const updateStatus = async (val) => {
     if (!val || val === status) return;
@@ -42,6 +43,10 @@ export default function CandidatePreview({ candidate, onEdit, onUpdated }) {
     setStatus(val);
     onUpdated?.();
   };
+
+  if (!candidate) {
+    return <div className="text-center py-8 text-slate-500">Loading candidate...</div>;
+  }
 
   const initials = `${(candidate.first_name || "?").charAt(0)}${(candidate.last_name || "").charAt(0)}`.toUpperCase();
 

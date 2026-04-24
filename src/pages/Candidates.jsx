@@ -60,7 +60,7 @@ import CandidatesBulkUpdateModal from "@/components/candidates/CandidatesBulkUpd
 import { usePermissions } from "@/components/common/PermissionsContext";
 import ListViewSettingsModal from "@/components/common/ListViewSettingsModal";
 import RightPreviewPanel from "@/components/common/RightPreviewPanel";
-import CandidatePreview from "@/components/candidates/CandidatePreview";
+import CandidatePreviewWithLoader from "@/components/candidates/CandidatePreviewWithLoader";
 import BulkBenchScorer from "@/components/ai/BulkBenchScorer";
 import { emitEntityChanged, useEntityAutoRefresh } from "@/components/common/refreshBus";
 import { addNotification } from "@/components/notifications/NotificationToast";
@@ -715,7 +715,7 @@ export default function Candidates() {
       {/* ── Right Preview Panel ── */}
       <RightPreviewPanel open={!!selectedCandidate && !showForm} title="Candidate Details" onClose={() => setSelectedCandidate(null)}>
          {selectedCandidate && (
-           <CandidatePreview id={selectedCandidate.id} />
+           <CandidatePreviewWithLoader id={selectedCandidate.id} onEdit={handleEdit} onUpdated={() => { loadCandidates(true); }} />
          )}
        </RightPreviewPanel>
 
