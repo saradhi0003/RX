@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -538,559 +537,202 @@ export default function Tasks() {
     { key: "related_entity", label: "Related" },
   ];
 
+  // ── Derived metrics ──
+  const overdueCount = tasksByStatus.overdue.length;
+  const completedThisWeek = (() => {
+    const cutoff = new Date(Date.now() - 7 * 86400000);
+    return tasks.filter(t => t.status === "completed" && new Date(t.updated_date || t.created_date) >= cutoff).length;
+  })();
+
   return (
-    <div className="p-6 lg:p-8 space-y-6">
-      <PageHeader
-        title="Tasks"
-        subtitle="Assign and track team tasks"
-        right={
+    <div style={{ fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background: "#F5F5F7", minHeight: "100vh" }}>
+
+      {/* ── Metrics bar ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", background: "#fff", borderBottom: "1px solid #E5E5EA" }}>
+        {[
+          { label: "Pending",          value: loading ? "—" : tasksByStatus.pending.length,    sub: "to do",            valColor: "#1D1D1F" },
+          { label: "In Progress",      value: loading ? "—" : tasksByStatus.in_progress.length, sub: "active now",      valColor: "#0071E3" },
+          { label: "Completed (7d)",   value: loading ? "—" : completedThisWeek,               sub: "this week",        valColor: "#30A14E", subColor: "#30A14E" },
+          { label: "Overdue",          value: loading ? "—" : overdueCount,                    sub: "need attention",   valColor: overdueCount > 0 ? "#EF4444" : "#1D1D1F" },
+        ].map((m, i) => (
+          <div key={i} style={{ padding: "22px 28px", borderRight: i < 3 ? "1px solid #E5E5EA" : "none" }}>
+            <div style={{ fontSize: 11.5, fontWeight: 500, color: "#86868B", marginBottom: 5 }}>{m.label}</div>
+            <div style={{ fontSize: 42, fontWeight: 700, letterSpacing: "-.04em", lineHeight: 1, color: m.valColor || "#1D1D1F" }}>{m.value}</div>
+            <div style={{ fontSize: 11.5, color: m.subColor || "#86868B", marginTop: 6 }}>{m.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Toolbar ── */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 24px", background: "#fff", borderBottom: "1px solid #E5E5EA", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#86868B", marginRight: 2 }}>View</span>
+        {[["board","Board"],["list","List"]].map(([v, l]) => (
+          <button key={v} onClick={() => setMode(v)}
+            style={{ padding: "5px 14px", borderRadius: 20, fontSize: 13, fontWeight: mode === v ? 600 : 500, border: "none", cursor: "pointer", background: mode === v ? "#1D1D1F" : "#fff", color: mode === v ? "#fff" : "#6E6E73", boxShadow: mode === v ? "none" : "0 1px 4px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)" }}>
+            {l}
+          </button>
+        ))}
+
+        <div style={{ width: 1, height: 20, background: "#E5E5EA", margin: "0 4px" }} />
+
+        {/* Search */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,.06)", borderRadius: 10, padding: "5px 10px" }}>
+          <Search style={{ width: 13, height: 13, color: "#86868B" }} />
+          <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search tasks…"
+            style={{ border: "none", background: "transparent", outline: "none", fontSize: 13, color: "#1D1D1F", width: 180 }} />
+        </div>
+
+        {/* View selector */}
+        <select value={selectedViewId || ""} onChange={e => { const nv = e.target.value || null; setSelectedViewId(nv); const v = views.find(vw => vw.id === nv); setMode(v ? (v.view_type || "board") : "board"); }}
+          style={{ fontSize: 12, border: "1px solid #E5E5EA", borderRadius: 8, padding: "5px 10px", background: "#fff", color: "#1D1D1F", cursor: "pointer" }}>
+          <option value="">Default View</option>
+          {views.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+        </select>
+
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <button onClick={() => loadTasks(true)} style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 500, border: "1px solid #E5E5EA", background: "#fff", color: "#6E6E73", cursor: "pointer" }}>Refresh</button>
+          <button onClick={() => { setSelectedViewId(null); setShowViewSettings(true); }} style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 500, border: "1px solid #E5E5EA", background: "#fff", color: "#6E6E73", cursor: "pointer" }}>+ View</button>
           <PermissionGate entity="Task" action="create">
-            <div className="flex gap-2">
-              <Button variant="outline" className="gap-2 bg-white text-blue-700 hover:bg-slate-50" onClick={() => loadTasks(true)}>
-                <RefreshCcw className="w-4 h-4" />
-                Refresh
-              </Button>
-              <Button onClick={() => { setShowForm(true); setFormTask(null); setSelectedTask(null); setHighlightedTask(null); }} className="gap-2 bg-white text-blue-700 hover:bg-slate-50">
-                <Plus className="w-4 h-4" />
-                New Task
-              </Button>
-            </div>
+            <button onClick={() => { setShowForm(true); setFormTask(null); setSelectedTask(null); setHighlightedTask(null); }}
+              style={{ padding: "7px 18px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "none", background: "#0071E3", color: "#fff", cursor: "pointer", boxShadow: "0 2px 8px rgba(0,113,227,.3)" }}>
+              + New Task
+            </button>
           </PermissionGate>
-        }
-      />
+        </div>
+      </div>
 
+      {/* ── Floating quick-edit bar ── */}
       {highlightedTask && (
-        <Card className="border-2 border-blue-500 shadow-lg">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-white flex items-center justify-center text-lg font-semibold">
-                  <CheckSquare className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900">
-                    {highlightedTask.title}
-                  </h3>
-                  <div className="flex items-center gap-3 text-sm text-slate-600">
-                    {highlightedTask.assigned_to && (
-                      <div className="flex items-center gap-1">
-                        <User className="w-4 h-4" />
-                        {highlightedTask.assigned_to}
-                      </div>
-                    )}
-                    {highlightedTask.due_date && (
-                      <>
-                        <span>•</span>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
-                          {new Date(highlightedTask.due_date).toLocaleDateString()}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={closeHighlightPanel}
-              >
-                <X className="w-5 h-5" />
-              </Button>
-            </div>
-
-            <div className="mb-4">
-              <label className="text-sm font-medium text-slate-700 mb-2 block">
-                Quick Status Update
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {statusOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => updateHighlightedField("status", option.value)}
-                    className={`px-4 py-2 rounded-lg border-2 transition-all font-medium text-sm ${
-                      currentStatus === option.value
-                        ? option.color + " shadow-sm"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <label className="text-sm font-medium text-slate-700 mb-2 block">
-                Quick Priority Update
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {priorityOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => updateHighlightedField("priority", option.value)}
-                    className={`px-4 py-2 rounded-lg border-2 transition-all font-medium text-sm ${
-                      currentPriority === option.value
-                        ? option.color + " shadow-sm"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 pt-4 border-t">
-              <Button
-                onClick={saveHighlightedChanges}
-                disabled={savingHighlighted || Object.keys(highlightedChanges).length === 0}
-                className="gap-2"
-              >
-                {savingHighlighted ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                Save Changes
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowForm(true);
-                  setFormTask(highlightedTask);
-                  closeHighlightPanel();
-                }}
-                className="gap-2"
-              >
-                <Edit className="w-4 h-4" />
-                Edit Full Task
-              </Button>
-              {Object.keys(highlightedChanges).length > 0 && (
-                <Badge className="ml-auto bg-orange-100 text-orange-800">
-                  {Object.keys(highlightedChanges).length} unsaved change{Object.keys(highlightedChanges).length > 1 ? 's' : ''}
-                </Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Clock className="w-8 h-8 text-gray-600" />
-              <div>
-                <p className="text-2xl font-bold">{tasksByStatus.pending.length}</p>
-                <p className="text-sm text-slate-600">Pending</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Users className="w-8 h-8 text-blue-600" />
-              <div>
-                <p className="text-2xl font-bold">{tasksByStatus.in_progress.length}</p>
-                <p className="text-sm text-slate-600">In Progress</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-              <div>
-                <p className="text-2xl font-bold">{tasksByStatus.completed.length}</p>
-                <p className="text-sm text-slate-600">Completed</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="w-8 h-8 text-red-600" />
-              <div>
-                <p className="text-2xl font-bold">{tasksByStatus.overdue.length}</p>
-                <p className="text-sm text-slate-600">Overdue</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button
-            className={`px-3 py-1 rounded-md text-sm border ${mode === "board" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-700"}`}
-            onClick={() => setMode("board")}
-            title="Board view"
-          >
-            <span className="inline-flex items-center gap-1"><LayoutGrid className="w-4 h-4" /> Board</span>
-          </button>
-          <button
-            className={`px-3 py-1 rounded-md text-sm border ${mode === "list" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-700"}`}
-            onClick={() => setMode("list")}
-            title="List view"
-          >
-            <span className="inline-flex items-center gap-1"><ListIcon className="w-4 h-4" /> List</span>
-          </button>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            className="border rounded px-3 py-2 text-sm bg-white text-slate-700"
-            value={selectedViewId || ""}
-            onChange={(e) => {
-              const newViewId = e.target.value || null;
-              setSelectedViewId(newViewId);
-              const v = views.find(vw => vw.id === newViewId);
-              setMode(v ? (v.view_type || "board") : "board");
-            }}
-          >
-            <option value="">Default View</option>
-            {views.map(v => (
-              <option key={v.id} value={v.id}>{v.name} • {v.view_type === 'board' ? 'Board' : 'List'}</option>
-            ))}
-          </select>
-          <Button variant="outline" className="gap-2 text-slate-700" onClick={() => setShowViewSettings(true)} disabled={!currentView}>
-            <Settings2 className="w-4 h-4" /> Edit View
-          </Button>
-          <Button className="gap-2 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => { setSelectedViewId(null); setShowViewSettings(true); }}>
-            <Plus className="w-4 h-4" /> New View
-          </Button>
-        </div>
-      </div>
-
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <Input
-              placeholder="Search tasks by title, assignee, or status..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {mode === "list" && (
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-slate-600">
-            Showing {paginatedTasks.length === 0 ? 0 : startIndex + 1}-{startIndex + paginatedTasks.length} of {filteredAndSorted.length} tasks
-          </p>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-600">Rows per page:</span>
-            <select
-              value={rowsPerPage}
-              onChange={(e) => handleRowsPerPageChange(e.target.value)}
-              className="border border-slate-200 rounded px-3 py-1.5 text-sm bg-white hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="10">10</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-              <option value="500">500</option>
-            </select>
-          </div>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(6)].map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="space-y-3">
-                  <div className="h-4 bg-slate-200 rounded w-3/4"></div>
-                  <div className="h-3 bg-slate-200 rounded w-1/2"></div>
-                  <div className="h-3 bg-slate-200 rounded w-2/3"></div>
-                </div>
-              </CardContent>
-            </Card>
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1D1D1F", borderRadius: 16, padding: "14px 20px", boxShadow: "0 8px 32px rgba(0,0,0,.28)", display: "flex", alignItems: "center", gap: 10, zIndex: 50, flexWrap: "wrap" }}>
+          <div style={{ color: "#fff", fontSize: 13, fontWeight: 600, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{highlightedTask.title}</div>
+          <div style={{ width: 1, height: 18, background: "rgba(255,255,255,.15)" }} />
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,.4)" }}>Status</span>
+          {statusOptions.map(o => (
+            <button key={o.value} onClick={() => updateHighlightedField("status", o.value)}
+              style={{ padding: "4px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: currentStatus === o.value ? "#0071E3" : "rgba(255,255,255,.12)", color: "#fff" }}>
+              {o.label}
+            </button>
           ))}
+          <div style={{ width: 1, height: 18, background: "rgba(255,255,255,.15)" }} />
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,.4)" }}>Priority</span>
+          {priorityOptions.map(o => (
+            <button key={o.value} onClick={() => updateHighlightedField("priority", o.value)}
+              style={{ padding: "4px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: currentPriority === o.value ? "#F59E0B" : "rgba(255,255,255,.12)", color: "#fff" }}>
+              {o.label}
+            </button>
+          ))}
+          <div style={{ width: 1, height: 18, background: "rgba(255,255,255,.15)" }} />
+          <button onClick={saveHighlightedChanges} disabled={savingHighlighted || Object.keys(highlightedChanges).length === 0}
+            style={{ padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: "#30A14E", color: "#fff", opacity: Object.keys(highlightedChanges).length === 0 ? .5 : 1 }}>
+            {savingHighlighted ? "Saving…" : "Save"}
+          </button>
+          <button onClick={closeHighlightPanel} style={{ background: "none", border: "none", color: "rgba(255,255,255,.5)", cursor: "pointer", fontSize: 16 }}>✕</button>
         </div>
-      ) : mode === "board" ? (
-        <KanbanBoard
-          columns={boardColumns}
-          tasks={filteredTasks}
-          onDragEnd={onDragEnd}
-          onCardClick={(task) => { window.location.href = createPageUrl(`TaskDetails?id=${task.id}`); }}
-        />
-      ) : mode === "list" && loading ? ( // This specific loading state should be redundant with the main 'loading' check
-        <SkeletonTable rows={10} cols={7} />
-      ) : mode === "list" && paginatedTasks.length > 0 ? (
-        <>
-          <Card>
-            <CardContent className="p-0">
-              <div className="flex items-center justify-between px-4 py-3 border-b bg-slate-50">
-                <div className="text-sm text-slate-700">
-                  {selectedIds.size > 0 ? `${selectedIds.size} selected` : "Select rows to bulk delete"}
-                </div>
-                <PermissionGate entity="Task" action="delete">
-                  <Button
-                    variant="destructive"
-                    className="gap-2"
-                    disabled={selectedIds.size === 0}
-                    onClick={() => setShowBulkDelete(true)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete Selected
-                  </Button>
-                </PermissionGate>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-50 border-b">
-                    <tr>
-                      <th className="px-4 py-3 text-left">
-                        <Checkbox
-                          checked={allVisibleSelected}
-                          className={someVisibleSelected ? "data-[state=checked]:bg-primary" : ""}
-                          onCheckedChange={(checked) => toggleSelectAllVisible(!!checked)}
-                        />
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider whitespace-nowrap">
-                        Quick Edit
-                      </th>
-                      {visibleColumns.map(col => (
-                        <th
-                          key={col.key}
-                          className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100"
-                          onClick={() => handleSort(col.key)}
-                        >
-                          <div className="flex items-center gap-1">
-                            {col.label}
-                            {sortBy === col.key && (
-                              sortOrder === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                            )}
-                          </div>
-                        </th>
-                      ))}
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider whitespace-nowrap">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {paginatedTasks.map(t => (
-                      <tr
-                        key={t.id}
-                        className={`hover:bg-slate-50 transition-colors cursor-pointer ${
-                          highlightedTask?.id === t.id ? "bg-blue-50" : ""
-                        }`}
-                        onClick={() => setSelectedTask(t)}
-                      >
-                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={selectedIds.has(t.id)}
-                            onCheckedChange={() => toggleSelect(t.id)}
-                          />
-                        </td>
-                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleHighlightTask(t)}
-                            className="h-8 text-xs"
-                          >
-                            <Zap className="w-3 h-3 mr-1" />
-                            Quick Edit
-                          </Button>
-                        </td>
-                        <td className="px-4 py-3">
-                          <Link className="text-blue-600 hover:underline" to={createPageUrl(`TaskDetails?id=${t.id}`)} title="Open task">
-                            {t.title}
-                          </Link>
-                        </td>
-                        <td className="px-4 py-3">{t.assigned_to || "—"}</td>
-                        <td className="px-4 py-3 capitalize">{t.priority}</td>
-                        <td className="px-4 py-3 capitalize">{t.status?.replace("_"," ")}</td>
-                        <td className="px-4 py-3">{t.due_date ? new Date(t.due_date).toLocaleDateString() : "—"}</td>
-                        <td className="px-4 py-3">{t.related_entity || "—"}</td>
-                        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link to={createPageUrl(`TaskDetails?id=${t.id}`)}>
-                                  <Eye className="w-4 h-4 mr-2" />
-                                  View
-                                </Link>
-                              </DropdownMenuItem>
-                              <PermissionGate entity="Task" action="delete">
-                                <DropdownMenuItem
-                                  className="text-red-600"
-                                  onClick={() => { setTaskToDelete(t); setShowDelete(true); }}
-                                >
-                                  <Trash2 className="w-4 h-4 mr-2" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </PermissionGate>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-600">
-                Page {currentPage} of {totalPages}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => goToPage(1)}
-                  disabled={currentPage === 1}
-                  className="gap-1"
-                >
-                  <ChevronsLeft className="w-4 h-4" />
-                  First
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => goToPage(currentPage - 1)}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Previous
-                </Button>
-                
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    
-                    return (
-                      <Button
-                        key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => goToPage(pageNum)}
-                        className="w-8 h-8 p-0"
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
-                </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => goToPage(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => goToPage(totalPages)}
-                  disabled={currentPage === totalPages}
-                  className="gap-1"
-                >
-                  Last
-                  <ChevronsRight className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          )}
-        </>
-      ) : (
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 border-b">
-                  <tr>
-                    <th className="px-4 py-3 text-left">
-                      <Checkbox
-                        checked={allVisibleSelected}
-                        className={someVisibleSelected ? "data-[state=checked]:bg-primary" : ""}
-                        onCheckedChange={(checked) => toggleSelectAllVisible(!!checked)}
-                      />
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider whitespace-nowrap">
-                      Quick Edit
-                    </th>
-                    {visibleColumns.map(col => (
-                      <th
-                        key={col.key}
-                        className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100"
-                        onClick={() => handleSort(col.key)}
-                      >
-                        <div className="flex items-center gap-1">
-                          {col.label}
-                          {sortBy === col.key && (
-                            sortOrder === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                          )}
-                        </div>
-                      </th>
-                    ))}
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider whitespace-nowrap">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td className="px-4 py-6 text-center text-slate-500" colSpan={visibleColumns.length + 3}>
-                      {searchTerm ? (
-                        <div className="p-12 text-center">
-                          <Search className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                          <h3 className="font-semibold text-slate-900 mb-2">No results found</h3>
-                          <p className="text-slate-600 mb-4">Try adjusting your search criteria or view filters.</p>
-                        </div>
-                      ) : (
-                        <div className="p-12 text-center">
-                          <CheckSquare className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-                          <h3 className="font-semibold text-slate-900 mb-2">No tasks found</h3>
-                          <p className="text-slate-600 mb-4">Get started by creating your first task.</p>
-                          <PermissionGate entity="Task" action="create">
-                            <Button onClick={() => { setShowForm(true); setFormTask(null); }} className="gap-2">
-                              <Plus className="w-4 h-4" />
-                              Create First Task
-                            </Button>
-                          </PermissionGate>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
       )}
+
+      {/* ── Content area ── */}
+      <div style={{ padding: "20px 24px 60px" }}>
+        {loading ? (
+          <div style={{ padding: 48, textAlign: "center", color: "#86868B" }}>
+            <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color: "#0071E3" }} />
+            <div style={{ fontSize: 13 }}>Loading tasks…</div>
+          </div>
+        ) : mode === "board" ? (
+          <KanbanBoard
+            columns={boardColumns}
+            tasks={filteredTasks}
+            onDragEnd={onDragEnd}
+            onCardClick={(task) => { window.location.href = createPageUrl(`TaskDetails?id=${task.id}`); }}
+          />
+        ) : paginatedTasks.length > 0 ? (
+          <>
+            <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,.07),0 0 0 .5px rgba(0,0,0,.05)", overflow: "hidden" }}>
+              {selectedIds.size > 0 && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 20px", borderBottom: "1px solid #E5E5EA", background: "rgba(0,113,227,.04)" }}>
+                  <span style={{ fontSize: 13, color: "#0071E3", fontWeight: 600 }}>{selectedIds.size} selected</span>
+                  <PermissionGate entity="Task" action="delete">
+                    <button onClick={() => setShowBulkDelete(true)} style={{ padding: "5px 14px", borderRadius: 20, fontSize: 12, fontWeight: 600, border: "none", background: "#EF4444", color: "#fff", cursor: "pointer" }}>
+                      Delete Selected
+                    </button>
+                  </PermissionGate>
+                </div>
+              )}
+              {/* Header */}
+              <div style={{ display: "grid", gridTemplateColumns: "40px 1.6fr 1fr 90px 90px 100px 80px 36px", padding: "9px 20px", borderBottom: "1px solid #E5E5EA", background: "#FAFAFA" }}>
+                {["", "TITLE", "ASSIGNEE", "PRIORITY", "STATUS", "DUE DATE", "RELATED", ""].map((h, i) => (
+                  <div key={i} style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".04em", color: "#86868B" }}>
+                    {i === 0 ? <Checkbox checked={allVisibleSelected} onCheckedChange={c => toggleSelectAllVisible(!!c)} /> : h}
+                  </div>
+                ))}
+              </div>
+
+              {paginatedTasks.map((t, idx) => {
+                const isOverdue = t.due_date && new Date(t.due_date) < new Date() && t.status !== "completed";
+                const priBadge = { low:{bg:"rgba(107,114,128,.10)",c:"#6B7280"}, medium:{bg:"rgba(245,158,11,.10)",c:"#D97706"}, high:{bg:"rgba(249,115,22,.10)",c:"#EA580C"}, urgent:{bg:"rgba(239,68,68,.12)",c:"#DC2626"} }[t.priority] || {bg:"rgba(0,0,0,.06)",c:"#86868B"};
+                const staBadge = { pending:{bg:"rgba(107,114,128,.10)",c:"#6B7280"}, in_progress:{bg:"rgba(59,130,246,.10)",c:"#2563EB"}, completed:{bg:"rgba(48,161,78,.10)",c:"#16A34A"}, cancelled:{bg:"rgba(239,68,68,.10)",c:"#DC2626"} }[t.status] || {bg:"rgba(0,0,0,.06)",c:"#86868B"};
+                const ini = (t.assigned_to || "?").slice(0,1).toUpperCase();
+
+                return (
+                  <div key={t.id} onClick={() => setSelectedTask(t)}
+                    style={{ display: "grid", gridTemplateColumns: "40px 1.6fr 1fr 90px 90px 100px 80px 36px", padding: "10px 20px", borderBottom: idx < paginatedTasks.length - 1 ? "1px solid #F2F2F7" : "none", alignItems: "center", cursor: "pointer", background: highlightedTask?.id === t.id ? "rgba(0,113,227,.04)" : "transparent", transition: "background 100ms" }}
+                    onMouseEnter={e => { if (highlightedTask?.id !== t.id) e.currentTarget.style.background = "#F9F9FB"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = highlightedTask?.id === t.id ? "rgba(0,113,227,.04)" : "transparent"; }}>
+                    <div onClick={e => e.stopPropagation()}><Checkbox checked={selectedIds.has(t.id)} onCheckedChange={() => toggleSelect(t.id)} /></div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1D1D1F", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
+                      {t.description && <div style={{ fontSize: 11.5, color: "#86868B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.description.slice(0, 60)}</div>}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: "linear-gradient(135deg,#0071E3,#6366F1)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{ini}</div>
+                      <span style={{ fontSize: 12, color: "#1D1D1F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.assigned_to?.split("@")[0] || "—"}</span>
+                    </div>
+                    <div><span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: priBadge.bg, color: priBadge.c }}>{t.priority}</span></div>
+                    <div><span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: staBadge.bg, color: staBadge.c }}>{(t.status||"").replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase())}</span></div>
+                    <div style={{ fontSize: 12, color: isOverdue ? "#EF4444" : "#86868B", fontWeight: isOverdue ? 600 : 400 }}>{t.due_date ? new Date(t.due_date).toLocaleDateString() : "—"}{isOverdue ? " ⚠" : ""}</div>
+                    <div style={{ fontSize: 11.5, color: "#86868B" }}>{t.related_entity || "—"}</div>
+                    <div onClick={e => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "none", cursor: "pointer", color: "#86868B" }} className="hover:bg-black/[.07]">
+                            <MoreHorizontal style={{ width: 14, height: 14 }} />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem asChild><Link to={createPageUrl(`TaskDetails?id=${t.id}`)}><Eye className="w-4 h-4 mr-2"/>View</Link></DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleHighlightTask(t)}><Zap className="w-4 h-4 mr-2"/>Quick Edit</DropdownMenuItem>
+                          <PermissionGate entity="Task" action="delete">
+                            <DropdownMenuItem className="text-red-600" onClick={() => { setTaskToDelete(t); setShowDelete(true); }}><Trash2 className="w-4 h-4 mr-2"/>Delete</DropdownMenuItem>
+                          </PermissionGate>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {totalPages > 1 && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, fontSize: 13, color: "#86868B" }}>
+                <span>Showing {startIndex + 1}–{Math.min(startIndex + rowsPerPage, filteredAndSorted.length)} of {filteredAndSorted.length}</span>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} style={{ padding: "5px 12px", borderRadius: 20, border: "1px solid #E5E5EA", background: "#fff", color: currentPage === 1 ? "#AEAEB2" : "#1D1D1F", cursor: currentPage === 1 ? "default" : "pointer", fontSize: 13 }}>← Prev</button>
+                  <span style={{ fontSize: 12, alignSelf: "center" }}>Page {currentPage} of {totalPages}</span>
+                  <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage >= totalPages} style={{ padding: "5px 12px", borderRadius: 20, border: "1px solid #E5E5EA", background: "#fff", color: currentPage >= totalPages ? "#AEAEB2" : "#1D1D1F", cursor: currentPage >= totalPages ? "default" : "pointer", fontSize: 13 }}>Next →</button>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          <div style={{ padding: 60, textAlign: "center" }}>
+            <CheckSquare style={{ width: 36, height: 36, color: "#AEAEB2", margin: "0 auto 12px" }} />
+            <div style={{ fontSize: 15, fontWeight: 600, color: "#1D1D1F", marginBottom: 6 }}>{searchTerm ? "No results found" : "No tasks yet"}</div>
+            <div style={{ fontSize: 13, color: "#86868B", marginBottom: 16 }}>{searchTerm ? "Try adjusting your search" : "Get started by creating your first task"}</div>
+            <PermissionGate entity="Task" action="create">
+              <button onClick={() => { setShowForm(true); setFormTask(null); }} style={{ padding: "8px 20px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "none", background: "#0071E3", color: "#fff", cursor: "pointer" }}>+ New Task</button>
+            </PermissionGate>
+          </div>
+        )}
+      </div>{/* end content */}
 
       {showForm && (
         <TaskForm

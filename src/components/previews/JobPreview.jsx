@@ -1,165 +1,210 @@
 import React from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Loader2, Briefcase, Building2, MapPin, Calendar, ExternalLink, Edit, ArrowUpRight, DollarSign, Clock, Users } from "lucide-react";
+import { base44 } from "@/api/base44Client";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Loader2, Building2, MapPin, Briefcase, Calendar, ExternalLink, Edit, Sparkles, RefreshCw } from "lucide-react";
-import { Job } from "@/entities/Job";
-import { Company } from "@/entities/Company";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { base44 } from "@/api/base44Client";
+
+const STATUS_OPTS = [
+  { value: "draft",      label: "Draft",      bg: "rgba(107,114,128,.10)", c: "#6B7280" },
+  { value: "open",       label: "Open",       bg: "rgba(48,161,78,.10)",   c: "#16A34A" },
+  { value: "on_hold",    label: "On Hold",    bg: "rgba(245,158,11,.10)",  c: "#D97706" },
+  { value: "filled",     label: "Filled",     bg: "rgba(59,130,246,.10)",  c: "#2563EB" },
+  { value: "cancelled",  label: "Cancelled",  bg: "rgba(239,68,68,.10)",   c: "#DC2626" },
+];
+
+const PRIORITY_COLOR = { low: "#6B7280", medium: "#D97706", high: "#EA580C", urgent: "#DC2626" };
+const REMOTE_COLOR   = { onsite: "#2563EB", remote: "#16A34A", hybrid: "#7C3AED" };
+
+function avatarGrad(name) {
+  const p = ["#3B82F6,#6366F1","#F59E0B,#EA580C","#8B5CF6,#7C3AED","#10B981,#059669","#0EA5E9,#0284C7"];
+  const [a, b] = p[(name?.charCodeAt(0)||0) % p.length].split(",");
+  return `linear-gradient(135deg,${a},${b})`;
+}
 
 export default function JobPreview({ id }) {
-  const [job, setJob] = React.useState(null);
+  const [job, setJob]         = React.useState(null);
   const [company, setCompany] = React.useState(null);
-  const [aiSummary, setAiSummary] = React.useState(null);
-  const [loadingSummary, setLoadingSummary] = React.useState(false);
+  const [status, setStatus]   = React.useState(null);
+  const [saving, setSaving]   = React.useState(false);
 
   React.useEffect(() => {
     let mounted = true;
     (async () => {
-      const res = await Job.filter({ id }, "-created_date", 1);
-      const j = res?.[0] || null;
-      if (!mounted) return;
-      setJob(j);
-      if (j?.company_id) {
-        const co = await Company.filter({ id: j.company_id }, "-created_date", 1).catch(()=>[]);
-        if (mounted) setCompany(co?.[0] || null);
-      }
+      try {
+        const res = await base44.entities.Job.filter({ id }, "-created_date", 1);
+        const j = res?.[0] || null;
+        if (!mounted) return;
+        setJob(j);
+        setStatus(j?.status || "draft");
+        if (j?.company_id) {
+          const co = await base44.entities.Company.filter({ id: j.company_id }, "-created_date", 1).catch(() => []);
+          if (mounted) setCompany(co?.[0] || null);
+        }
+      } catch (e) { console.warn(e); }
     })();
     return () => { mounted = false; };
   }, [id]);
 
-  const generateAISummary = async () => {
-    if (!job || loadingSummary) return;
-    
-    setLoadingSummary(true);
-    try {
-      const prompt = `Generate a concise, professional AI summary for this job posting. Focus on:
-1. Key role highlights (2-3 sentences)
-2. Must-have qualifications
-3. What makes this opportunity attractive
-4. Ideal candidate profile
-
-Job Details:
-- Title: ${job.title}
-- Company: ${company?.name || 'N/A'}
-- Location: ${job.location || 'Not specified'}
-- Remote Type: ${job.remote_type || 'Not specified'}
-- Employment Type: ${job.employment_type || 'Not specified'}
-- Rate/Salary: ${job.rate || 'Not specified'}
-- Experience Required: ${job.experience_required ? `${job.experience_required}+ years` : 'Not specified'}
-- Description: ${job.description || 'N/A'}
-- Requirements: ${job.requirements || 'N/A'}
-- Required Skills: ${job.required_skills?.join(', ') || 'N/A'}
-- Preferred Skills: ${job.preferred_skills?.join(', ') || 'N/A'}
-
-Provide a compelling 3-4 paragraph summary that would help recruiters quickly understand the role and identify suitable candidates.`;
-
-      const response = await base44.integrations.Core.InvokeLLM({
-        prompt,
-        add_context_from_internet: false
-      });
-
-      setAiSummary(typeof response === 'string' ? response : JSON.stringify(response));
-    } catch (error) {
-      console.error("Error generating AI summary:", error);
-      setAiSummary("Failed to generate summary. Please try again.");
-    } finally {
-      setLoadingSummary(false);
-    }
+  const updateStatus = async (val) => {
+    if (!val || val === status) return;
+    setSaving(true);
+    await base44.entities.Job.update(job.id, { status: val }).catch(() => {});
+    setSaving(false);
+    setStatus(val);
   };
 
-  React.useEffect(() => {
-    if (job && !aiSummary && !loadingSummary) {
-      generateAISummary();
-    }
-  }, [job]);
+  if (!job) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 80, color: "#86868B" }}>
+      <Loader2 style={{ width: 16, height: 16, marginRight: 6 }} className="animate-spin" /> Loading job…
+    </div>
+  );
 
-  if (!job) return <div className="flex items-center justify-center h-24 text-slate-600"><Loader2 className="w-4 h-4 animate-spin mr-2" />Loading job…</div>;
+  const sb = STATUS_OPTS.find(s => s.value === (status || job.status)) || STATUS_OPTS[0];
+  const coLetter = (company?.name || job.title || "J").charAt(0).toUpperCase();
 
   return (
-    <div className="space-y-4">
-      {/* Quick edit button */}
-      <div className="flex justify-end">
-        <Button asChild variant="outline" size="sm" className="gap-2" data-intent="edit">
-          <Link to={createPageUrl(`JobDetails?id=${job.id}&edit=true`)}>
-            <Edit className="w-4 h-4" /> Edit
+    <div style={{ fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif" }}>
+
+      {/* Header */}
+      <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid #F2F2F7" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: avatarGrad(company?.name || job.title), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+            {coLetter}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: "#1D1D1F", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{job.title}</h2>
+              <Link to={createPageUrl(`JobDetails?id=${job.id}`)} title="Open full details">
+                <ArrowUpRight style={{ width: 14, height: 14, color: "#86868B" }} />
+              </Link>
+            </div>
+            <div style={{ fontSize: 13, color: "#86868B" }}>{company?.name || "—"}</div>
+          </div>
+          <Link to={createPageUrl(`JobDetails?id=${job.id}&edit=true`)} data-intent="edit"
+            style={{ fontSize: 12, fontWeight: 600, color: "#0071E3", padding: "5px 12px", borderRadius: 20, border: "1px solid #0071E3", textDecoration: "none", flexShrink: 0 }}>
+            <Edit style={{ width: 12, height: 12, display: "inline", marginRight: 4, verticalAlign: "middle" }} />Edit
           </Link>
-        </Button>
+        </div>
+
+        {/* Status + badges */}
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: sb.bg, color: sb.c }}>
+            {sb.label}
+          </span>
+          {job.priority && (
+            <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: "rgba(0,0,0,.05)", color: PRIORITY_COLOR[job.priority] || "#86868B" }}>
+              {job.priority.charAt(0).toUpperCase() + job.priority.slice(1)} Priority
+            </span>
+          )}
+          {job.remote_type && (
+            <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: "rgba(0,0,0,.05)", color: REMOTE_COLOR[job.remote_type] || "#86868B" }}>
+              {job.remote_type.charAt(0).toUpperCase() + job.remote_type.slice(1)}
+            </span>
+          )}
+          {job.employment_type && (
+            <span style={{ fontSize: 11.5, fontWeight: 500, padding: "3px 10px", borderRadius: 20, background: "rgba(0,0,0,.05)", color: "#6E6E73" }}>
+              {job.employment_type.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
+            </span>
+          )}
+        </div>
       </div>
 
-      <Card><CardContent className="p-4 space-y-2">
-        <div className="flex items-start gap-3">
-          <div className="p-2 rounded-lg bg-blue-50 text-blue-700"><Briefcase className="w-5 h-5" /></div>
-          <div className="min-w-0">
-            <h2 className="font-semibold text-slate-900 truncate">{job.title}</h2>
-            <div className="text-sm text-slate-600 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-slate-400" /> {company?.name || "—"}
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2 mt-2">
-          <Badge variant="secondary" className="capitalize">{job.status}</Badge>
-          {job.priority && <Badge className="bg-amber-100 text-amber-800 capitalize">{job.priority}</Badge>}
-          {job.remote_type && <Badge variant="outline" className="capitalize">{job.remote_type}</Badge>}
-        </div>
-      </CardContent></Card>
+      {/* Quick status update */}
+      <div style={{ padding: "14px 20px", borderBottom: "1px solid #F2F2F7" }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Update Status</div>
+        <Select value={status || job.status} onValueChange={updateStatus} disabled={saving}>
+          <SelectTrigger style={{ fontSize: 13, borderRadius: 10 }}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
 
-      {/* AI Summary Section */}
-      <Card className="bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-600" />
-              <h3 className="font-semibold text-purple-900">AI Summary</h3>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={generateAISummary}
-              disabled={loadingSummary}
-              className="h-8 gap-1 text-purple-700 hover:text-purple-900"
-            >
-              <RefreshCw className={`w-3 h-3 ${loadingSummary ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
-          
-          {loadingSummary ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-purple-600 mr-2" />
-              <span className="text-sm text-purple-700">Generating AI summary...</span>
-            </div>
-          ) : aiSummary ? (
-            <div className="text-sm text-slate-700 space-y-2 whitespace-pre-wrap">
-              {aiSummary}
-            </div>
-          ) : (
-            <div className="text-sm text-slate-500 italic py-4 text-center">
-              Click refresh to generate AI summary
+      {/* Key details */}
+      <div style={{ padding: "14px 20px", borderBottom: "1px solid #F2F2F7" }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 10 }}>Details</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {job.location && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
+              <MapPin style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+              {job.location}
             </div>
           )}
-        </CardContent>
-      </Card>
+          {job.rate && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
+              <DollarSign style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+              {job.rate}
+            </div>
+          )}
+          {job.experience_required != null && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
+              <Clock style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+              {job.experience_required}+ years experience
+            </div>
+          )}
+          {job.positions_available != null && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
+              <Users style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+              {job.positions_available} position{job.positions_available !== 1 ? "s" : ""} open
+            </div>
+          )}
+          {job.due_date && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
+              <Calendar style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+              Target fill: {new Date(job.due_date).toLocaleDateString()}
+            </div>
+          )}
+          {job.hiring_manager && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
+              <Briefcase style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+              HM: {job.hiring_manager}
+            </div>
+          )}
+          {company?.website && (
+            <a href={company.website} target="_blank" rel="noreferrer"
+              style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0071E3", textDecoration: "none" }}>
+              <ExternalLink style={{ width: 14, height: 14, flexShrink: 0 }} />
+              Company website
+            </a>
+          )}
+        </div>
+      </div>
 
-      <Card><CardContent className="p-4 space-y-2 text-sm">
-        {job.location && <div className="flex items-center gap-2 text-slate-700"><MapPin className="w-4 h-4 text-slate-400" /> {job.location}</div>}
-        {job.due_date && <div className="flex items-center gap-2 text-slate-700"><Calendar className="w-4 h-4 text-slate-400" /> Target: {new Date(job.due_date).toLocaleDateString()}</div>}
-        {company?.website && (
-          <a href={company.website} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-blue-600 hover:text-blue-800">
-            <ExternalLink className="w-4 h-4" /> Company Site
-          </a>
-        )}
-      </CardContent></Card>
-
+      {/* Required skills */}
       {Array.isArray(job.required_skills) && job.required_skills.length > 0 && (
-        <Card><CardContent className="p-4">
-          <p className="text-sm font-medium text-slate-700 mb-2">Required Skills</p>
-          <div className="flex flex-wrap gap-1">
-            {job.required_skills.slice(0, 12).map((s, i) => <Badge key={i} variant="outline" className="text-xs">{s}</Badge>)}
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #F2F2F7" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Required Skills</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+            {job.required_skills.slice(0, 15).map((s, i) => (
+              <span key={i} style={{ fontSize: 11.5, padding: "3px 9px", borderRadius: 20, background: "rgba(0,113,227,.08)", color: "#0071E3", fontWeight: 500 }}>{s}</span>
+            ))}
+            {job.required_skills.length > 15 && <span style={{ fontSize: 11.5, color: "#86868B" }}>+{job.required_skills.length - 15} more</span>}
           </div>
-        </CardContent></Card>
+        </div>
+      )}
+
+      {/* Preferred skills */}
+      {Array.isArray(job.preferred_skills) && job.preferred_skills.length > 0 && (
+        <div style={{ padding: "14px 20px", borderBottom: "1px solid #F2F2F7" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Preferred Skills</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+            {job.preferred_skills.slice(0, 10).map((s, i) => (
+              <span key={i} style={{ fontSize: 11.5, padding: "3px 9px", borderRadius: 20, background: "rgba(0,0,0,.05)", color: "#6E6E73", fontWeight: 500 }}>{s}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Description snippet */}
+      {job.description && (
+        <div style={{ padding: "14px 20px" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Description</div>
+          <p style={{ fontSize: 13, color: "#3D3D3F", lineHeight: 1.6, margin: 0 }}>{job.description.slice(0, 300)}{job.description.length > 300 ? "…" : ""}</p>
+        </div>
       )}
     </div>
   );
