@@ -91,10 +91,10 @@ function SubmissionsPageContent() {
     setLoading(true);
     try {
       const [submissionsData, candidatesData, jobsData, companiesData, viewsData] = await Promise.all([
-        base44.entities.Submission.list("-submitted_date", 1000),
-        base44.entities.Candidate.list("-updated_date", 1000),
-        base44.entities.Job.list("-updated_date", 1000),
-        base44.entities.Company.list("-updated_date", 500),
+        base44.entities.Submission.list("-submitted_date", 200),
+        base44.entities.Candidate.list("-updated_date", 200),
+        base44.entities.Job.list("-updated_date", 100),
+        base44.entities.Company.list("-updated_date", 100),
         base44.entities.SubmissionView.list().catch(() => [])
       ]);
       

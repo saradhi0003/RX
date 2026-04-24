@@ -116,8 +116,8 @@ export default function CompaniesPage() { // Renamed component
     try {
       const companyFilter = listFilterFor("Company");
       const [companiesData, jobsData, usersData] = await Promise.all([
-        companyFilter ? Company.filter(companyFilter, "-created_date") : Company.list("-created_date"),
-        Job.list("-created_date", 500),
+        companyFilter ? Company.filter(companyFilter, "-created_date", 200) : Company.list("-created_date", 200),
+        Job.list("-created_date", 100),
         User.list().catch(() => [])
       ]);
       setCompanies(companiesData);

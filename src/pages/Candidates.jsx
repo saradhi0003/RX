@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -176,10 +176,10 @@ export default function Candidates() {
 
     try {
       const filter = listFilterFor("Candidate");
-      // CHANGED: Increased limit to 500 to show all candidates
+      // CHANGED: Limit to 200 for better performance, pagination handles rest
       const data = filter
-        ? await base44.entities.Candidate.filter(filter, "-created_date", 500)
-        : await base44.entities.Candidate.list("-created_date", 500);
+        ? await base44.entities.Candidate.filter(filter, "-created_date", 200)
+        : await base44.entities.Candidate.list("-created_date", 200);
       
       console.log(`✅ Loaded ${data.length} candidates from database`);
       
@@ -482,17 +482,22 @@ export default function Candidates() {
     setCurrentPage(1);
   };
 
-  // ── Derived metrics ──
-  const totalActive = candidates.filter(c => ["active","screened","our_bench"].includes(c.status)).length;
-  const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const newThisWeek = candidates.filter(c => new Date(c.created_date) >= sevenDaysAgo).length;
-  const aiMatched = candidates.filter(c => (c.bench_match_score || c.screening_score || 0) >= 90).length;
-  const scores = candidates.map(c => c.bench_match_score || c.screening_score).filter(Boolean);
-  const avgScore = scores.length ? Math.round(scores.reduce((a,b) => a+b,0) / scores.length) : 0;
+  // ── Derived metrics (memoized) ──
+  const { totalActive, newThisWeek, aiMatched, avgScore } = useMemo(() => {
+    const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const totalActive = candidates.filter(c => ["active","screened","our_bench"].includes(c.status)).length;
+    const newThisWeek = candidates.filter(c => new Date(c.created_date) >= sevenDaysAgo).length;
+    const aiMatched = candidates.filter(c => (c.bench_match_score || c.screening_score || 0) >= 90).length;
+    const scores = candidates.map(c => c.bench_match_score || c.screening_score).filter(Boolean);
+    const avgScore = scores.length ? Math.round(scores.reduce((a,b) => a+b,0) / scores.length) : 0;
+    return { totalActive, newThisWeek, aiMatched, avgScore };
+  }, [candidates]);
 
-  const stageFilteredCandidates = stageFilter === "all" ? filteredAndSorted
-    : stageFilter === "ai90" ? filteredAndSorted.filter(c => (c.bench_match_score || c.screening_score || 0) >= 90)
-    : filteredAndSorted.filter(c => c.status === stageFilter);
+  const stageFilteredCandidates = useMemo(() => {
+    if (stageFilter === "all") return filteredAndSorted;
+    if (stageFilter === "ai90") return filteredAndSorted.filter(c => (c.bench_match_score || c.screening_score || 0) >= 90);
+    return filteredAndSorted.filter(c => c.status === stageFilter);
+  }, [stageFilter, filteredAndSorted]);
   const totalStagePages = Math.ceil(stageFilteredCandidates.length / rowsPerPage);
   const paginatedStage = stageFilteredCandidates.slice(startIndex, startIndex + rowsPerPage);
 

@@ -168,12 +168,12 @@ export default function Dashboard() {
       let taskFilter = !admin && meUser?.email ? { created_by: meUser.email } : null;
 
       const [candidatesData, jobsData, companiesData, applicationsData, submissionsData, tasks] = await Promise.all([
-        candFilter ? Candidate.filter(candFilter) : Candidate.list(),
-        jobFilter ? Job.filter(jobFilter) : Job.list(),
-        compFilter ? Company.filter(compFilter) : Company.list(),
-        appFilter ? Application.filter(appFilter) : Application.list(),
-        subFilter ? Submission.filter(subFilter) : Submission.list(),
-        taskFilter ? Task.filter(taskFilter) : Task.list()
+        candFilter ? Candidate.filter(candFilter, '-created_date', 100) : Candidate.list('-created_date', 100),
+        jobFilter ? Job.filter(jobFilter, '-created_date', 50) : Job.list('-created_date', 50),
+        compFilter ? Company.filter(compFilter, '-created_date', 50) : Company.list('-created_date', 50),
+        appFilter ? Application.filter(appFilter, '-created_date', 50) : Application.list('-created_date', 50),
+        subFilter ? Submission.filter(subFilter, '-created_date', 50) : Submission.list('-created_date', 50),
+        taskFilter ? Task.filter(taskFilter, '-created_date', 50) : Task.list('-created_date', 50)
       ]);
 
       setCandidates(candidatesData || []);

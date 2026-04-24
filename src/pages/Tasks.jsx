@@ -196,7 +196,7 @@ export default function Tasks() {
     setLoading(true);
     try {
       const filter = listFilterFor("Task");
-      const tasksData = await (filter ? base44.entities.Task.filter(filter, "-created_date") : base44.entities.Task.list("-created_date"));
+      const tasksData = await (filter ? base44.entities.Task.filter(filter, "-created_date", 200) : base44.entities.Task.list("-created_date", 200));
       setTasks(tasksData);
     } catch (error) {
       console.error("Error loading tasks:", error);

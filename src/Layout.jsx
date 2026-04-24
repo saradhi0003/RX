@@ -12,7 +12,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import Assistant from "@/components/ai/Assistant";
+import { lazy, Suspense } from "react";
 import { PermissionsProvider } from "@/components/common/PermissionsContext";
 import { usePermissions } from "@/components/common/PermissionsContext";
 import { User as UserEntity } from "@/entities/User";
@@ -29,10 +29,13 @@ import CompanyPreviewLoader from "@/components/previews/CompanyPreviewLoader";
 import ApplicationPreview from "@/components/previews/ApplicationPreview";
 import TaskPreview from "@/components/previews/TaskPreview";
 import PlaybookPreview from "@/components/previews/PlaybookPreview";
-import CommandPalette from "@/components/common/CommandPalette";
-import QuickActions from "@/components/common/QuickActions"; // Added QuickActions import
-import KeyboardShortcuts from "@/components/common/KeyboardShortcuts"; // Added KeyboardShortcuts import
-import AIQuickActions from "@/components/common/AIQuickActions";
+
+// Lazy-load heavy layout tools
+const Assistant = lazy(() => import("@/components/ai/Assistant"));
+const CommandPalette = lazy(() => import("@/components/common/CommandPalette"));
+const QuickActions = lazy(() => import("@/components/common/QuickActions"));
+const KeyboardShortcuts = lazy(() => import("@/components/common/KeyboardShortcuts"));
+const AIQuickActions = lazy(() => import("@/components/common/AIQuickActions"));
 
 // Add Email Settings to main navigation
 // Remove Pipeline Analytics from admin navigation since it's merged into Dashboard
@@ -306,9 +309,11 @@ export default function Layout({ children, currentPageName }) {
 
   React.useEffect(() => {
     const events = ['mousemove', 'keydown', 'mousedown', 'touchstart'];
+    let activityTimeout = null;
     
     const handleActivity = () => {
-      resetLogoutTimer();
+      if (activityTimeout) clearTimeout(activityTimeout);
+      activityTimeout = setTimeout(() => resetLogoutTimer(), 100);
     };
 
     events.forEach(event => window.addEventListener(event, handleActivity));
@@ -316,9 +321,8 @@ export default function Layout({ children, currentPageName }) {
 
     return () => {
       events.forEach(event => window.removeEventListener(event, handleActivity));
-      if (logoutTimer.current) {
-        clearTimeout(logoutTimer.current);
-      }
+      if (activityTimeout) clearTimeout(activityTimeout);
+      if (logoutTimer.current) clearTimeout(logoutTimer.current);
     };
   }, [resetLogoutTimer]);
 
@@ -408,26 +412,21 @@ export default function Layout({ children, currentPageName }) {
       qsGuard.current.ts = now;
 
       try {
-        const [jobsData, candidatesData, applicationsData] = await Promise.all([
-          Job.filter({ status: 'open' }, '', 500).catch(() => []),
-          Candidate.filter({ status: 'active' }, '-created_date', 500).catch(() => []),
-          Application.filter({ status: 'hired' }, '-created_date', 500).catch(() => [])
-        ]);
-
-        const activeJobs = (jobsData || []).length;
-        
         const today = new Date();
         const sevenDaysAgo = new Date(today);
         sevenDaysAgo.setDate(today.getDate() - 7);
-        const newCandidates = (candidatesData || []).filter(c => {
-          const createdDate = new Date(c.created_date);
-          return createdDate >= sevenDaysAgo;
-        }).length;
 
+        const [jobsData, candidatesData, applicationsData] = await Promise.all([
+          Job.filter({ status: 'open' }, '', 50).catch(() => []),
+          Candidate.filter({ status: 'active' }, '-created_date', 30).catch(() => []),
+          Application.filter({ status: 'hired' }, '-created_date', 20).catch(() => [])
+        ]);
+
+        const activeJobs = (jobsData || []).length;
+        const newCandidates = (candidatesData || []).filter(c => new Date(c.created_date) >= sevenDaysAgo).length;
         const thisMonthPlacements = (applicationsData || []).filter(app => {
-          const placementDate = new Date(app.created_date);
-          return placementDate.getMonth() === today.getMonth() &&
-                 placementDate.getFullYear() === today.getFullYear();
+          const d = new Date(app.created_date);
+          return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
         }).length;
 
         const stats = { activeJobs, newCandidates, thisMonthPlacements };
@@ -578,48 +577,7 @@ export default function Layout({ children, currentPageName }) {
     logOnce();
   }, [me]);
 
-  React.useEffect(() => {
-    if (window.__automationPatched) return;
-    window.__automationPatched = true;
-
-    const completeRelatedTasks = async (related_entity, related_id, note) => {
-      if (!related_id) return;
-      try {
-        const list = await Task.filter({ related_entity, related_id });
-        const open = (list || []).filter(t => t.status !== "completed");
-        for (const t of open) {
-          await Task.update(t.id, { status: "completed", completion_notes: note });
-        }
-      } catch (e) {
-        console.warn("Auto-complete tasks failed:", e);
-      }
-    };
-
-    const _candUpdate = Candidate.update.bind(Candidate);
-    Candidate.update = async (id, payload) => {
-      const res = await _candUpdate(id, payload);
-      const newStatus = (payload && payload.status) ?? res?.status;
-      if (["inactive", "do_not_contact"].includes(String(newStatus || "").toLowerCase())) {
-        await completeRelatedTasks("candidate", id, `Auto-completed after candidate set to ${newStatus}`);
-      }
-      return res;
-    };
-
-    const _appUpdate = Application.update.bind(Application);
-    Application.update = async (id, payload) => {
-      const res = await _appUpdate(id, payload);
-      const s = (payload && payload.status) ?? res?.status;
-      const status = String(s || "").toLowerCase();
-      if (["rejected", "withdrawn", "on_hold"].includes(status)) {
-        await Promise.all([
-          completeRelatedTasks("submission", id, `Auto-completed after application ${status}`),
-          completeRelatedTasks("candidate", res?.candidate_id, `Auto-completed after application ${status}`),
-          completeRelatedTasks("job", res?.job_id, `Auto-completed after application ${status}`)
-        ]);
-      }
-      return res;
-    };
-  }, []);
+  // Removed global entity monkey-patching—handle task automation in service mutations instead
 
   const isAdmin = (me?.role === "admin") || ((myRole?.name || "").toLowerCase() === "admin");
   const isBlocked = !!me && ((me.is_locked === true) || (!isAdmin && me.status && me.status !== "active"));
@@ -861,7 +819,11 @@ export default function Layout({ children, currentPageName }) {
               ) : (
                 <>
                   {children}
-                  {renderAssistant && currentPageName !== "AccessControl" && currentPageName !== "MyWork" && <Assistant currentPageName={currentPageName} />}
+                  {renderAssistant && currentPageName !== "AccessControl" && currentPageName !== "MyWork" && (
+                    <Suspense fallback={null}>
+                      <Assistant currentPageName={currentPageName} />
+                    </Suspense>
+                  )}
                 </>
               )}
             </div>
@@ -881,10 +843,12 @@ export default function Layout({ children, currentPageName }) {
         </RightPreviewPanel>
       </div>
 
-      <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
-      <QuickActions onAction={handleQuickAction} />
-      <AIQuickActions open={aiQuickActionsOpen} onClose={() => setAiQuickActionsOpen(false)} />
-      <KeyboardShortcuts open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <Suspense fallback={null}>
+        <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
+        <QuickActions onAction={handleQuickAction} />
+        <AIQuickActions open={aiQuickActionsOpen} onClose={() => setAiQuickActionsOpen(false)} />
+        <KeyboardShortcuts open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      </Suspense>
       <NotificationToast />
     </PermissionsProvider>
   );

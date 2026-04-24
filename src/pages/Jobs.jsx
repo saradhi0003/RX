@@ -132,8 +132,8 @@ export default function JobsPage() {
       const companyFilter = listFilterFor("Company");
 
       const [jobsData, companiesData] = await Promise.all([
-        jobFilter ? Job.filter(jobFilter, `-${sortBy}`) : Job.list(`-${sortBy}`),
-        companyFilter ? Company.filter(companyFilter) : Company.list()
+        jobFilter ? Job.filter(jobFilter, `-${sortBy}`, 200) : Job.list(`-${sortBy}`, 200),
+        companyFilter ? Company.filter(companyFilter, '-created_date', 100) : Company.list('-created_date', 100)
       ]);
       setJobs(jobsData);
       setCompanies(companiesData);
