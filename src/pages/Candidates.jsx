@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -122,6 +121,7 @@ export default function Candidates() {
 
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
+  const [stageFilter, setStageFilter] = useState("all");
 
   const navigate = useNavigate();
   const { listFilterFor, me, role, isAdmin, can } = usePermissions();
@@ -479,649 +479,259 @@ export default function Candidates() {
 
   const handleRowsPerPageChange = (value) => {
     setRowsPerPage(Number(value));
-    setCurrentPage(1); // Reset to first page when changing rows per page
+    setCurrentPage(1);
   };
 
+  // ── Derived metrics ──
+  const totalActive = candidates.filter(c => ["active","screened","our_bench"].includes(c.status)).length;
+  const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const newThisWeek = candidates.filter(c => new Date(c.created_date) >= sevenDaysAgo).length;
+  const aiMatched = candidates.filter(c => (c.bench_match_score || c.screening_score || 0) >= 90).length;
+  const scores = candidates.map(c => c.bench_match_score || c.screening_score).filter(Boolean);
+  const avgScore = scores.length ? Math.round(scores.reduce((a,b) => a+b,0) / scores.length) : 0;
+
+  const stageFilteredCandidates = stageFilter === "all" ? filteredAndSorted
+    : stageFilter === "ai90" ? filteredAndSorted.filter(c => (c.bench_match_score || c.screening_score || 0) >= 90)
+    : filteredAndSorted.filter(c => c.status === stageFilter);
+  const totalStagePages = Math.ceil(stageFilteredCandidates.length / rowsPerPage);
+  const paginatedStage = stageFilteredCandidates.slice(startIndex, startIndex + rowsPerPage);
+
+  // ── Helpers ──
+  const getInitials = (c) => `${c.first_name?.[0]||""}${c.last_name?.[0]||""}`.toUpperCase();
+  const avatarPalette = ["#3B82F6,#6366F1","#F59E0B,#EA580C","#8B5CF6,#7C3AED","#10B981,#059669","#EF4444,#DC2626","#0EA5E9,#0284C7"];
+  const avatarGrad = (c) => { const p = avatarPalette[(c.first_name?.charCodeAt(0)||0) % avatarPalette.length].split(","); return `linear-gradient(135deg,${p[0]},${p[1]})`; };
+  const scoreColor = (s) => s >= 85 ? "#30A14E" : s >= 70 ? "#F4820F" : "#AEAEB2";
+  const stageBadge = (status) => {
+    const m = { screening:{bg:"rgba(244,130,15,.13)",c:"#D97706"}, interview:{bg:"rgba(48,161,78,.12)",c:"#16A34A"}, offer:{bg:"rgba(142,68,214,.12)",c:"#7C3AED"}, applied:{bg:"rgba(0,113,227,.10)",c:"#0071E3"}, hired:{bg:"rgba(10,142,130,.10)",c:"#0A8E82"}, rejected:{bg:"rgba(255,59,48,.10)",c:"#DC2626"}, active:{bg:"rgba(0,113,227,.10)",c:"#0071E3"}, our_bench:{bg:"rgba(142,68,214,.10)",c:"#7C3AED"}, on_bench:{bg:"rgba(244,130,15,.10)",c:"#D97706"}, placed:{bg:"rgba(10,142,130,.10)",c:"#0A8E82"}, inactive:{bg:"rgba(0,0,0,.06)",c:"#86868B"}, do_not_contact:{bg:"rgba(255,59,48,.08)",c:"#DC2626"} };
+    return m[status] || {bg:"rgba(0,0,0,.06)",c:"#86868B"};
+  };
+  const timeAgo = (d) => { const days = Math.floor((Date.now()-new Date(d))/86400000); return days===0?"Today":days===1?"1d ago":days<7?`${days}d ago`:`${Math.floor(days/7)}w ago`; };
 
   return (
-    <div className="p-6 lg:p-8 space-y-6 relative">
-      <Breadcrumbs items={[{ label: "Candidates", icon: Users }]} />
-      
-      <PageHeader
-        title="Candidates"
-        subtitle="Manage your talent pool"
-        right={
-          <PermissionGate entity="Candidate" action="create">
-            <div className="flex gap-2">
-              <Button variant="outline" className="gap-2 bg-white text-blue-700 hover:bg-slate-50" onClick={() => loadCandidates(true)}>
-                <RefreshCcw className="w-4 h-4" />
-                Refresh
-              </Button>
-              <Button onClick={() => { setShowForm(true); setEditingCandidate(null); setSelectedCandidate(null); setHighlightedCandidate(null); }} className="gap-2 bg-white text-blue-700 hover:bg-slate-50">
-                <Plus className="w-4 h-4" />
-                Add Candidate
-              </Button>
-              <Button variant="outline" className="gap-2 whitespace-nowrap bg-gradient-to-r from-purple-50 to-blue-50 border-purple-200" onClick={() => setShowPasteToAdd(true)}>
-                <Zap className="w-4 h-4 text-purple-600" />
-                Paste to Add
-              </Button>
-              <Button variant="outline" className="gap-2 whitespace-nowrap" onClick={() => setShowBulkResumeUpload(true)}>
-                <Upload className="w-4 h-4" />
-                Bulk Upload
-              </Button>
-              <Button variant="outline" className="gap-2 whitespace-nowrap" onClick={() => setShowImport(true)}>
-                <Upload className="w-4 h-4" />
-                Import CSV
-              </Button>
-              <Button variant="secondary" className="gap-2" onClick={() => setShowBenchScorer(true)}>
-                <Briefcase className="w-4 h-4" />
-                Bulk Scoring
-              </Button>
-            </div>
-          </PermissionGate>
-        }
-      />
+    <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background:"#F5F5F7", minHeight:"100vh" }}>
 
-      {highlightedCandidate && (
-        <Card className="border-2 border-blue-500 shadow-lg">
-          <CardContent className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 text-white flex items-center justify-center text-lg font-semibold">
-                  {highlightedCandidate.first_name?.charAt(0)}{highlightedCandidate.last_name?.charAt(0)}
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-slate-900">
-                    {highlightedCandidate.first_name} {highlightedCandidate.last_name}
-                  </h3>
-                  <div className="flex items-center gap-3 text-sm text-slate-600">
-                    {highlightedCandidate.email && (
-                      <div className="flex items-center gap-1">
-                        <Mail className="w-4 h-4" />
-                        {highlightedCandidate.email}
-                      </div>
-                    )}
-                    {highlightedCandidate.phone && (
-                      <div className="flex items-center gap-1">
-                        <Phone className="w-4 h-4" />
-                        {highlightedCandidate.phone}
-                      </div>
-                    )}
+      {/* ── Metrics bar ── */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:"1px solid #E5E5EA" }}>
+        {[
+          { label:"Total Active", value: loading?"—":totalActive, sub:"in pipeline" },
+          { label:"New This Week", value: loading?"—":newThisWeek, sub:`+${newThisWeek} vs prior week`, subColor:"#30A14E" },
+          { label:"AI Matched ≥90%", value: loading?"—":aiMatched, sub:"strong fits", valColor:"#0071E3" },
+          { label:"Avg Score", value: loading?"—":avgScore, suf:"%", sub:"across cohort" },
+        ].map((m,i) => (
+          <div key={i} style={{ padding:"22px 28px", borderRight:i<3?"1px solid #E5E5EA":"none" }}>
+            <div style={{ fontSize:11.5, fontWeight:500, color:"#86868B", marginBottom:5 }}>{m.label}</div>
+            <div style={{ fontSize:42, fontWeight:700, letterSpacing:"-.04em", lineHeight:1, color:m.valColor||"#1D1D1F" }}>
+              {m.value}{m.suf&&<span style={{ fontSize:18, fontWeight:500, color:"#6E6E73" }}>{m.suf}</span>}
+            </div>
+            <div style={{ fontSize:11.5, color:m.subColor||"#86868B", marginTop:6 }}>{m.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Stage pills + Add button ── */}
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 24px", background:"#fff", borderBottom:"1px solid #E5E5EA", flexWrap:"wrap" }}>
+        <span style={{ fontSize:12, fontWeight:600, color:"#86868B", marginRight:4 }}>Stage</span>
+        {[{k:"all",l:"All"},{k:"active",l:"Applied"},{k:"screening",l:"Screening"},{k:"interview",l:"Interview"},{k:"offer",l:"Offer"}].map(s => (
+          <button key={s.k} onClick={() => { setStageFilter(s.k); setCurrentPage(1); }}
+            style={{ padding:"5px 13px", borderRadius:20, fontSize:13, fontWeight:stageFilter===s.k?600:500, border:"none", cursor:"pointer", background:stageFilter===s.k?"#1D1D1F":"#fff", color:stageFilter===s.k?"#fff":"#6E6E73", boxShadow:stageFilter===s.k?"none":"0 1px 4px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)", transition:"all 120ms" }}>
+            {s.l}
+          </button>
+        ))}
+        <button onClick={() => { setStageFilter("ai90"); setCurrentPage(1); }}
+          style={{ padding:"5px 13px", borderRadius:20, fontSize:13, fontWeight:600, border:"none", cursor:"pointer", background:stageFilter==="ai90"?"#30A14E":"rgba(48,161,78,.10)", color:stageFilter==="ai90"?"#fff":"#30A14E", boxShadow:"0 1px 4px rgba(0,0,0,.06)" }}>
+          ⚡ AI ≥90%
+        </button>
+
+        {/* Search */}
+        <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(0,0,0,.06)", borderRadius:10, padding:"5px 10px", marginLeft:8 }}>
+          <Search style={{ width:13, height:13, color:"#86868B" }} />
+          <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search…"
+            style={{ border:"none", background:"transparent", outline:"none", fontSize:13, color:"#1D1D1F", width:160 }} />
+        </div>
+
+        {/* Right actions */}
+        <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8 }}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button style={{ padding:"6px 14px", borderRadius:20, fontSize:13, fontWeight:500, border:"1px solid #E5E5EA", background:"#fff", color:"#6E6E73", cursor:"pointer" }}>More ▾</button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => loadCandidates(true)}><RefreshCcw className="w-4 h-4 mr-2" />Refresh</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowPasteToAdd(true)}><Zap className="w-4 h-4 mr-2" />Paste to Add</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowBulkResumeUpload(true)}><Upload className="w-4 h-4 mr-2" />Bulk Upload</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowImport(true)}><Upload className="w-4 h-4 mr-2" />Import CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowBenchScorer(true)}><Briefcase className="w-4 h-4 mr-2" />Bulk Scoring</DropdownMenuItem>
+              {selectedIds.size > 0 && <DropdownMenuSeparator />}
+              {selectedIds.size > 0 && <DropdownMenuItem onClick={() => setShowBulkUpdate(true)}>Mass Update ({selectedIds.size})</DropdownMenuItem>}
+              {selectedIds.size > 0 && <DropdownMenuItem onClick={() => setShowBulkDelete(true)} className="text-red-600">Delete Selected ({selectedIds.size})</DropdownMenuItem>}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => { setSelectedViewId(null); setShowViewSettings(true); }}>+ New View</DropdownMenuItem>
+              {selectedViewId && <DropdownMenuItem onClick={() => setShowViewSettings(true)}>Edit View</DropdownMenuItem>}
+              {selectedViewId && canDeleteCurrentView && <DropdownMenuItem onClick={() => setShowDeleteViewConfirm(true)} className="text-red-600">Delete View</DropdownMenuItem>}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <PermissionGate entity="Candidate" action="create">
+            <button onClick={() => { setShowForm(true); setEditingCandidate(null); setSelectedCandidate(null); setHighlightedCandidate(null); }}
+              style={{ padding:"7px 16px", borderRadius:20, fontSize:13, fontWeight:600, border:"none", background:"#0071E3", color:"#fff", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,113,227,.3)" }}>
+              + Add Candidate
+            </button>
+          </PermissionGate>
+        </div>
+      </div>
+
+      {/* ── Table ── */}
+      <div style={{ padding:"20px 24px 40px" }}>
+        <div style={{ background:"#fff", borderRadius:16, boxShadow:"0 2px 12px rgba(0,0,0,.07),0 0 0 .5px rgba(0,0,0,.05)", overflow:"hidden" }}>
+          {/* Table header */}
+          <div style={{ display:"grid", gridTemplateColumns:"1.8fr 130px 70px 130px 110px 80px 36px", gap:0, padding:"9px 20px", borderBottom:"1px solid #E5E5EA", background:"#FAFAFA" }}>
+            {["CANDIDATE","COMPANY","SCORE","STAGE","ROLE","ADDED",""].map((h,i) => (
+              <div key={i} style={{ fontSize:11, fontWeight:600, letterSpacing:".04em", color:"#86868B", display:"flex", alignItems:"center", gap:i===0?8:0 }}>
+                {i===0 && <Checkbox checked={allVisibleSelected} onCheckedChange={c => toggleSelectAllVisible(!!c)} />}
+                {h}
+              </div>
+            ))}
+          </div>
+
+          {/* Rows */}
+          {loading ? (
+            <div style={{ padding:"48px", textAlign:"center", color:"#86868B" }}>
+              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color:"#0071E3" }} />
+              <div style={{ fontSize:13 }}>Loading candidates…</div>
+            </div>
+          ) : paginatedStage.length === 0 ? (
+            <div style={{ padding:"60px", textAlign:"center" }}>
+              <Users style={{ width:36, height:36, color:"#AEAEB2", margin:"0 auto 12px" }} />
+              <div style={{ fontSize:15, fontWeight:600, color:"#1D1D1F", marginBottom:6 }}>No candidates found</div>
+              <div style={{ fontSize:13, color:"#86868B" }}>{searchTerm ? "Try adjusting your search" : "Add your first candidate to get started"}</div>
+            </div>
+          ) : paginatedStage.map((candidate, idx) => {
+            const score = candidate.bench_match_score || candidate.screening_score;
+            const isSelected = selectedCandidate?.id === candidate.id;
+            const sb = stageBadge(candidate.status);
+
+            return (
+              <div key={candidate.id} onClick={() => setSelectedCandidate(candidate)}
+                style={{ display:"grid", gridTemplateColumns:"1.8fr 130px 70px 130px 110px 80px 36px", gap:0, padding:"10px 20px", borderBottom:idx<paginatedStage.length-1?"1px solid #F2F2F7":"none", alignItems:"center", cursor:"pointer", background:isSelected?"rgba(0,113,227,.05)":"transparent", transition:"background 100ms" }}
+                onMouseEnter={e => { if(!isSelected) e.currentTarget.style.background="#F9F9FB"; }}
+                onMouseLeave={e => { e.currentTarget.style.background=isSelected?"rgba(0,113,227,.05)":"transparent"; }}>
+
+                {/* Candidate */}
+                <div style={{ display:"flex", alignItems:"center", gap:10, minWidth:0 }}>
+                  <Checkbox checked={selectedIds.has(candidate.id)} onCheckedChange={() => toggleSelect(candidate.id)} onClick={e=>e.stopPropagation()} />
+                  <div style={{ width:32, height:32, borderRadius:"50%", background:avatarGrad(candidate), color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11.5, fontWeight:700, flexShrink:0 }}>
+                    {getInitials(candidate)}
+                  </div>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:13.5, fontWeight:600, color:"#1D1D1F", display:"flex", alignItems:"center", gap:6, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                      <Link to={createPageUrl(`CandidateDetails?id=${candidate.id}`)} onClick={e=>e.stopPropagation()} style={{ color:"inherit", textDecoration:"none" }}>
+                        {candidate.first_name} {candidate.last_name}
+                      </Link>
+                      {score >= 90 && <span style={{ fontSize:10, fontWeight:700, padding:"2px 6px", borderRadius:6, background:"rgba(0,113,227,.10)", color:"#0071E3" }}>⚡{Math.round(score)}%</span>}
+                    </div>
+                    <div style={{ fontSize:11.5, color:"#86868B", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                      {[candidate.current_title, candidate.experience_years ? `${candidate.experience_years}yr` : null].filter(Boolean).join(" · ") || "—"}
+                    </div>
                   </div>
                 </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={closeHighlightPanel}
-              >
-                <X className="w-5 h-5" />
-              </Button>
-            </div>
 
-            <div className="mb-4">
-              <label className="text-sm font-medium text-slate-700 mb-2 block">
-                Quick Status Update
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {statusOptions.map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => updateHighlightedField("status", option.value)}
-                    className={`px-4 py-2 rounded-lg border-2 transition-all font-medium text-sm ${
-                      currentHighlightStatus === option.value
-                        ? option.color + " shadow-sm"
-                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
+                {/* Company */}
+                <div style={{ fontSize:12.5, color:"#6E6E73", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{candidate.current_company || "—"}</div>
 
-            <div className="flex items-center gap-3 pt-4 border-t">
-              <Button
-                onClick={saveHighlightedChanges}
-                disabled={savingHighlighted || Object.keys(highlightedChanges).length === 0}
-                className="gap-2"
-              >
-                {savingHighlighted ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Save className="w-4 h-4" />
-                )}
-                Save Changes
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowForm(true);
-                  setEditingCandidate(highlightedCandidate);
-                  closeHighlightPanel();
-                }}
-                className="gap-2"
-              >
-                <Edit className="w-4 h-4" />
-                Edit Full Profile
-              </Button>
-              {highlightedCandidate.email && (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setEmailModalOpen(true);
-                    setEmailRecipient(highlightedCandidate);
-                    closeHighlightPanel();
-                  }}
-                  className="gap-2"
-                >
-                  <Mail className="w-4 h-4" />
-                  Email
-                </Button>
-              )}
-              {Object.keys(highlightedChanges).length > 0 && (
-                <Badge className="ml-auto bg-orange-100 text-orange-800">
-                  {Object.keys(highlightedChanges).length} unsaved change{Object.keys(highlightedChanges).length > 1 ? 's' : ''}
-                </Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                {/* Score */}
+                <div style={{ fontSize:13, fontWeight:700, color:score?scoreColor(score):"#AEAEB2" }}>{score?`${Math.round(score)}%`:"—"}</div>
 
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <select
-            className="border rounded px-3 py-2 text-sm bg-white text-slate-700"
-            value={selectedViewId || ""}
-            onChange={(e) => setSelectedViewId(e.target.value || null)}
-          >
-            <option value="">Default View</option>
-            {views.map(v => (
-              <option key={v.id} value={v.id}>{v.name}</option>
-            ))}
-          </select>
-          <Button variant="outline" className="gap-2" onClick={() => setShowViewSettings(true)} disabled={!selectedViewId}>
-            Edit View
-          </Button>
-          <Button
-            variant="destructive"
-            className="gap-2"
-            onClick={() => setShowDeleteViewConfirm(true)}
-            disabled={!selectedViewId || !canDeleteCurrentView}
-          >
-            Delete View
-          </Button>
-          <Button className="gap-2 bg-blue-600 hover:bg-blue-700 text-white" onClick={() => { setSelectedViewId(null); setShowViewSettings(true); }}>
-            New View
-          </Button>
-        </div>
-        <div className="text-sm text-slate-600">
-          {currentView ? `Filters: ${viewStatuses.length > 0 ? viewStatuses.map(s => s.replace(/_/g, ' ')).join(", ") : "None"}` : "Default filters"}
-        </div>
-      </div>
-
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input
-                placeholder="Search candidates by name, email, skills, or title..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="gap-2 whitespace-nowrap">
-                <Filter className="w-4 h-4" />
-                Filters
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-600">
-          Showing {paginatedCandidates.length === 0 ? 0 : startIndex + 1}-{startIndex + paginatedCandidates.length} of {filteredAndSorted.length} candidates
-        </p>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-slate-600">Rows per page:</span>
-          <select
-            value={rowsPerPage}
-            onChange={(e) => handleRowsPerPageChange(e.target.value)}
-            className="border border-slate-200 rounded px-3 py-1.5 text-sm bg-white hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="10">10</option>
-            <option value="25">25</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-            <option value="500">500</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between px-4 py-3 border rounded-lg bg-slate-50">
-        <div className="text-sm text-slate-700">
-          {selectedIds.size > 0 ? `${selectedIds.size} selected` : "Select rows to mass update or delete"}
-        </div>
-        <div className="flex items-center gap-2">
-          <PermissionGate entity="Candidate" action="update">
-            <Button variant="secondary" disabled={selectedIds.size === 0} onClick={() => setShowBulkUpdate(true)}>
-              Mass Update
-            </Button>
-          </PermissionGate>
-          <PermissionGate entity="Candidate" action="delete">
-            <Button variant="destructive" disabled={selectedIds.size === 0} onClick={() => setShowBulkDelete(true)}>
-              Delete Selected
-            </Button>
-          </PermissionGate>
-        </div>
-      </div>
-
-      {viewType === "list" && loading ? (
-        <SkeletonTable rows={10} cols={8} />
-      ) : viewType === "list" && paginatedCandidates.length > 0 ? (
-        <>
-          <Card>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-slate-50 border-b">
-                    <tr>
-                      <th className="px-4 py-3 text-left">
-                        <Checkbox
-                          checked={allVisibleSelected}
-                          className={someVisibleSelected ? "data-[state=checked]:bg-primary" : ""}
-                          onCheckedChange={(checked) => toggleSelectAllVisible(!!checked)}
-                        />
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider whitespace-nowrap">
-                        Quick Edit
-                      </th>
-                      {defaultColumns.filter(col => visibleColumns.includes(col.key)).map(col => (
-                        <th
-                          key={col.key}
-                          className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-slate-100"
-                          onClick={() => handleSort(col.key)}
-                        >
-                          <div className="flex items-center gap-1">
-                            {col.label}
-                            {sortBy === col.key && (
-                              sortOrder === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />
-                            )}
-                          </div>
-                        </th>
-                      ))}
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider whitespace-nowrap">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {paginatedCandidates.map(candidate => (
-                      <TableRow
-                        key={candidate.id}
-                        className={`hover:bg-slate-50 transition-colors ${
-                          highlightedCandidate?.id === candidate.id ? "bg-blue-50" : ""
-                        }`}
-                        onClick={() => setSelectedCandidate(candidate)}
-                      >
-                        <TableCell className="px-4 py-3">
-                          <Checkbox
-                            checked={selectedIds.has(candidate.id)}
-                            onCheckedChange={() => toggleSelect(candidate.id)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </TableCell>
-                        <TableCell className="px-4 py-3">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => { e.stopPropagation(); handleHighlightCandidate(candidate); }}
-                            className="h-8 text-xs"
-                          >
-                            <Zap className="w-3 h-3 mr-1" />
-                            Quick Edit
-                          </Button>
-                        </TableCell>
-                        {defaultColumns.filter(col => visibleColumns.includes(col.key)).map(col => {
-                          const value = candidate[col.key];
-                          return (
-                            <TableCell key={col.key} className="px-4 py-3 text-sm text-slate-700">
-                              {col.key === "status" && value ? (
-                                <Badge className={getCandidateStatusColor(value)}>
-                                  {value.replace(/_/g, " ")}
-                                </Badge>
-                              ) : col.key === "first_name" ? (
-                                <Link
-                                  to={createPageUrl(`CandidateDetails?id=${candidate.id}`)}
-                                  className="font-medium text-blue-600 hover:underline"
-                                  title="Open candidate"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  {candidate.first_name} {candidate.last_name}
-                                </Link>
-                              ) : col.key === "email" ? (
-                                <div className="flex items-center gap-1 text-sm">
-                                  <Mail className="w-3 h-3" />
-                                  {value}
-                                </div>
-                              ) : col.key === "phone" ? (
-                                <div className="flex items-center gap-1 text-sm text-slate-600">
-                                  <Phone className="w-3 h-3" />
-                                  {value}
-                                </div>
-                              ) : col.key === "location" ? (
-                                <div className="flex items-center gap-1">
-                                  <MapPin className="w-3 h-3 text-slate-400" />
-                                  {value}
-                                </div>
-                              ) : col.key === "skills" && Array.isArray(value) ? (
-                                <div className="flex flex-wrap gap-1">
-                                  {value.slice(0, 3).map((skill, idx) => (
-                                    <Badge key={idx} variant="outline" className="text-xs">
-                                      {skill}
-                                    </Badge>
-                                  ))}
-                                  {value.length > 3 && (
-                                    <Badge variant="outline" className="text-xs">
-                                      +{value.length - 3}
-                                    </Badge>
-                                  )}
-                                </div>
-                              ) : col.key === "created_date" || col.key === "updated_date" ? (
-                                value ? new Date(value).toLocaleDateString() : "—"
-                              ) : typeof value === "number" && col.key === "bench_match_score" ? (
-                                <Badge className={value >= 75 ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}>
-                                  {Math.round(value)}
-                                </Badge>
-                              ) : (
-                                value || "—"
-                              )}
-                            </TableCell>
-                          );
-                        })}
-                        <TableCell className="px-4 py-3 text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
-                                <MoreVertical className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => navigate(createPageUrl("CandidateDetails") + `?id=${candidate.id}`)}>
-                                <Eye className="w-4 h-4 mr-2" />
-                                View Details
-                              </DropdownMenuItem>
-                              {can("Candidate", "update") && (
-                                <DropdownMenuItem onClick={() => handleEdit(candidate)}>
-                                  <Edit className="w-4 h-4 mr-2" />
-                                  Edit
-                                </DropdownMenuItem>
-                              )}
-                              {candidate.email && (
-                                <DropdownMenuItem onClick={() => { setEmailRecipient(candidate); setEmailModalOpen(true); }}>
-                                  <Mail className="w-4 h-4 mr-2" />
-                                  Send Email
-                                </DropdownMenuItem>
-                              )}
-                              {can("Candidate", "delete") && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() => handleDeleteCandidate(candidate.id)}
-                                    className="text-red-600"
-                                  >
-                                    <Trash2 className="w-4 h-4 mr-2" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Pagination Controls */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <p className="text-sm text-slate-600">
-                Page {currentPage} of {totalPages}
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => goToPage(1)}
-                  disabled={currentPage === 1}
-                  className="gap-1"
-                >
-                  <ChevronsLeft className="w-4 h-4" />
-                  First
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => goToPage(currentPage - 1)}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Previous
-                </Button>
-                
-                {/* Page numbers */}
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    
-                    return (
-                      <Button
-                        key={pageNum}
-                        variant={currentPage === pageNum ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => goToPage(pageNum)}
-                        className="w-8 h-8 p-0"
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
+                {/* Stage */}
+                <div>
+                  <span style={{ display:"inline-block", fontSize:11.5, fontWeight:600, padding:"3px 10px", borderRadius:20, background:sb.bg, color:sb.c, whiteSpace:"nowrap" }}>
+                    {(candidate.status||"").replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase())}
+                  </span>
                 </div>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => goToPage(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => goToPage(totalPages)}
-                  disabled={currentPage === totalPages}
-                  className="gap-1"
-                >
-                  Last
-                  <ChevronsRight className="w-4 h-4" />
-                </Button>
+                {/* Role */}
+                <div style={{ fontSize:12.5, color:"#6E6E73", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                  {candidate.current_title ? candidate.current_title.split(" ").slice(0,2).join(" ") : "—"}
+                </div>
+
+                {/* Added */}
+                <div style={{ fontSize:12, color:"#86868B" }}>{candidate.created_date ? timeAgo(candidate.created_date) : "—"}</div>
+
+                {/* Actions */}
+                <div onClick={e=>e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button style={{ width:28, height:28, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", border:"none", background:"none", cursor:"pointer", color:"#86868B" }} className="hover:bg-black/[.07]">
+                        <MoreHorizontal style={{ width:14, height:14 }} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => navigate(createPageUrl("CandidateDetails")+`?id=${candidate.id}`)}><Eye className="w-4 h-4 mr-2"/>View Details</DropdownMenuItem>
+                      {can("Candidate","update") && <DropdownMenuItem onClick={()=>handleEdit(candidate)}><Edit className="w-4 h-4 mr-2"/>Edit</DropdownMenuItem>}
+                      {can("Candidate","update") && <DropdownMenuItem onClick={()=>handleHighlightCandidate(candidate)}><Zap className="w-4 h-4 mr-2"/>Quick Edit</DropdownMenuItem>}
+                      {candidate.email && <DropdownMenuItem onClick={()=>{setEmailRecipient(candidate);setEmailModalOpen(true);}}><Mail className="w-4 h-4 mr-2"/>Send Email</DropdownMenuItem>}
+                      {can("Candidate","delete") && <><DropdownMenuSeparator/><DropdownMenuItem onClick={()=>handleDeleteCandidate(candidate.id)} className="text-red-600"><Trash2 className="w-4 h-4 mr-2"/>Delete</DropdownMenuItem></>}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
+            );
+          })}
+        </div>
+
+        {/* Pagination */}
+        {!loading && stageFilteredCandidates.length > rowsPerPage && (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:14, fontSize:13, color:"#86868B" }}>
+            <span>Showing {startIndex+1}–{Math.min(startIndex+rowsPerPage, stageFilteredCandidates.length)} of {stageFilteredCandidates.length}</span>
+            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+              <button onClick={()=>goToPage(currentPage-1)} disabled={currentPage===1}
+                style={{ padding:"5px 12px", borderRadius:20, border:"1px solid #E5E5EA", background:"#fff", color:currentPage===1?"#AEAEB2":"#1D1D1F", cursor:currentPage===1?"default":"pointer", fontSize:13 }}>← Prev</button>
+              <span style={{ fontSize:12 }}>Page {currentPage} of {totalStagePages}</span>
+              <button onClick={()=>goToPage(currentPage+1)} disabled={currentPage>=totalStagePages}
+                style={{ padding:"5px 12px", borderRadius:20, border:"1px solid #E5E5EA", background:"#fff", color:currentPage>=totalStagePages?"#AEAEB2":"#1D1D1F", cursor:currentPage>=totalStagePages?"default":"pointer", fontSize:13 }}>Next →</button>
             </div>
-          )}
-        </>
-      ) : (
-        <Card>
-          <CardContent className="p-12 text-center">
-              <Users className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-              <h3 className="font-semibold text-slate-900 mb-2">No candidates found</h3>
-              <p className="text-slate-600 mb-4">
-                {searchTerm ? "Try adjusting your search criteria" : "Get started by adding your first candidate"}
-              </p>
-              <PermissionGate entity="Candidate" action="create">
-                <Button onClick={() => { setShowForm(true); setEditingCandidate(null); }} className="gap-2">
-                  <Plus className="w-4 h-4" />
-                  Add First Candidate
-                </Button>
-              </PermissionGate>
-            </CardContent>
-        </Card>
+          </div>
+        )}
+      </div>
+
+      {/* ── Quick Edit panel ── */}
+      {highlightedCandidate && (
+        <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:"#1D1D1F", borderRadius:16, padding:"16px 20px", boxShadow:"0 8px 32px rgba(0,0,0,.28)", display:"flex", alignItems:"center", gap:12, zIndex:50 }}>
+          <div style={{ color:"#fff", fontSize:13, fontWeight:600 }}>{highlightedCandidate.first_name} {highlightedCandidate.last_name}</div>
+          <div style={{ width:1, height:20, background:"rgba(255,255,255,.15)" }} />
+          {statusOptions.map(o => (
+            <button key={o.value} onClick={()=>updateHighlightedField("status",o.value)}
+              style={{ padding:"4px 10px", borderRadius:20, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:currentHighlightStatus===o.value?"#0071E3":"rgba(255,255,255,.12)", color:"#fff" }}>
+              {o.label}
+            </button>
+          ))}
+          <div style={{ width:1, height:20, background:"rgba(255,255,255,.15)" }} />
+          <button onClick={saveHighlightedChanges} disabled={savingHighlighted||Object.keys(highlightedChanges).length===0}
+            style={{ padding:"4px 12px", borderRadius:20, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:"#30A14E", color:"#fff", opacity:Object.keys(highlightedChanges).length===0?.5:1 }}>
+            {savingHighlighted ? "Saving…" : "Save"}
+          </button>
+          <button onClick={closeHighlightPanel} style={{ background:"none", border:"none", color:"rgba(255,255,255,.5)", cursor:"pointer", fontSize:16 }}>✕</button>
+        </div>
       )}
 
-      <RightPreviewPanel
-        open={!!selectedCandidate && !showForm && !highlightedCandidate}
-        title="Candidate Details"
-        onClose={() => setSelectedCandidate(null)}
-      >
+      {/* ── Right Preview Panel ── */}
+      <RightPreviewPanel open={!!selectedCandidate && !showForm} title="Candidate Details" onClose={() => setSelectedCandidate(null)}>
         {selectedCandidate && (
-          <CandidatePreview
-            candidate={selectedCandidate}
-            onEdit={handleEdit}
-            onUpdated={() => {
-              loadCandidates(true);
-              emitEntityChanged("Candidate");
-              const updated = (candidates || []).find(c => c.id === selectedCandidate.id);
-              if (updated) setSelectedCandidate(updated);
-            }}
-          />
+          <CandidatePreview candidate={selectedCandidate} onEdit={handleEdit}
+            onUpdated={() => { loadCandidates(true); emitEntityChanged("Candidate"); const updated = candidates.find(c=>c.id===selectedCandidate.id); if(updated) setSelectedCandidate(updated); }} />
         )}
       </RightPreviewPanel>
 
-      {showForm && (
-        <CandidateForm
-          candidate={editingCandidate}
-          onSave={handleAddCandidate}
-          onCancel={() => { setShowForm(false); setEditingCandidate(null); }}
-        />
-      )}
-
-      {showImport && (
-        <ImportModal
-          open={showImport}
-          onClose={() => setShowImport(false)}
-          entityName="Candidates"
-          entitySdk={base44.entities.Candidate}
-          onImported={() => { setShowImport(false); loadCandidates(true); emitEntityChanged("Candidate"); }}
-        />
-      )}
-
-      {showDelete && candidateToDelete && (
-        <DeleteConfirmModal
-          open={showDelete}
-          title="Delete Candidate"
-          message={`Are you sure you want to delete ${candidateToDelete.first_name} ${candidateToDelete.last_name}? This action cannot be undone.`}
-          confirmLabel="Delete Candidate"
-          onConfirm={deleteCandidate}
-          onCancel={() => { setShowDelete(false); setCandidateToDelete(null); }}
-        />
-      )}
-
-      {showBulkDelete && selectedIds.size > 0 && (
-        <DeleteConfirmModal
-          open={showBulkDelete}
-          title="Delete Selected Candidates"
-          message={`Are you sure you want to delete ${selectedIds.size} selected candidate(s)? This action cannot be undone.`}
-          confirmLabel="Delete Candidates"
-          onConfirm={handleBulkDelete}
-          onCancel={() => setShowBulkDelete(false)}
-        />
-      )}
-
-      {showBulkUpdate && selectedIds.size > 0 && (
-        <CandidatesBulkUpdateModal
-          open={showBulkUpdate}
-          selectedIds={Array.from(selectedIds)}
-          onClose={() => { setShowBulkUpdate(false); setSelectedIds(new Set()); }}
-          onUpdated={() => {
-            loadCandidates(true);
-            emitEntityChanged("Candidate");
-            setShowBulkUpdate(false);
-            setSelectedIds(new Set());
-          }}
-        />
-      )}
-
-      <ListViewSettingsModal
-        open={showViewSettings}
-        onClose={() => setShowViewSettings(false)}
-        initial={currentView || { name: "", filters: { status: [] }, visibility: "private", sort: "-created_date" }}
-        statusOptions={statusOptions}
-        onSave={saveView}
-        availableColumns={defaultColumns}
-        selectedColumns={visibleColumns}
-        onColumnsChange={setVisibleColumns}
-      />
-
-      {showDeleteViewConfirm && currentView && (
-        <DeleteConfirmModal
-          open={showDeleteViewConfirm}
-          title="Delete List View"
-          message={`Are you sure you want to delete the view "${currentView.name}"? This action cannot be undone.`}
-          confirmLabel="Delete View"
-          onConfirm={handleDeleteView}
-          onCancel={() => setShowDeleteViewConfirm(false)}
-        />
-      )}
-
-      <BulkBenchScorer
-        open={showBenchScorer}
-        onClose={() => setShowBenchScorer(false)}
-        onDone={() => {
-          setShowBenchScorer(false);
-          loadCandidates(true);
-          emitEntityChanged("Candidate");
-        }}
-      />
-
-      {emailModalOpen && emailRecipient && (
-        <EmailModal
-          open={emailModalOpen}
-          onClose={() => { setEmailModalOpen(false); setEmailRecipient(null); }}
-          recipient={emailRecipient}
-        />
-      )}
-
-      {showBulkResumeUpload && (
-        <BulkResumeUpload
-          open={showBulkResumeUpload}
-          onClose={() => setShowBulkResumeUpload(false)}
-          onComplete={() => {
-            setShowBulkResumeUpload(false);
-            loadCandidates(true);
-          }}
-        />
-      )}
-
-      {showPasteToAdd && (
-        <PasteToAddCandidate
-          open={showPasteToAdd}
-          onClose={() => setShowPasteToAdd(false)}
-          onSuccess={() => {
-            setShowPasteToAdd(false);
-            loadCandidates(true);
-            emitEntityChanged("Candidate");
-          }}
-        />
-      )}
+      {/* ── Modals ── */}
+      {showForm && <CandidateForm candidate={editingCandidate} onSave={handleAddCandidate} onCancel={()=>{setShowForm(false);setEditingCandidate(null);}} />}
+      {showImport && <ImportModal open={showImport} onClose={()=>setShowImport(false)} entityName="Candidates" entitySdk={base44.entities.Candidate} onImported={()=>{setShowImport(false);loadCandidates(true);emitEntityChanged("Candidate");}} />}
+      {showDelete && candidateToDelete && <DeleteConfirmModal open={showDelete} title="Delete Candidate" message={`Delete ${candidateToDelete.first_name} ${candidateToDelete.last_name}?`} confirmLabel="Delete Candidate" onConfirm={deleteCandidate} onCancel={()=>{setShowDelete(false);setCandidateToDelete(null);}} />}
+      {showBulkDelete && selectedIds.size>0 && <DeleteConfirmModal open={showBulkDelete} title="Delete Selected" message={`Delete ${selectedIds.size} candidate(s)?`} confirmLabel="Delete" onConfirm={handleBulkDelete} onCancel={()=>setShowBulkDelete(false)} />}
+      {showBulkUpdate && selectedIds.size>0 && <CandidatesBulkUpdateModal open={showBulkUpdate} selectedIds={Array.from(selectedIds)} onClose={()=>{setShowBulkUpdate(false);setSelectedIds(new Set());}} onUpdated={()=>{loadCandidates(true);emitEntityChanged("Candidate");setShowBulkUpdate(false);setSelectedIds(new Set());}} />}
+      <ListViewSettingsModal open={showViewSettings} onClose={()=>setShowViewSettings(false)} initial={currentView||{name:"",filters:{status:[]},visibility:"private",sort:"-created_date"}} statusOptions={statusOptions} onSave={saveView} availableColumns={defaultColumns} selectedColumns={visibleColumns} onColumnsChange={setVisibleColumns} />
+      {showDeleteViewConfirm && currentView && <DeleteConfirmModal open={showDeleteViewConfirm} title="Delete View" message={`Delete "${currentView.name}"?`} confirmLabel="Delete View" onConfirm={handleDeleteView} onCancel={()=>setShowDeleteViewConfirm(false)} />}
+      <BulkBenchScorer open={showBenchScorer} onClose={()=>setShowBenchScorer(false)} onDone={()=>{setShowBenchScorer(false);loadCandidates(true);emitEntityChanged("Candidate");}} />
+      {emailModalOpen && emailRecipient && <EmailModal open={emailModalOpen} onClose={()=>{setEmailModalOpen(false);setEmailRecipient(null);}} recipient={emailRecipient} />}
+      {showBulkResumeUpload && <BulkResumeUpload open={showBulkResumeUpload} onClose={()=>setShowBulkResumeUpload(false)} onComplete={()=>{setShowBulkResumeUpload(false);loadCandidates(true);}} />}
+      {showPasteToAdd && <PasteToAddCandidate open={showPasteToAdd} onClose={()=>setShowPasteToAdd(false)} onSuccess={()=>{setShowPasteToAdd(false);loadCandidates(true);emitEntityChanged("Candidate");}} />}
     </div>
   );
 }
