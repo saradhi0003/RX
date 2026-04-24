@@ -53,98 +53,98 @@ export default function WidgetRenderer({ widget, refreshKey = 0 }) {
           setLoading(false);
           return;
         }
-      let rows = [];
-      if (widget.filter && Object.keys(widget.filter).length) {
-        rows = await Sdk.filter(widget.filter);
-      } else {
-        rows = await Sdk.list();
-      }
-      if (!mounted) return;
-
-      if (widget.widget_type === "kpi") {
-        setData([{ name: widget.title, value: rows.length }]);
-      } else if (widget.widget_type === "bar" || widget.widget_type === "pie") {
-        const by = widget.group_by || "status";
-        const m = {};
-        rows.forEach(r => {
-          const key = (r[by] ?? "unknown");
-          const name = String(key).replaceAll("_", " ");
-          m[name] = (m[name] || 0) + 1;
-        });
-        const agg = Object.entries(m).map(([name, value]) => ({ name, value }));
-        setData(agg);
-      } else if (widget.widget_type === "line") {
-        const field = widget.date_field || "created_date";
-        const months = {};
-        rows.forEach(r => {
-          const d = r[field] ? new Date(r[field]) : null;
-          if (!d || isNaN(d)) return;
-          const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-          months[k] = (months[k] || 0) + 1;
-        });
-        const arr = Object.entries(months)
-          .sort(([a],[b]) => a.localeCompare(b))
-          .map(([k, v]) => {
-            const [y,m] = k.split("-");
-            const date = new Date(Number(y), Number(m)-1, 1);
-            return { name: date.toLocaleString(undefined, { month: "short", year: "numeric" }), value: v };
-          });
-        setData(arr);
-      } else if (widget.widget_type === "stacked") {
-        const by = widget.group_by || "technologyText";
-        const field = widget.date_field || "submissionDate";
-        const altField = field === "submissionDate" ? "submitted_date" : "created_date";
-
-        const monthsBack = Number(widget.months || 8);
-        const now = new Date();
-        const buckets = [];
-        for (let i = monthsBack - 1; i >= 0; i--) {
-          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-          buckets.push({ key, label: d.toLocaleString(undefined, { month: "short", year: "numeric" }) });
+        let rows = [];
+        if (widget.filter && Object.keys(widget.filter).length) {
+          rows = await Sdk.filter(widget.filter);
+        } else {
+          rows = await Sdk.list();
         }
-        const bucketIndex = Object.fromEntries(buckets.map((b, i) => [b.key, i]));
+        if (!mounted) return;
 
-        const catTotals = {};
-        const matrix = {};
-        rows.forEach(r => {
-          let dt = r[field] || r[altField] || r.created_date;
-          const d = dt ? new Date(dt) : null;
-          if (!d || isNaN(d)) return;
-          const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
-          if (!(k in bucketIndex)) return;
-
-          const rawCat = r[by];
-          const cat = String(rawCat || "unknown").trim() || "unknown";
-
-          matrix[k] = matrix[k] || {};
-          matrix[k][cat] = (matrix[k][cat] || 0) + 1;
-          catTotals[cat] = (catTotals[cat] || 0) + 1;
-        });
-
-        const topCats = Object.entries(catTotals)
-          .sort((a,b) => b[1] - a[1])
-          .slice(0, 12)
-          .map(([c]) => c);
-        const cats = topCats;
-
-        const out = buckets.map(b => {
-          const row = { name: b.label };
-          const mm = matrix[b.key] || {};
-          let other = 0;
-          Object.entries(mm).forEach(([c, v]) => {
-            if (cats.includes(c)) row[c] = v;
-            else other += v;
+        if (widget.widget_type === "kpi") {
+          setData([{ name: widget.title, value: rows.length }]);
+        } else if (widget.widget_type === "bar" || widget.widget_type === "pie") {
+          const by = widget.group_by || "status";
+          const m = {};
+          rows.forEach(r => {
+            const key = (r[by] ?? "unknown");
+            const name = String(key).replaceAll("_", " ");
+            m[name] = (m[name] || 0) + 1;
           });
-          if (other > 0) row["Other"] = other;
-          return row;
-        });
+          const agg = Object.entries(m).map(([name, value]) => ({ name, value }));
+          setData(agg);
+        } else if (widget.widget_type === "line") {
+          const field = widget.date_field || "created_date";
+          const months = {};
+          rows.forEach(r => {
+            const d = r[field] ? new Date(r[field]) : null;
+            if (!d || isNaN(d)) return;
+            const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+            months[k] = (months[k] || 0) + 1;
+          });
+          const arr = Object.entries(months)
+            .sort(([a],[b]) => a.localeCompare(b))
+            .map(([k, v]) => {
+              const [y,m] = k.split("-");
+              const date = new Date(Number(y), Number(m)-1, 1);
+              return { name: date.toLocaleString(undefined, { month: "short", year: "numeric" }), value: v };
+            });
+          setData(arr);
+        } else if (widget.widget_type === "stacked") {
+          const by = widget.group_by || "technologyText";
+          const field = widget.date_field || "submissionDate";
+          const altField = field === "submissionDate" ? "submitted_date" : "created_date";
 
-        const otherIncluded = (arr) => arr.some(r => typeof r["Other"] === "number");
-        setSeriesKeys(otherIncluded(out) ? [...cats, "Other"] : cats);
-        setData(out);
-      }
-      setLoading(false);
+          const monthsBack = Number(widget.months || 8);
+          const now = new Date();
+          const buckets = [];
+          for (let i = monthsBack - 1; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+            buckets.push({ key, label: d.toLocaleString(undefined, { month: "short", year: "numeric" }) });
+          }
+          const bucketIndex = Object.fromEntries(buckets.map((b, i) => [b.key, i]));
+
+          const catTotals = {};
+          const matrix = {};
+          rows.forEach(r => {
+            let dt = r[field] || r[altField] || r.created_date;
+            const d = dt ? new Date(dt) : null;
+            if (!d || isNaN(d)) return;
+            const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+            if (!(k in bucketIndex)) return;
+
+            const rawCat = r[by];
+            const cat = String(rawCat || "unknown").trim() || "unknown";
+
+            matrix[k] = matrix[k] || {};
+            matrix[k][cat] = (matrix[k][cat] || 0) + 1;
+            catTotals[cat] = (catTotals[cat] || 0) + 1;
+          });
+
+          const topCats = Object.entries(catTotals)
+            .sort((a,b) => b[1] - a[1])
+            .slice(0, 12)
+            .map(([c]) => c);
+          const cats = topCats;
+
+          const out = buckets.map(b => {
+            const row = { name: b.label };
+            const mm = matrix[b.key] || {};
+            let other = 0;
+            Object.entries(mm).forEach(([c, v]) => {
+              if (cats.includes(c)) row[c] = v;
+              else other += v;
+            });
+            if (other > 0) row["Other"] = other;
+            return row;
+          });
+
+          const otherIncluded = (arr) => arr.some(r => typeof r["Other"] === "number");
+          setSeriesKeys(otherIncluded(out) ? [...cats, "Other"] : cats);
+          setData(out);
+        }
+        setLoading(false);
       } catch (err) {
         console.error('Widget load error:', err);
         setLoading(false);
