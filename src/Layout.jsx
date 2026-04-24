@@ -151,7 +151,7 @@ function AccountsNav({ location, collapsed }) {
 
   return (
     <SidebarGroup className="mt-2">
-      <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold uppercase tracking-wider px-3 py-2 ${collapsed ? "hidden" : ""}`} style={{ color: "#5A6070" }}>
+      <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold uppercase tracking-wider px-3 py-2 ${collapsed ? "hidden" : ""}`} style={{ color: "#8B95A8" }}>
         Accounts
       </SidebarGroupLabel>
       <SidebarGroupContent>
@@ -163,7 +163,7 @@ function AccountsNav({ location, collapsed }) {
                 className={`transition-all duration-200 rounded-lg ${collapsed ? "justify-center px-2" : ""}`}
                 style={location.pathname === createPageUrl("Invoices")
                   ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
-                  : { color: "#9BA3AF" }
+                  : { color: "#C8CDD6" }
                 }
               >
                 <Link
@@ -184,7 +184,7 @@ function AccountsNav({ location, collapsed }) {
                 className={`transition-all duration-200 rounded-lg ${collapsed ? "justify-center px-2" : ""}`}
                 style={location.pathname === createPageUrl("Expenses")
                   ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
-                  : { color: "#9BA3AF" }
+                  : { color: "#C8CDD6" }
                 }
               >
                 <Link
@@ -812,7 +812,7 @@ export default function Layout({ children, currentPageName }) {
 
           <Sidebar
             className={`app-sidebar ${sidebarCollapsed ? "px-2" : ""} clay-surface`}
-            style={{ borderRight: "1px solid rgba(255,255,255,0.06)" }}
+            style={{ borderRight: "1px solid rgba(255,255,255,0.1)", background: "#202840" }}
             data-collapsed={sidebarCollapsed ? "true" : "false"}
           >
             <SidebarHeader className={`${sidebarCollapsed ? "px-2 py-4" : "p-6"}`} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
@@ -864,7 +864,7 @@ export default function Layout({ children, currentPageName }) {
               </div>
 
               <SidebarGroup>
-                <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold uppercase tracking-wider ${sidebarCollapsed ? "hidden" : "px-3 py-2"}`} style={{ color: "#5A6070" }}>
+                <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold uppercase tracking-wider ${sidebarCollapsed ? "hidden" : "px-3 py-2"}`} style={{ color: "#8B95A8" }}>
                   Main Navigation
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
@@ -880,7 +880,7 @@ export default function Layout({ children, currentPageName }) {
                           } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
                           style={location.pathname === item.url
                             ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
-                            : { color: "#9BA3AF" }
+                            : { color: "#C8CDD6" }
                           }
                         >
                           <Link
@@ -900,7 +900,7 @@ export default function Layout({ children, currentPageName }) {
 
               {isAdmin && (
                 <SidebarGroup className="mt-6">
-                  <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold uppercase tracking-wider ${sidebarCollapsed ? "hidden" : "px-3 py-2"}`} style={{ color: "#5A6070" }}>
+                  <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold uppercase tracking-wider ${sidebarCollapsed ? "hidden" : "px-3 py-2"}`} style={{ color: "#8B95A8" }}>
                     Admin Controls
                   </SidebarGroupLabel>
                   <SidebarGroupContent>
@@ -911,7 +911,7 @@ export default function Layout({ children, currentPageName }) {
                           className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
                           style={location.pathname === createPageUrl("AccessControl")
                             ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
-                            : { color: "#9BA3AF" }
+                            : { color: "#C8CDD6" }
                           }
                         >
                           <Link
@@ -931,7 +931,7 @@ export default function Layout({ children, currentPageName }) {
                           className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
                           style={location.pathname === createPageUrl("Approvals")
                             ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
-                            : { color: "#9BA3AF" }
+                            : { color: "#C8CDD6" }
                           }
                         >
                           <Link
@@ -951,7 +951,7 @@ export default function Layout({ children, currentPageName }) {
                           className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
                           style={location.pathname === createPageUrl("JobStack")
                             ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
-                            : { color: "#9BA3AF" }
+                            : { color: "#C8CDD6" }
                           }
                         >
                           <Link
@@ -971,7 +971,7 @@ export default function Layout({ children, currentPageName }) {
                           className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
                           style={location.pathname === createPageUrl("AIAgents")
                             ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
-                            : { color: "#9BA3AF" }
+                            : { color: "#C8CDD6" }
                           }
                         >
                           <Link
@@ -991,7 +991,7 @@ export default function Layout({ children, currentPageName }) {
                           className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
                           style={location.pathname === createPageUrl("EmailBlast")
                             ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
-                            : { color: "#9BA3AF" }
+                            : { color: "#C8CDD6" }
                           }
                         >
                           <Link
@@ -1011,7 +1011,7 @@ export default function Layout({ children, currentPageName }) {
                           className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
                           style={location.pathname === createPageUrl("AutomationRules")
                             ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
-                            : { color: "#9BA3AF" }
+                            : { color: "#C8CDD6" }
                           }
                         >
                           <Link
@@ -1031,7 +1031,7 @@ export default function Layout({ children, currentPageName }) {
                           className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
                           style={location.pathname === createPageUrl("BRD")
                             ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
-                            : { color: "#9BA3AF" }
+                            : { color: "#C8CDD6" }
                           }
                         >
                           <Link
@@ -1051,7 +1051,7 @@ export default function Layout({ children, currentPageName }) {
                           className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
                           style={location.pathname === createPageUrl("EmailInbox")
                             ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
-                            : { color: "#9BA3AF" }
+                            : { color: "#C8CDD6" }
                           }
                         >
                           <Link
@@ -1073,25 +1073,25 @@ export default function Layout({ children, currentPageName }) {
 
               {!skipQuickStats && (
                 <SidebarGroup className="mt-8">
-                  <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold uppercase tracking-wider ${sidebarCollapsed ? "hidden" : "px-3 py-2"}`} style={{ color: "#5A6070" }}>
+                  <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold uppercase tracking-wider ${sidebarCollapsed ? "hidden" : "px-3 py-2"}`} style={{ color: "#8B95A8" }}>
                     Quick Stats
                   </SidebarGroupLabel>
                   <SidebarGroupContent>
                     <div className={`px-3 py-2 space-y-3 ${sidebarCollapsed ? "hidden" : ""}`}>
                       <div className="flex items-center justify-between text-sm">
-                        <span style={{ color: "#9BA3AF" }}>Active Jobs</span>
+                        <span style={{ color: "#C8CDD6" }}>Active Jobs</span>
                         <span className="font-semibold" style={{ color: "#EDE9E4" }}>
                           {qsLoading ? <span className="inline-block w-6 h-4 rounded animate-pulse" style={{ background: "rgba(255,255,255,0.1)" }} /> : quickStats.activeJobs}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
-                        <span style={{ color: "#9BA3AF" }}>New Candidates</span>
+                        <span style={{ color: "#C8CDD6" }}>New Candidates</span>
                         <span className="font-semibold" style={{ color: "#3ECFB2" }}>
                           {qsLoading ? <span className="inline-block w-6 h-4 rounded animate-pulse" style={{ background: "rgba(255,255,255,0.1)" }} /> : quickStats.newCandidates}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
-                        <span style={{ color: "#9BA3AF" }}>This Month</span>
+                        <span style={{ color: "#C8CDD6" }}>This Month</span>
                         <span className="font-semibold" style={{ color: "#E8A020" }}>
                           {qsLoading ? <span className="inline-block w-16 h-4 rounded animate-pulse" style={{ background: "rgba(255,255,255,0.1)" }} /> : `${quickStats.thisMonthPlacements} Placed`}
                         </span>
@@ -1139,7 +1139,7 @@ export default function Layout({ children, currentPageName }) {
           </Sidebar>
 
           <main className="flex-1 flex flex-col min-w-0">
-            <header className="px-6 py-4 flex items-center gap-4" style={{ background: "#161B27", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            <header className="px-6 py-4 flex items-center gap-4" style={{ background: "#202840", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
               <SidebarTrigger className="md:hidden p-2 rounded-lg transition-colors duration-200" style={{ color: "#9BA3AF" }} />
 
               <div className="flex-1 max-w-md">
