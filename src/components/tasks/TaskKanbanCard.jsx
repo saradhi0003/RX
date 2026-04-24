@@ -1,55 +1,108 @@
 import React from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Calendar, User } from "lucide-react";
 
+const PRIORITY_COLORS = {
+  low:    { bg: "rgba(107,114,128,.08)", c: "#6B7280" },
+  medium: { bg: "rgba(245,158,11,.08)", c: "#D97706" },
+  high:   { bg: "rgba(249,115,22,.08)", c: "#EA580C" },
+  urgent: { bg: "rgba(239,68,68,.08)", c: "#DC2626" },
+};
+
+const STATUS_COLORS = {
+  pending:     { bg: "rgba(107,114,128,.08)", c: "#6B7280" },
+  in_progress: { bg: "rgba(37,99,235,.08)", c: "#2563EB" },
+  completed:   { bg: "rgba(22,163,74,.08)", c: "#16A34A" },
+  cancelled:   { bg: "rgba(220,38,38,.08)", c: "#DC2626" },
+};
+
 export default function TaskKanbanCard({ task, onClick }) {
-  const statusColors = {
-    pending: "bg-gray-100 text-gray-800",
-    in_progress: "bg-blue-100 text-blue-800",
-    completed: "bg-green-100 text-green-800",
-    cancelled: "bg-red-100 text-red-800",
-  };
-  const priorityColors = {
-    low: "bg-blue-100 text-blue-800",
-    medium: "bg-yellow-100 text-yellow-800",
-    high: "bg-orange-100 text-orange-800",
-    urgent: "bg-red-100 text-red-800",
-  };
-  const overdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== "completed";
+  const isOverdue = task.due_date && new Date(task.due_date) < new Date() && task.status !== "completed";
+  const priBadge = PRIORITY_COLORS[task.priority] || PRIORITY_COLORS.medium;
+  const staBadge = STATUS_COLORS[task.status] || STATUS_COLORS.pending;
+  const ini = (task.assigned_to || "?").slice(0, 1).toUpperCase();
 
   return (
-    <Card className="shadow-sm hover:shadow-md transition cursor-pointer" onClick={onClick}>
-      <CardHeader className="pb-2">
-        <div className="flex justify-between items-start gap-3">
-          <div className="min-w-0">
-            <p className={`font-semibold text-slate-900 truncate ${task.status === "completed" ? "line-through text-slate-500" : ""}`}>
-              {task.title}
-            </p>
-            {task.assigned_to && (
-              <p className="text-xs text-slate-600 truncate flex items-center gap-1">
-                <User className="w-3 h-3" />
-                {task.assigned_to}
-              </p>
-            )}
+    <div
+      onClick={onClick}
+      style={{
+        background: "#fff",
+        borderRadius: 12,
+        border: "1px solid #F2F2F7",
+        padding: 14,
+        cursor: "pointer",
+        transition: "all 100ms",
+        boxShadow: "0 1px 3px rgba(0,0,0,.05)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,.1)";
+        e.currentTarget.style.transform = "translateY(-2px)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,.05)";
+        e.currentTarget.style.transform = "translateY(0)";
+      }}
+    >
+      {/* Title */}
+      <div style={{ fontSize: 14, fontWeight: 700, color: "#1D1D1F", marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {task.title}
+      </div>
+
+      {/* Status badge */}
+      <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: staBadge.bg, color: staBadge.c, display: "inline-block", marginBottom: 10 }}>
+        {(task.status || "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
+      </span>
+
+      {/* Divider */}
+      <div style={{ height: 1, background: "#F2F2F7", margin: "10px 0" }} />
+
+      {/* Assignee */}
+      {task.assigned_to && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg,#0071E3,#6366F1)",
+              color: "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 10,
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            {ini}
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <Badge className={statusColors[task.status] || statusColors.pending}>{task.status?.replace("_"," ")}</Badge>
-            <Badge className={priorityColors[task.priority] || priorityColors.medium}>{task.priority}</Badge>
-          </div>
+          <span style={{ fontSize: 12, color: "#1D1D1F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {task.assigned_to.split("@")[0]}
+          </span>
         </div>
-      </CardHeader>
-      <CardContent className="pt-0 space-y-2">
+      )}
+
+      {/* Due date + Priority */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         {task.due_date && (
-          <div className={`flex items-center gap-2 text-xs ${overdue ? "text-red-600 font-medium" : "text-slate-600"}`}>
-            <Calendar className="w-3 h-3" />
-            <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: isOverdue ? "#DC2626" : "#86868B", fontWeight: isOverdue ? 600 : 400 }}>
+            <Calendar style={{ width: 12, height: 12 }} />
+            {new Date(task.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            {isOverdue && " ⚠"}
           </div>
         )}
-        {task.related_entity && (
-          <p className="text-xs text-slate-500">Related: {task.related_entity}</p>
+        {task.priority && (
+          <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 20, background: priBadge.bg, color: priBadge.c }}>
+            {task.priority}
+          </span>
         )}
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Related entity */}
+      {task.related_entity && (
+        <div style={{ marginTop: 8, fontSize: 10, color: "#86868B", background: "rgba(0,0,0,.04)", padding: "4px 8px", borderRadius: 6, display: "inline-block" }}>
+          {task.related_entity}
+        </div>
+      )}
+    </div>
   );
 }
