@@ -40,14 +40,16 @@ export default function JobPreview({ id }) {
     let mounted = true;
     (async () => {
       try {
-        const res = await base44.entities.Job.filter({ id }, "-created_date", 1);
-        const j = res?.[0] || null;
+        const j = await base44.entities.Job.get(id).catch(() => null);
         if (!mounted) return;
         setJob(j);
         setStatus(j?.status || "draft");
+        
+        // Fetch company in parallel if job has company_id
         if (j?.company_id) {
-          const co = await base44.entities.Company.filter({ id: j.company_id }, "-created_date", 1).catch(() => []);
-          if (mounted) setCompany(co?.[0] || null);
+          base44.entities.Company.get(j.company_id)
+            .then(co => { if (mounted) setCompany(co || null); })
+            .catch(() => { if (mounted) setCompany(null); });
         }
       } catch (e) { console.warn(e); }
     })();
