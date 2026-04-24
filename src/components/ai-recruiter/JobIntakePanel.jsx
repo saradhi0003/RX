@@ -38,7 +38,7 @@ export default function JobIntakePanel({ onJobParsed, loading, currentRun }) {
 
     setParsing(true);
     try {
-      const response = await base44.asServiceRole.functions.invoke("aiRecruiterParseJob", {
+      const response = await base44.functions.invoke("aiRecruiterParseJob", {
         source: method === "existing" ? "app" : "manual",
         raw_text: text || "",
         job_id: jobId || null,

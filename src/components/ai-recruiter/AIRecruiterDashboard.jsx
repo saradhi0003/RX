@@ -32,7 +32,7 @@ export default function AIRecruiterDashboard({ user }) {
     setLoading(true);
     setError(null);
     try {
-      const response = await base44.asServiceRole.functions.invoke("aiRecruiterMatchCandidates", {
+      const response = await base44.functions.invoke("aiRecruiterMatchCandidates", {
         job_id: job.id,
         run_id: currentRun?.id,
         max_candidates: 50,
@@ -65,7 +65,7 @@ export default function AIRecruiterDashboard({ user }) {
     setError(null);
     try {
       const selectedIds = Array.from(selectedMatches);
-      const response = await base44.asServiceRole.functions.invoke("aiRecruiterDraftEmail", {
+      const response = await base44.functions.invoke("aiRecruiterDraftEmail", {
         run_id: currentRun?.id,
         job_id: selectedJob.id,
         candidate_ids: selectedIds,
@@ -96,7 +96,7 @@ export default function AIRecruiterDashboard({ user }) {
     setLoading(true);
     setError(null);
     try {
-      const response = await base44.asServiceRole.functions.invoke("aiRecruiterApproveDraft", {
+      const response = await base44.functions.invoke("aiRecruiterApproveDraft", {
         draft_id: draft.id,
         action,
       });
