@@ -45,13 +45,14 @@ export default function WidgetRenderer({ widget, refreshKey = 0 }) {
   React.useEffect(() => {
     let mounted = true;
     const load = async () => {
-      setLoading(true);
-      const entityMap = getEntityMap();
-      const Sdk = entityMap[widget.entity];
-      if (!Sdk) {
-        setLoading(false);
-        return;
-      }
+      try {
+        setLoading(true);
+        const entityMap = getEntityMap();
+        const Sdk = entityMap[widget.entity];
+        if (!Sdk) {
+          setLoading(false);
+          return;
+        }
       let rows = [];
       if (widget.filter && Object.keys(widget.filter).length) {
         rows = await Sdk.filter(widget.filter);
@@ -144,6 +145,10 @@ export default function WidgetRenderer({ widget, refreshKey = 0 }) {
         setData(out);
       }
       setLoading(false);
+      } catch (err) {
+        console.error('Widget load error:', err);
+        setLoading(false);
+      }
     };
     load();
     return () => { mounted = false; };
