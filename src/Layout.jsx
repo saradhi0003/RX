@@ -151,7 +151,7 @@ function AccountsNav({ location, collapsed }) {
 
   return (
     <SidebarGroup className="mt-2">
-      <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold text-slate-500 uppercase tracking-wider px-3 py-2 ${collapsed ? "hidden" : ""}`}>
+      <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold uppercase tracking-wider px-3 py-2 ${collapsed ? "hidden" : ""}`} style={{ color: "#5A6070" }}>
         Accounts
       </SidebarGroupLabel>
       <SidebarGroupContent>
@@ -160,11 +160,11 @@ function AccountsNav({ location, collapsed }) {
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
-                className={`transition-all duration-200 rounded-lg ${
-                  location.pathname === createPageUrl("Invoices")
-                    ? 'bg-blue-50 text-blue-700 shadow-sm border-r-2 border-blue-600'
-                    : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
-                } ${collapsed ? "justify-center px-2" : ""}`}
+                className={`transition-all duration-200 rounded-lg ${collapsed ? "justify-center px-2" : ""}`}
+                style={location.pathname === createPageUrl("Invoices")
+                  ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
+                  : { color: "#9BA3AF" }
+                }
               >
                 <Link
                   to={createPageUrl("Invoices")}
@@ -181,11 +181,11 @@ function AccountsNav({ location, collapsed }) {
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
-                className={`transition-all duration-200 rounded-lg ${
-                  location.pathname === createPageUrl("Expenses")
-                    ? 'bg-blue-50 text-blue-700 shadow-sm border-r-2 border-blue-600'
-                    : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
-                } ${collapsed ? "justify-center px-2" : ""}`}
+                className={`transition-all duration-200 rounded-lg ${collapsed ? "justify-center px-2" : ""}`}
+                style={location.pathname === createPageUrl("Expenses")
+                  ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
+                  : { color: "#9BA3AF" }
+                }
               >
                 <Link
                   to={createPageUrl("Expenses")}
@@ -737,54 +737,34 @@ export default function Layout({ children, currentPageName }) {
         <div
           className="min-h-screen flex w-full gap-4 lg:gap-6"
           style={{
-            backgroundImage: `
-              radial-gradient(1100px 660px at 90% -10%, rgba(0,132,255,0.12), rgba(0,132,255,0) 60%),
-              radial-gradient(900px 600px at -10% 110%, rgba(108,0,255,0.10), rgba(108,0,255,0) 60%),
-              linear-gradient(135deg, rgba(0,201,255,0.05) 0%, rgba(0,132,255,0.05) 40%, rgba(108,0,255,0.05) 100%)
-            `,
-            backgroundColor: "#F9FBFF",
-            backgroundAttachment: "fixed"
+            background: "linear-gradient(135deg, #0F1117 0%, #141828 50%, #111520 100%)",
+            backgroundAttachment: "fixed",
+            minHeight: "100vh"
           }}
         >
           <style>{`
             :root {
-              --brand-cyan: #00C9FF;
-              --brand-blue: #0084FF;
-              --brand-purple: #6C00FF;
-              --radius-xl: 14px;
-              --shadow-card: 0 12px 28px rgba(2, 6, 23, 0.06);
-              --ring: 0 0 0 3px rgba(0,132,255,0.20);
-
-              --clay-bg: #f5f7fb;
-              --clay-surface: #ffffffee;
-              --clay-shadow: 12px 12px 24px rgba(15, 23, 42, 0.12);
-              --clay-highlight: -8px -8px 20px rgba(255, 255, 255, 0.9);
-              --clay-inset: inset 0 1px 1px rgba(255,255,255,0.6);
-              --clay-radius: 18px;
+              --clay-radius: 14px;
             }
 
             .clay-surface {
-              background: var(--clay-surface);
+              background: #161B27;
               border-radius: var(--clay-radius);
-              box-shadow: var(--clay-shadow), var(--clay-highlight), var(--clay-inset);
-              border: 1px solid rgba(15, 23, 42, 0.06);
-              backdrop-filter: blur(6px);
+              border: 1px solid rgba(255,255,255,0.06);
             }
 
             .clay-button {
-              border-radius: 14px;
-              background: linear-gradient(180deg, #ffffff, #f4f6fb);
-              box-shadow: 6px 6px 14px rgba(2, 6, 23, 0.10), -4px -4px 12px rgba(255,255,255,0.85);
-              border: 1px solid rgba(15, 23, 42, 0.06);
-              transition: transform .12s ease, box-shadow .2s ease;
+              border-radius: 10px;
+              background: rgba(255,255,255,0.06);
+              border: 1px solid rgba(255,255,255,0.08);
+              transition: background .15s ease, border-color .15s ease;
             }
             .clay-button:hover {
-              transform: translateY(-1px);
-              box-shadow: 10px 10px 18px rgba(2, 6, 23, 0.12), -6px -6px 14px rgba(255,255,255,0.9);
+              background: rgba(255,255,255,0.10);
+              border-color: rgba(232,160,32,0.3);
             }
             .clay-button:active {
-              transform: translateY(0);
-              box-shadow: inset 0 2px 6px rgba(2,6,23,0.12);
+              background: rgba(255,255,255,0.04);
             }
 
             .app-sidebar {
@@ -831,10 +811,11 @@ export default function Layout({ children, currentPageName }) {
           }
 
           <Sidebar
-            className={`app-sidebar border-r border-slate-200 ${sidebarCollapsed ? "px-2" : ""} clay-surface`}
+            className={`app-sidebar ${sidebarCollapsed ? "px-2" : ""} clay-surface`}
+            style={{ borderRight: "1px solid rgba(255,255,255,0.06)" }}
             data-collapsed={sidebarCollapsed ? "true" : "false"}
           >
-            <SidebarHeader className={`border-b border-slate-100 ${sidebarCollapsed ? "px-2 py-4" : "p-6"}`}>
+            <SidebarHeader className={`${sidebarCollapsed ? "px-2 py-4" : "p-6"}`} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
               <div className={`flex items-center ${sidebarCollapsed ? "justify-center" : "justify-between"} gap-3`}>
                 <div className="flex items-center gap-3">
                   <img
@@ -844,8 +825,8 @@ export default function Layout({ children, currentPageName }) {
                   />
                   {!sidebarCollapsed && (
                     <div>
-                      <h2 className="font-bold text-slate-900 text-lg">Recruiter X</h2>
-                      <p className="text-xs text-slate-500">Recruitment Platform</p>
+                      <h2 className="font-bold text-lg" style={{ color: "#EDE9E4" }}>Recruiter X</h2>
+                      <p className="text-xs" style={{ color: "#5A6070" }}>Recruitment Platform</p>
                     </div>
                   )}
                 </div>
@@ -883,7 +864,7 @@ export default function Layout({ children, currentPageName }) {
               </div>
 
               <SidebarGroup>
-                <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold text-slate-500 uppercase tracking-wider ${sidebarCollapsed ? "hidden" : "px-3 py-2"}`}>
+                <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold uppercase tracking-wider ${sidebarCollapsed ? "hidden" : "px-3 py-2"}`} style={{ color: "#5A6070" }}>
                   Main Navigation
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
@@ -892,11 +873,15 @@ export default function Layout({ children, currentPageName }) {
                       <SidebarMenuItem key={item.title}>
                         <SidebarMenuButton
                           asChild
-                          className={`hover:bg-blue-50 hover:text-blue-700 transition-all duration-200 rounded-lg ${
+                          className={`transition-all duration-200 rounded-lg ${
                             location.pathname === item.url
-                              ? 'bg-blue-50 text-blue-700 shadow-sm border-r-2 border-blue-600'
-                              : 'text-slate-600 hover:text-blue-700'
+                              ? 'shadow-sm'
+                              : ''
                           } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          style={location.pathname === item.url
+                            ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
+                            : { color: "#9BA3AF" }
+                          }
                         >
                           <Link
                             to={item.url}
@@ -915,7 +900,7 @@ export default function Layout({ children, currentPageName }) {
 
               {isAdmin && (
                 <SidebarGroup className="mt-6">
-                  <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold text-slate-500 uppercase tracking-wider ${sidebarCollapsed ? "hidden" : "px-3 py-2"}`}>
+                  <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold uppercase tracking-wider ${sidebarCollapsed ? "hidden" : "px-3 py-2"}`} style={{ color: "#5A6070" }}>
                     Admin Controls
                   </SidebarGroupLabel>
                   <SidebarGroupContent>
@@ -923,11 +908,11 @@ export default function Layout({ children, currentPageName }) {
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           asChild
-                          className={`transition-all duration-200 rounded-lg ${
-                            location.pathname === createPageUrl("AccessControl")
-                              ? 'bg-blue-50 text-blue-700 shadow-sm border-r-2 border-blue-600'
-                              : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
-                          } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          style={location.pathname === createPageUrl("AccessControl")
+                            ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
+                            : { color: "#9BA3AF" }
+                          }
                         >
                           <Link
                             to={createPageUrl("AccessControl?hide_badge=true")}
@@ -943,11 +928,11 @@ export default function Layout({ children, currentPageName }) {
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           asChild
-                          className={`transition-all duration-200 rounded-lg ${
-                            location.pathname === createPageUrl("Approvals")
-                              ? 'bg-blue-50 text-blue-700 shadow-sm border-r-2 border-blue-600'
-                              : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
-                          } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          style={location.pathname === createPageUrl("Approvals")
+                            ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
+                            : { color: "#9BA3AF" }
+                          }
                         >
                           <Link
                             to={createPageUrl("Approvals")}
@@ -963,11 +948,11 @@ export default function Layout({ children, currentPageName }) {
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           asChild
-                          className={`transition-all duration-200 rounded-lg ${
-                            location.pathname === createPageUrl("JobStack")
-                              ? 'bg-blue-50 text-blue-700 shadow-sm border-r-2 border-blue-600'
-                              : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
-                          } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          style={location.pathname === createPageUrl("JobStack")
+                            ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
+                            : { color: "#9BA3AF" }
+                          }
                         >
                           <Link
                             to={createPageUrl("JobStack")}
@@ -983,11 +968,11 @@ export default function Layout({ children, currentPageName }) {
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           asChild
-                          className={`transition-all duration-200 rounded-lg ${
-                            location.pathname === createPageUrl("AIAgents")
-                              ? 'bg-blue-50 text-blue-700 shadow-sm border-r-2 border-blue-600'
-                              : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
-                          } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          style={location.pathname === createPageUrl("AIAgents")
+                            ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
+                            : { color: "#9BA3AF" }
+                          }
                         >
                           <Link
                             to={createPageUrl("AIAgents")}
@@ -1003,11 +988,11 @@ export default function Layout({ children, currentPageName }) {
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           asChild
-                          className={`transition-all duration-200 rounded-lg ${
-                            location.pathname === createPageUrl("EmailBlast")
-                              ? 'bg-blue-50 text-blue-700 shadow-sm border-r-2 border-blue-600'
-                              : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
-                          } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          style={location.pathname === createPageUrl("EmailBlast")
+                            ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
+                            : { color: "#9BA3AF" }
+                          }
                         >
                           <Link
                             to={createPageUrl("EmailBlast")}
@@ -1023,11 +1008,11 @@ export default function Layout({ children, currentPageName }) {
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           asChild
-                          className={`transition-all duration-200 rounded-lg ${
-                            location.pathname === createPageUrl("AutomationRules")
-                              ? 'bg-blue-50 text-blue-700 shadow-sm border-r-2 border-blue-600'
-                              : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
-                          } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          style={location.pathname === createPageUrl("AutomationRules")
+                            ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
+                            : { color: "#9BA3AF" }
+                          }
                         >
                           <Link
                             to={createPageUrl("AutomationRules")}
@@ -1043,11 +1028,11 @@ export default function Layout({ children, currentPageName }) {
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           asChild
-                          className={`transition-all duration-200 rounded-lg ${
-                            location.pathname === createPageUrl("BRD")
-                              ? 'bg-blue-50 text-blue-700 shadow-sm border-r-2 border-blue-600'
-                              : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
-                          } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          style={location.pathname === createPageUrl("BRD")
+                            ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
+                            : { color: "#9BA3AF" }
+                          }
                         >
                           <Link
                             to={createPageUrl("BRD")}
@@ -1063,11 +1048,11 @@ export default function Layout({ children, currentPageName }) {
                       <SidebarMenuItem>
                         <SidebarMenuButton
                           asChild
-                          className={`transition-all duration-200 rounded-lg ${
-                            location.pathname === createPageUrl("EmailInbox")
-                              ? 'bg-blue-50 text-blue-700 shadow-sm border-r-2 border-blue-600'
-                              : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
-                          } ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          className={`transition-all duration-200 rounded-lg ${sidebarCollapsed ? "justify-center px-2" : ""}`}
+                          style={location.pathname === createPageUrl("EmailInbox")
+                            ? { background: "rgba(232,160,32,0.12)", color: "#E8A020", borderRight: "2px solid #E8A020" }
+                            : { color: "#9BA3AF" }
+                          }
                         >
                           <Link
                             to={createPageUrl("EmailInbox")}
@@ -1088,27 +1073,27 @@ export default function Layout({ children, currentPageName }) {
 
               {!skipQuickStats && (
                 <SidebarGroup className="mt-8">
-                  <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold text-slate-500 uppercase tracking-wider ${sidebarCollapsed ? "hidden" : "px-3 py-2"}`}>
+                  <SidebarGroupLabel className={`sidebar-group-label text-xs font-semibold uppercase tracking-wider ${sidebarCollapsed ? "hidden" : "px-3 py-2"}`} style={{ color: "#5A6070" }}>
                     Quick Stats
                   </SidebarGroupLabel>
                   <SidebarGroupContent>
                     <div className={`px-3 py-2 space-y-3 ${sidebarCollapsed ? "hidden" : ""}`}>
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-600">Active Jobs</span>
-                        <span className="font-semibold text-slate-900">
-                          {qsLoading ? <span className="inline-block w-6 h-4 bg-slate-200 rounded animate-pulse" /> : quickStats.activeJobs}
+                        <span style={{ color: "#9BA3AF" }}>Active Jobs</span>
+                        <span className="font-semibold" style={{ color: "#EDE9E4" }}>
+                          {qsLoading ? <span className="inline-block w-6 h-4 rounded animate-pulse" style={{ background: "rgba(255,255,255,0.1)" }} /> : quickStats.activeJobs}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-600">New Candidates</span>
-                        <span className="font-semibold text-blue-600">
-                          {qsLoading ? <span className="inline-block w-6 h-4 bg-slate-200 rounded animate-pulse" /> : quickStats.newCandidates}
+                        <span style={{ color: "#9BA3AF" }}>New Candidates</span>
+                        <span className="font-semibold" style={{ color: "#3ECFB2" }}>
+                          {qsLoading ? <span className="inline-block w-6 h-4 rounded animate-pulse" style={{ background: "rgba(255,255,255,0.1)" }} /> : quickStats.newCandidates}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm">
-                        <span className="text-slate-600">This Month</span>
-                        <span className="font-semibold text-green-600">
-                          {qsLoading ? <span className="inline-block w-16 h-4 bg-slate-200 rounded animate-pulse" /> : `${quickStats.thisMonthPlacements} Placed`}
+                        <span style={{ color: "#9BA3AF" }}>This Month</span>
+                        <span className="font-semibold" style={{ color: "#E8A020" }}>
+                          {qsLoading ? <span className="inline-block w-16 h-4 rounded animate-pulse" style={{ background: "rgba(255,255,255,0.1)" }} /> : `${quickStats.thisMonthPlacements} Placed`}
                         </span>
                       </div>
                     </div>
@@ -1117,19 +1102,19 @@ export default function Layout({ children, currentPageName }) {
               )}
             </SidebarContent>
 
-            <SidebarFooter className={`border-t border-slate-100 ${sidebarCollapsed ? "px-2 py-3" : "p-4"}`}>
+            <SidebarFooter className={`${sidebarCollapsed ? "px-2 py-3" : "p-4"}`} style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className={`w-full justify-start gap-3 p-3 h-auto ${sidebarCollapsed ? "justify-center" : ""}`}>
+                  <Button variant="ghost" className={`w-full justify-start gap-3 p-3 h-auto ${sidebarCollapsed ? "justify-center" : ""}`} style={{ color: "#9BA3AF" }}>
                     <Avatar className="w-8 h-8">
-                      <AvatarFallback className="bg-slate-200 text-slate-600 text-sm">
+                      <AvatarFallback className="text-sm" style={{ background: "rgba(232,160,32,0.2)", color: "#E8A020" }}>
                         {me?.full_name ? me.full_name.charAt(0).toUpperCase() : (me?.email ? me.email.charAt(0).toUpperCase() : 'U')}
                       </AvatarFallback>
                     </Avatar>
                     {!sidebarCollapsed && (
                       <div className="flex-1 text-left min-w-0">
-                        <p className="font-medium text-slate-900 text-sm truncate">{me?.full_name || me?.email || 'User Account'}</p>
-                        <p className="text-xs text-slate-500 truncate">{myRole?.name || 'User'}</p>
+                        <p className="font-medium text-sm truncate" style={{ color: "#EDE9E4" }}>{me?.full_name || me?.email || 'User Account'}</p>
+                        <p className="text-xs truncate" style={{ color: "#5A6070" }}>{myRole?.name || 'User'}</p>
                       </div>
                     )}
                   </Button>
@@ -1154,33 +1139,33 @@ export default function Layout({ children, currentPageName }) {
           </Sidebar>
 
           <main className="flex-1 flex flex-col min-w-0">
-            <header className="clay-surface border-b border-slate-200 px-6 py-4 flex items-center gap-4">
-              <SidebarTrigger className="md:hidden hover:bg-slate-100 p-2 rounded-lg transition-colors duration-200" />
+            <header className="px-6 py-4 flex items-center gap-4" style={{ background: "#161B27", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+              <SidebarTrigger className="md:hidden p-2 rounded-lg transition-colors duration-200" style={{ color: "#9BA3AF" }} />
 
               <div className="flex-1 max-w-md">
                 <div 
                   className="relative cursor-pointer"
                   onClick={() => setCommandPaletteOpen(true)}
                 >
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <div className="pl-10 pr-16 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-500 hover:bg-white hover:border-slate-300 transition-colors">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: "#5A6070" }} />
+                  <div className="pl-10 pr-16 py-2 rounded-lg text-sm transition-colors" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "#5A6070" }}>
                     Search anything...
                   </div>
-                  <kbd className="absolute right-3 top-1/2 transform -translate-y-1/2 px-2 py-1 text-xs bg-white border border-slate-200 rounded">
+                  <kbd className="absolute right-3 top-1/2 transform -translate-y-1/2 px-2 py-1 text-xs rounded" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", color: "#5A6070" }}>
                     ⌘K
                   </kbd>
                 </div>
               </div>
 
               <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" className="relative clay-button">
+                <Button variant="ghost" size="icon" className="relative clay-button" style={{ color: "#9BA3AF" }}>
                   <Bell className="w-5 h-5" />
                   <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></span>
                 </Button>
               </div>
             </header>
 
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-auto" style={{ background: "linear-gradient(135deg, #0F1117 0%, #141828 50%, #111520 100%)" }}>
               <div className="relative min-h-full">
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none z-0">
                   <img
