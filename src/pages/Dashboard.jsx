@@ -8,13 +8,11 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { Candidate, Job, Company, Application, Submission, Task } from "@/entities/all";
-import { User as UserEntity } from "@/entities/all";
+import { base44 } from "@/api/base44Client";
 import { usePermissions } from "@/components/common/PermissionsContext";
 import { getRolesCached } from "@/components/utils/rolesCache";
-import { base44 } from "@/api/base44Client";
 import { addNotification } from "@/components/notifications/NotificationToast";
-import { DashboardConfig } from "@/entities/DashboardConfig";
+
 import WidgetRenderer from "@/components/dashboard/WidgetRenderer";
 import BuilderModal from "@/components/dashboard/BuilderModal";
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
@@ -145,7 +143,7 @@ export default function Dashboard() {
     dashGuard.current.inFlight = true;
     setLoading(true);
     try {
-      const meUser = await UserEntity.me().catch(() => null);
+      const meUser = await base44.auth.me().catch(() => null);
       setMe(meUser);
       let admin = meUser?.role === "admin";
       if (meUser?.role_id) {
@@ -155,7 +153,7 @@ export default function Dashboard() {
       }
       setIsAdmin(admin);
 
-      const cfgList = await DashboardConfig.filter({ is_global: true, is_active: true }, "-updated_date");
+      const cfgList = await base44.entities.DashboardConfig.filter({ is_global: true, is_active: true }, "-updated_date");
       const cfg = cfgList[0] || null;
       setConfig(cfg);
       setWidgets(cfg?.widgets || []);
@@ -168,12 +166,12 @@ export default function Dashboard() {
       let taskFilter = !admin && meUser?.email ? { created_by: meUser.email } : null;
 
       const [candidatesData, jobsData, companiesData, applicationsData, submissionsData, tasks] = await Promise.all([
-        candFilter ? Candidate.filter(candFilter, '-created_date', 100) : Candidate.list('-created_date', 100),
-        jobFilter ? Job.filter(jobFilter, '-created_date', 50) : Job.list('-created_date', 50),
-        compFilter ? Company.filter(compFilter, '-created_date', 50) : Company.list('-created_date', 50),
-        appFilter ? Application.filter(appFilter, '-created_date', 50) : Application.list('-created_date', 50),
-        subFilter ? Submission.filter(subFilter, '-created_date', 50) : Submission.list('-created_date', 50),
-        taskFilter ? Task.filter(taskFilter, '-created_date', 50) : Task.list('-created_date', 50)
+        candFilter ? base44.entities.Candidate.filter(candFilter, '-created_date', 100) : base44.entities.Candidate.list('-created_date', 100),
+        jobFilter ? base44.entities.Job.filter(jobFilter, '-created_date', 50) : base44.entities.Job.list('-created_date', 50),
+        compFilter ? base44.entities.Company.filter(compFilter, '-created_date', 50) : base44.entities.Company.list('-created_date', 50),
+        appFilter ? base44.entities.Application.filter(appFilter, '-created_date', 50) : base44.entities.Application.list('-created_date', 50),
+        subFilter ? base44.entities.Submission.filter(subFilter, '-created_date', 50) : base44.entities.Submission.list('-created_date', 50),
+        taskFilter ? base44.entities.Task.filter(taskFilter, '-created_date', 50) : base44.entities.Task.list('-created_date', 50)
       ]);
 
       setCandidates(candidatesData || []);
@@ -214,7 +212,7 @@ export default function Dashboard() {
   const completeTask = async (taskId) => {
     setCompletingTask(taskId);
     try {
-      await Task.update(taskId, { status: "completed", completion_notes: "Completed from Dashboard" });
+      await base44.entities.Task.update(taskId, { status: "completed", completion_notes: "Completed from Dashboard" });
       setMyTasksToday(prev => prev.filter(t => t.id !== taskId));
     } catch (err) { console.error(err); }
     setCompletingTask(null);
@@ -222,8 +220,8 @@ export default function Dashboard() {
 
   const saveGlobalDashboard = async (dash) => {
     let saved = config?.id
-      ? await DashboardConfig.update(config.id, { ...dash, is_global: true, is_active: true })
-      : await DashboardConfig.create({ ...dash, is_global: true, is_active: true });
+      ? await base44.entities.DashboardConfig.update(config.id, { ...dash, is_global: true, is_active: true })
+      : await base44.entities.DashboardConfig.create({ ...dash, is_global: true, is_active: true });
     setConfig(saved);
     setWidgets(saved.widgets || []);
     setBuilderOpen(false);
@@ -235,7 +233,7 @@ export default function Dashboard() {
     const [moved] = arr.splice(source.index, 1);
     arr.splice(destination.index, 0, moved);
     setWidgets(arr);
-    if (isAdmin && config?.id) await DashboardConfig.update(config.id, { ...config, widgets: arr });
+    if (isAdmin && config?.id) await base44.entities.DashboardConfig.update(config.id, { ...config, widgets: arr });
   };
 
   const openModalFor = (type) => {
