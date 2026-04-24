@@ -1,5 +1,5 @@
 import React from "react";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,34 +23,32 @@ import {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function MetricCard({ label, value, sub, trend, trendUp, onClick, loading }) {
-  return (
-    <div
-      onClick={onClick}
-      className={`bg-white border border-[#E2E8F0] rounded-xl px-6 py-5 ${onClick ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
-    >
-      <p className="text-[13px] text-[#94A3B8] font-medium mb-1">{label}</p>
-      {loading ? (
-        <div className="h-10 w-20 bg-slate-100 rounded animate-pulse my-1" />
-      ) : (
-        <p className="text-[40px] font-bold text-[#1E293B] leading-none" style={{ fontFamily: 'var(--font-display)' }}>
-          {value}
-        </p>
+const MetricCard = memo(({ label, value, sub, trend, trendUp, onClick, loading }) => (
+  <div
+    onClick={onClick}
+    className={`bg-white border border-[#E2E8F0] rounded-xl px-6 py-5 ${onClick ? "cursor-pointer hover:shadow-md transition-shadow" : ""}`}
+  >
+    <p className="text-[13px] text-[#94A3B8] font-medium mb-1">{label}</p>
+    {loading ? (
+      <div className="h-10 w-20 bg-slate-100 rounded animate-pulse my-1" />
+    ) : (
+      <p className="text-[40px] font-bold text-[#1E293B] leading-none" style={{ fontFamily: 'var(--font-display)' }}>
+        {value}
+      </p>
+    )}
+    <div className="flex items-center gap-1.5 mt-2">
+      {trend && (
+        <span className={`flex items-center gap-0.5 text-[12px] font-semibold ${trendUp ? "text-[#16A34A]" : "text-[#DC2626]"}`}>
+          <ArrowUpRight className="w-3.5 h-3.5" />
+          {trend}
+        </span>
       )}
-      <div className="flex items-center gap-1.5 mt-2">
-        {trend && (
-          <span className={`flex items-center gap-0.5 text-[12px] font-semibold ${trendUp ? "text-[#16A34A]" : "text-[#DC2626]"}`}>
-            <ArrowUpRight className="w-3.5 h-3.5" />
-            {trend}
-          </span>
-        )}
-        {sub && <span className="text-[12px] text-[#94A3B8]">{sub}</span>}
-      </div>
+      {sub && <span className="text-[12px] text-[#94A3B8]">{sub}</span>}
     </div>
-  );
-}
+  </div>
+));
 
-function PipelineFunnelBar({ stages, loading }) {
+const PipelineFunnelBar = memo(({ stages, loading }) => {
   const max = Math.max(...stages.map(s => s.count), 1);
   const COLORS = {
     Applied: "#2563EB", Screened: "#F97316", Interview: "#16A34A",
@@ -75,7 +73,7 @@ function PipelineFunnelBar({ stages, loading }) {
       }
     </div>
   );
-}
+});
 
 function avatarColor(name = "") {
   const palette = [
@@ -132,9 +130,9 @@ export default function Dashboard() {
   const dashGuard = useRef({ ts: 0, inFlight: false });
   const { listFilterFor } = usePermissions();
 
-  const today = new Date();
-  const dateLabel = today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-  const quarter = `Q${Math.ceil((today.getMonth() + 1) / 3)} ${today.getFullYear()}`;
+  const today = useMemo(() => new Date(), []);
+  const dateLabel = useMemo(() => today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }), [today]);
+  const quarter = useMemo(() => `Q${Math.ceil((today.getMonth() + 1) / 3)} ${today.getFullYear()}`, [today]);
 
   const loadDashboardData = useCallback(async (force = false) => {
     const now = Date.now();
@@ -297,31 +295,31 @@ export default function Dashboard() {
   };
 
   // Pipeline stage data
-  const pipelineStages = [
+  const pipelineStages = useMemo(() => [
     { label: "Applied",   count: candidates.filter(c => c.status === "active").length },
     { label: "Screened",  count: candidates.filter(c => c.status === "screened").length },
     { label: "Interview", count: applications.filter(a => a.status === "interviewing").length },
     { label: "Offer",     count: applications.filter(a => a.status === "offered").length },
     { label: "Placed",    count: stats.thisMonthPlacements },
-  ];
+  ], [candidates, applications, stats.thisMonthPlacements]);
 
-  const pipelineMax = Math.max(...pipelineStages.map(s => s.count), 1);
-  const PIPE_COLORS = { Applied: "#2563EB", Screened: "#F97316", Interview: "#16A34A", Offer: "#7C3AED", Placed: "#0891B2" };
+  const pipelineMax = useMemo(() => Math.max(...pipelineStages.map(s => s.count), 1), [pipelineStages]);
+  const PIPE_COLORS = useMemo(() => ({ Applied: "#2563EB", Screened: "#F97316", Interview: "#16A34A", Offer: "#7C3AED", Placed: "#0891B2" }), []);
 
-  const statusChartData = Object.entries(
+  const statusChartData = useMemo(() => Object.entries(
     candidates.reduce((a, c) => { a[c.status] = (a[c.status]||0)+1; return a; }, {})
-  ).map(([name, value]) => ({ name: name.replace(/_/g," "), value }));
+  ).map(([name, value]) => ({ name: name.replace(/_/g," "), value })), [candidates]);
 
-  const tabs = [
+  const tabs = useMemo(() => [
     { id: "overview", label: "Overview" },
     { id: "pipeline", label: "Pipeline" },
     { id: "activity", label: "Activity" },
-  ];
+  ], []);
 
   // Recent candidates
-  const recentCandidates = [...candidates]
+  const recentCandidates = useMemo(() => [...candidates]
     .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
-    .slice(0, 6);
+    .slice(0, 6), [candidates]);
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]">

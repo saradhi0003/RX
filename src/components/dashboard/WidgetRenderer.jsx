@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, memo, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line } from "recharts";
@@ -37,12 +37,12 @@ const getWidgetIcon = (type) => {
   }
 };
 
-export default function WidgetRenderer({ widget, refreshKey = 0 }) {
-  const [data, setData] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [seriesKeys, setSeriesKeys] = React.useState([]);
+const WidgetRendererImpl = ({ widget, refreshKey = 0 }) => {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [seriesKeys, setSeriesKeys] = useState([]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     let mounted = true;
     const load = async () => {
       try {
@@ -154,8 +154,8 @@ export default function WidgetRenderer({ widget, refreshKey = 0 }) {
     return () => { mounted = false; };
   }, [widget, refreshKey]);
 
-  const Icon = getWidgetIcon(widget.widget_type);
-  const bgGradient = widgetBackgrounds[widget.widget_type] || widgetBackgrounds.bar;
+  const Icon = useMemo(() => getWidgetIcon(widget.widget_type), [widget.widget_type]);
+  const bgGradient = useMemo(() => widgetBackgrounds[widget.widget_type] || widgetBackgrounds.bar, [widget.widget_type]);
 
   return (
     <Card className={`${widget.cols === 2 ? "col-span-2" : ""} border-0 shadow-xl overflow-hidden`}>
@@ -313,4 +313,6 @@ export default function WidgetRenderer({ widget, refreshKey = 0 }) {
       </CardContent>
     </Card>
   );
-}
+};
+
+export default memo(WidgetRendererImpl);

@@ -445,7 +445,7 @@ export default function Layout({ children, currentPageName }) {
   }, [skipQuickStats]);
 
   React.useEffect(() => {
-    const t = setTimeout(() => setRenderAssistant(true), 3000);
+    const t = setTimeout(() => setRenderAssistant(true), 5000);
     return () => clearTimeout(t);
   }, []);
 
