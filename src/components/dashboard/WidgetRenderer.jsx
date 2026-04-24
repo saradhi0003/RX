@@ -5,14 +5,14 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import { base44 } from "@/api/base44Client";
 import { TrendingUp, BarChart3, PieChart as PieChartIcon, Activity } from "lucide-react";
 
-const ENTITY_MAP = {
+const getEntityMap = () => ({
   Candidate: base44.entities.Candidate,
   Job: base44.entities.Job,
   Company: base44.entities.Company,
   Application: base44.entities.Application,
   Submission: base44.entities.Submission,
   Task: base44.entities.Task,
-};
+});
 
 // Enhanced color palette with gradients
 const BRAND = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#6C00FF", "#22c55e", "#f59e0b", "#ef4444", "#6366f1", "#ec4899", "#14b8a6", "#8b5cf6"];
@@ -46,7 +46,8 @@ export default function WidgetRenderer({ widget, refreshKey = 0 }) {
     let mounted = true;
     const load = async () => {
       setLoading(true);
-      const Sdk = ENTITY_MAP[widget.entity];
+      const entityMap = getEntityMap();
+      const Sdk = entityMap[widget.entity];
       if (!Sdk) {
         setLoading(false);
         return;
