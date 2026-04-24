@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,8 +12,6 @@ import { base44 } from "@/api/base44Client";
 import { usePermissions } from "@/components/common/PermissionsContext";
 import { getRolesCached } from "@/components/utils/rolesCache";
 import { addNotification } from "@/components/notifications/NotificationToast";
-
-import { lazy, Suspense } from "react";
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 
 const WidgetRenderer = lazy(() => import("@/components/dashboard/WidgetRenderer"));
