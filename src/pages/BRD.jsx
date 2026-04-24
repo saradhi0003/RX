@@ -7,8 +7,9 @@ import {
   Search, ChevronDown, ChevronUp, Sparkles, MailPlus, Brain,
   BookOpen, List, Code, Briefcase, Send, CheckCircle, TrendingUp,
   Layers, Server, Lock, Activity, Settings, Globe, Bot, BarChart2,
-  Cpu, AlertTriangle, ArrowRight, Box, Key
+  Cpu, AlertTriangle, ArrowRight, Box, Key, Download
 } from "lucide-react";
+import { downloadBRD } from "@/components/brd/downloadBRD";
 
 // ── Mini Components ──────────────────────────────────────────────────────────
 
@@ -694,7 +695,7 @@ export default function BRD() {
               </div>
             </div>
           </div>
-          <div className="flex gap-3 shrink-0">
+          <div className="flex items-start gap-3 shrink-0 flex-wrap">
             <div className="text-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-4 py-2">
               <p className="text-[20px] font-bold text-[#2563EB]">{allEntities.length}</p>
               <p className="text-[11px] text-[#94A3B8]">Entities</p>
@@ -704,9 +705,19 @@ export default function BRD() {
               <p className="text-[11px] text-[#94A3B8]">Fields</p>
             </div>
             <div className="text-center bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg px-4 py-2">
-              <p className="text-[20px] font-bold text-[#16A34A]">14</p>
+              <p className="text-[20px] font-bold text-[#16A34A]">20</p>
               <p className="text-[11px] text-[#94A3B8]">AI Features</p>
             </div>
+            <Button
+              onClick={() => downloadBRD(entities)}
+              className="bg-[#1E293B] hover:bg-[#334155] text-white gap-2 h-auto py-2 px-4"
+            >
+              <Download className="w-4 h-4" />
+              <div className="text-left">
+                <div className="text-[13px] font-semibold leading-tight">Download BRD</div>
+                <div className="text-[10px] text-[#94A3B8] leading-tight">.html document</div>
+              </div>
+            </Button>
           </div>
         </div>
 
