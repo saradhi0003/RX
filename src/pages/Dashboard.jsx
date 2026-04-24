@@ -147,14 +147,14 @@ export default function Dashboard() {
       setMe(meUser);
       let admin = meUser?.role === "admin";
       if (meUser?.role_id) {
-        const roles = await getRolesCached();
+        const roles = await getRolesCached().catch(() => []);
         const r = roles.find(it => it.id === meUser.role_id);
         admin = admin || (r?.name || "").toLowerCase() === "admin";
       }
       setIsAdmin(admin);
 
-      const cfgList = await base44.entities.DashboardConfig.filter({ is_global: true, is_active: true }, "-updated_date");
-      const cfg = cfgList[0] || null;
+      const cfgList = await base44.entities.DashboardConfig.filter({ is_global: true, is_active: true }, "-updated_date").catch(() => []);
+      const cfg = (cfgList && cfgList[0]) || null;
       setConfig(cfg);
       setWidgets(cfg?.widgets || []);
 
@@ -166,12 +166,12 @@ export default function Dashboard() {
       let taskFilter = !admin && meUser?.email ? { created_by: meUser.email } : null;
 
       const [candidatesData, jobsData, companiesData, applicationsData, submissionsData, tasks] = await Promise.all([
-        candFilter ? base44.entities.Candidate.filter(candFilter, '-created_date', 100) : base44.entities.Candidate.list('-created_date', 100),
-        jobFilter ? base44.entities.Job.filter(jobFilter, '-created_date', 50) : base44.entities.Job.list('-created_date', 50),
-        compFilter ? base44.entities.Company.filter(compFilter, '-created_date', 50) : base44.entities.Company.list('-created_date', 50),
-        appFilter ? base44.entities.Application.filter(appFilter, '-created_date', 50) : base44.entities.Application.list('-created_date', 50),
-        subFilter ? base44.entities.Submission.filter(subFilter, '-created_date', 50) : base44.entities.Submission.list('-created_date', 50),
-        taskFilter ? base44.entities.Task.filter(taskFilter, '-created_date', 50) : base44.entities.Task.list('-created_date', 50)
+        candFilter ? base44.entities.Candidate.filter(candFilter, '-created_date', 100).catch(() => []) : base44.entities.Candidate.list('-created_date', 100).catch(() => []),
+        jobFilter ? base44.entities.Job.filter(jobFilter, '-created_date', 50).catch(() => []) : base44.entities.Job.list('-created_date', 50).catch(() => []),
+        compFilter ? base44.entities.Company.filter(compFilter, '-created_date', 50).catch(() => []) : base44.entities.Company.list('-created_date', 50).catch(() => []),
+        appFilter ? base44.entities.Application.filter(appFilter, '-created_date', 50).catch(() => []) : base44.entities.Application.list('-created_date', 50).catch(() => []),
+        subFilter ? base44.entities.Submission.filter(subFilter, '-created_date', 50).catch(() => []) : base44.entities.Submission.list('-created_date', 50).catch(() => []),
+        taskFilter ? base44.entities.Task.filter(taskFilter, '-created_date', 50).catch(() => []) : base44.entities.Task.list('-created_date', 50).catch(() => [])
       ]);
 
       setCandidates(candidatesData || []);
@@ -180,14 +180,14 @@ export default function Dashboard() {
       setApplications(applicationsData || []);
       setSubmissions(submissionsData || []);
 
-      const activeJobs = jobsData.filter(j => j.status === "open").length;
+      const activeJobs = (jobsData || []).filter(j => j.status === "open").length;
       const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
-      const thisMonthPlacements = applicationsData.filter(a => {
+      const thisMonthPlacements = (applicationsData || []).filter(a => {
         if (a.status !== "hired") return false;
         const d = new Date(a.created_date);
         return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
       }).length;
-      setStats({ totalCandidates: candidatesData.length, activeJobs, totalCompanies: companiesData.length, thisMonthPlacements });
+      setStats({ totalCandidates: (candidatesData || []).length, activeJobs, totalCompanies: (companiesData || []).length, thisMonthPlacements });
 
       const todayTs = todayMidnight.getTime();
       const my = (tasks || [])
@@ -201,6 +201,12 @@ export default function Dashboard() {
       setMyTasksToday(my);
     } catch (err) {
       console.error("Dashboard load error:", err);
+      setCandidates([]);
+      setJobs([]);
+      setCompanies([]);
+      setApplications([]);
+      setSubmissions([]);
+      setMyTasksToday([]);
     }
     setLoading(false);
     dashGuard.current.inFlight = false;
