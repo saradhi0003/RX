@@ -226,9 +226,8 @@ export default function GoalsPage() {
         message="Are you sure you want to delete this goal? This action cannot be undone."
       />
       </div>
-      </div>
-  );
-}
+      );
+      }
 
 function GoalForm({ open, onClose, goal, recruiters, onSave }) {
   const [formData, setFormData] = useState({

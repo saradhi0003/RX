@@ -288,49 +288,6 @@ export default function MyWork() {
             ))}
           </div>
 
-          {/* Overview mini-dashboard */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-blue-800">Hours this Week</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-blue-900">{weekHours.toFixed(1)}</div>
-                <p className="text-xs text-blue-700 mt-1">Logged time</p>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-green-800">Approved (Month)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-green-900">{monthApprovedHours.toFixed(1)}</div>
-                <p className="text-xs text-green-700 mt-1">Hours approved</p>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 border-yellow-200">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-yellow-800">Pending Leave</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-yellow-900">{monthPendingLeaves}</div>
-                <p className="text-xs text-yellow-700 mt-1">Awaiting approval</p>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm text-purple-800">Draft Entries</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold text-purple-900">{draftTimesheets.length}</div>
-                <p className="text-xs text-purple-700 mt-1">Not submitted</p>
-              </CardContent>
-            </Card>
-          </div>
-
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>

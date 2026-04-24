@@ -850,7 +850,7 @@ export default function Layout({ children, currentPageName }) {
               ) : (
                 <>
                   {children}
-                  {renderAssistant && currentPageName !== "AccessControl" && <Assistant currentPageName={currentPageName} />}
+                  {renderAssistant && currentPageName !== "AccessControl" && currentPageName !== "MyWork" && <Assistant currentPageName={currentPageName} />}
                 </>
               )}
             </div>
