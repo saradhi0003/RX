@@ -611,70 +611,226 @@ export default function Dashboard() {
         {/* ── Pipeline Tab ── */}
         {activeTab === "pipeline" && (
           <div className="space-y-5">
-            <div className="bg-white border border-[#E2E8F0] rounded-xl p-6">
-              <h2 className="text-[15px] font-semibold text-[#1E293B] mb-5">Full Pipeline View</h2>
-              <div className="space-y-4 mb-8">
-                {pipelineStages.map(s => (
-                  <div key={s.label} className="flex items-center gap-4">
-                    <span className="w-24 text-[14px] text-[#475569] font-medium shrink-0">{s.label}</span>
-                    <div className="flex-1 h-3 bg-[#F1F5F9] rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-700"
-                        style={{ width: `${Math.max(2, (s.count / pipelineMax) * 100)}%`, backgroundColor: PIPE_COLORS[s.label] || "#2563EB" }}
-                      />
-                    </div>
-                    <span className="w-10 text-right text-[14px] font-bold text-[#1E293B]">{s.count}</span>
+            {/* Stage KPI cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {pipelineStages.map(s => (
+                <div key={s.label} className="bg-white border border-[#E2E8F0] rounded-xl px-4 py-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIPE_COLORS[s.label] || "#2563EB" }} />
+                    <span className="text-[12px] text-[#64748B] font-medium">{s.label}</span>
                   </div>
-                ))}
-              </div>
-              <Link to={createPageUrl("Submissions")}>
-                <Button className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-[13px]">
-                  Open Full Pipeline View <ArrowRight className="w-4 h-4 ml-1" />
-                </Button>
-              </Link>
+                  <p className="text-[28px] font-bold text-[#1E293B] leading-none" style={{ fontFamily: 'var(--font-display)' }}>
+                    {loading ? <span className="inline-block w-8 h-7 bg-slate-100 rounded animate-pulse" /> : s.count}
+                  </p>
+                  <p className="text-[11px] text-[#94A3B8] mt-1">candidates</p>
+                </div>
+              ))}
             </div>
 
-            {/* Candidates by Status chart */}
-            {!loading && statusChartData.length > 0 && (
+            {/* Funnel visual + chart side by side */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-5">
+              {/* Detailed funnel */}
               <div className="bg-white border border-[#E2E8F0] rounded-xl p-6">
-                <h2 className="text-[15px] font-semibold text-[#1E293B] mb-4">Candidates by Status</h2>
-                <div className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={statusChartData} barSize={28}>
-                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 11, fill: "#94A3B8" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                      <Tooltip contentStyle={{ border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12 }} />
-                      <Bar dataKey="value" fill="#2563EB" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-[15px] font-semibold text-[#1E293B]">Conversion Funnel</h2>
+                  <Link to={createPageUrl("Submissions")} className="flex items-center gap-1 text-[12px] text-[#2563EB] font-medium hover:underline">
+                    View All <ArrowRight className="w-3 h-3" />
+                  </Link>
+                </div>
+                <div className="space-y-4">
+                  {pipelineStages.map((s, i) => {
+                    const prev = i > 0 ? pipelineStages[i - 1].count : s.count;
+                    const convRate = prev > 0 ? Math.round((s.count / prev) * 100) : 0;
+                    return (
+                      <div key={s.label}>
+                        <div className="flex items-center gap-3 mb-1">
+                          <span className="w-20 text-[13px] text-[#475569] font-medium shrink-0">{s.label}</span>
+                          <div className="flex-1 h-3 bg-[#F1F5F9] rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${Math.max(2, (s.count / pipelineMax) * 100)}%`, backgroundColor: PIPE_COLORS[s.label] || "#2563EB" }}
+                            />
+                          </div>
+                          <span className="w-8 text-right text-[13px] font-bold text-[#1E293B]">{s.count}</span>
+                        </div>
+                        {i > 0 && s.count > 0 && (
+                          <div className="ml-[92px] text-[10px] text-[#94A3B8] -mt-0.5">
+                            {convRate}% from {pipelineStages[i-1].label}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            )}
+
+              {/* Candidates by Status chart */}
+              <div className="bg-white border border-[#E2E8F0] rounded-xl p-6">
+                <h2 className="text-[15px] font-semibold text-[#1E293B] mb-5">Candidates by Status</h2>
+                {!loading && statusChartData.length > 0 ? (
+                  <div className="h-52">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={statusChartData} barSize={24}>
+                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: "#94A3B8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                        <Tooltip contentStyle={{ border: "1px solid #E2E8F0", borderRadius: 8, fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }} />
+                        <Bar dataKey="value" fill="#2563EB" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-52 flex items-center justify-center text-[13px] text-[#94A3B8]">
+                    {loading ? <Loader2 className="w-6 h-6 animate-spin text-[#2563EB]" /> : "No data yet"}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Open Jobs table */}
+            <div className="bg-white border border-[#E2E8F0] rounded-xl">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[#F1F5F9]">
+                <h2 className="text-[15px] font-semibold text-[#1E293B]">Open Roles</h2>
+                <Link to={createPageUrl("Jobs")} className="text-[12px] text-[#2563EB] font-medium hover:underline">See All</Link>
+              </div>
+              <div className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr] gap-3 px-5 py-2.5 bg-[#F8FAFC] border-b border-[#F1F5F9]">
+                {["ROLE", "COMPANY", "TYPE", "PRIORITY", "POSTED"].map(h => (
+                  <span key={h} className="text-[10px] font-semibold text-[#94A3B8] uppercase tracking-wider">{h}</span>
+                ))}
+              </div>
+              {loading ? (
+                Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-12 mx-5 my-2 bg-slate-100 rounded animate-pulse" />)
+              ) : jobs.filter(j => j.status === "open").slice(0, 6).map(j => {
+                const company = companies.find(c => c.id === j.company_id);
+                const priorityColors = { urgent: "bg-[#FEF2F2] text-[#DC2626]", high: "bg-[#FFF7ED] text-[#D97706]", medium: "bg-[#EFF6FF] text-[#2563EB]", low: "bg-[#F0FDF4] text-[#16A34A]" };
+                return (
+                  <div key={j.id} className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr] gap-3 items-center px-5 py-3.5 border-b border-[#F8FAFC] last:border-0 hover:bg-[#F8FAFC] transition-colors">
+                    <div>
+                      <p className="text-[13px] font-medium text-[#1E293B] truncate">{j.title}</p>
+                      <p className="text-[11px] text-[#94A3B8] truncate">{j.location || j.remote_type?.replace(/_/g," ") || "—"}</p>
+                    </div>
+                    <span className="text-[12px] text-[#475569] truncate">{company?.name || "—"}</span>
+                    <span className="text-[11px] text-[#64748B] capitalize">{j.employment_type?.replace(/_/g," ") || "—"}</span>
+                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full capitalize inline-block ${priorityColors[j.priority] || "bg-[#F8FAFC] text-[#475569]"}`}>
+                      {j.priority || "—"}
+                    </span>
+                    <span className="text-[12px] text-[#94A3B8]">{timeAgo(j.created_date)}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
         {/* ── Activity Tab ── */}
         {activeTab === "activity" && (
-          <div className="bg-white border border-[#E2E8F0] rounded-xl p-6">
-            <h2 className="text-[15px] font-semibold text-[#1E293B] mb-5">Recent Activity</h2>
-            <div className="space-y-1">
-              {[...candidates].sort((a,b) => new Date(b.created_date)-new Date(a.created_date)).slice(0,10).map(c => {
-                const color = avatarColor(`${c.first_name}${c.last_name}`);
-                return (
-                  <div key={c.id} className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-[#F8FAFC] transition-colors">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${color}`}>
-                      {c.first_name?.[0]}{c.last_name?.[0]}
+          <div className="space-y-5">
+            {/* Summary KPIs */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-white border border-[#E2E8F0] rounded-xl px-5 py-4">
+                <p className="text-[12px] text-[#94A3B8] font-medium mb-1">Total Candidates</p>
+                <p className="text-[32px] font-bold text-[#1E293B] leading-none" style={{ fontFamily: 'var(--font-display)' }}>
+                  {loading ? <span className="inline-block w-12 h-8 bg-slate-100 rounded animate-pulse" /> : stats.totalCandidates}
+                </p>
+                <p className="text-[11px] text-[#94A3B8] mt-1">in pipeline</p>
+              </div>
+              <div className="bg-white border border-[#E2E8F0] rounded-xl px-5 py-4">
+                <p className="text-[12px] text-[#94A3B8] font-medium mb-1">Active Roles</p>
+                <p className="text-[32px] font-bold text-[#2563EB] leading-none" style={{ fontFamily: 'var(--font-display)' }}>
+                  {loading ? <span className="inline-block w-12 h-8 bg-slate-100 rounded animate-pulse" /> : stats.activeJobs}
+                </p>
+                <p className="text-[11px] text-[#94A3B8] mt-1">open positions</p>
+              </div>
+              <div className="bg-white border border-[#E2E8F0] rounded-xl px-5 py-4">
+                <p className="text-[12px] text-[#94A3B8] font-medium mb-1">Placed This Month</p>
+                <p className="text-[32px] font-bold text-[#16A34A] leading-none" style={{ fontFamily: 'var(--font-display)' }}>
+                  {loading ? <span className="inline-block w-12 h-8 bg-slate-100 rounded animate-pulse" /> : stats.thisMonthPlacements}
+                </p>
+                <p className="text-[11px] text-[#94A3B8] mt-1">successful placements</p>
+              </div>
+            </div>
+
+            {/* Activity feed + task list side by side */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5">
+              {/* Activity feed */}
+              <div className="bg-white border border-[#E2E8F0] rounded-xl">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-[#F1F5F9]">
+                  <h2 className="text-[15px] font-semibold text-[#1E293B]">Recent Activity</h2>
+                  <Link to={createPageUrl("Candidates")} className="text-[12px] text-[#2563EB] font-medium hover:underline">View All</Link>
+                </div>
+                <div className="divide-y divide-[#F8FAFC]">
+                  {loading ? (
+                    Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-16 mx-5 my-2 bg-slate-100 rounded animate-pulse" />)
+                  ) : [...candidates].sort((a,b) => new Date(b.created_date)-new Date(a.created_date)).slice(0,12).map(c => {
+                    const color = avatarColor(`${c.first_name}${c.last_name}`);
+                    const app = applications.find(a => a.candidate_id === c.id);
+                    const stage = app?.status || c.status || "active";
+                    return (
+                      <div
+                        key={c.id}
+                        className="flex items-center gap-3 px-5 py-3.5 hover:bg-[#F8FAFC] transition-colors cursor-pointer"
+                        onClick={() => window.dispatchEvent(new CustomEvent("preview:open", { detail: { entity: "Candidate", id: c.id } }))}
+                      >
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0 ${color}`}>
+                          {c.first_name?.[0]}{c.last_name?.[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-medium text-[#1E293B]">
+                            {c.first_name} {c.last_name}
+                            <span className="font-normal text-[#64748B]"> added to pipeline</span>
+                          </p>
+                          <p className="text-[11px] text-[#94A3B8] mt-0.5">{c.current_title || "Candidate"} · {timeAgo(c.created_date)}</p>
+                        </div>
+                        <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full capitalize shrink-0 ${STAGE_PILL[stage] || "bg-[#F8FAFC] text-[#475569]"}`}>
+                          {stage.replace(/_/g," ")}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* All tasks panel */}
+              <div className="bg-white border border-[#E2E8F0] rounded-xl flex flex-col">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-[#F1F5F9]">
+                  <h2 className="text-[15px] font-semibold text-[#1E293B]">All Pending Tasks</h2>
+                  <Link to={createPageUrl("Tasks")} className="flex items-center gap-1 text-[12px] text-[#2563EB] font-medium hover:underline">
+                    <Plus className="w-3.5 h-3.5" /> New
+                  </Link>
+                </div>
+                <div className="flex-1 divide-y divide-[#F8FAFC] overflow-auto">
+                  {loading ? (
+                    Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-14 mx-5 my-2 bg-slate-100 rounded animate-pulse" />)
+                  ) : myTasksToday.length === 0 ? (
+                    <div className="p-8 text-center">
+                      <CheckCircle2 className="w-8 h-8 text-[#16A34A] mx-auto mb-2" />
+                      <p className="text-[13px] text-[#64748B]">All caught up!</p>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-[13px] font-medium text-[#1E293B]">{c.first_name} {c.last_name} <span className="font-normal text-[#64748B]">added to pipeline</span></p>
-                      <p className="text-[11px] text-[#94A3B8]">{timeAgo(c.created_date)}</p>
-                    </div>
-                    <span className={`text-[11px] font-medium px-2.5 py-1 rounded-full capitalize ${STAGE_PILL[c.status] || "bg-[#F8FAFC] text-[#475569]"}`}>
-                      {c.status?.replace(/_/g," ")}
-                    </span>
-                  </div>
-                );
-              })}
+                  ) : myTasksToday.map(t => {
+                    const isOverdue = t.due_date && new Date(t.due_date).setHours(0,0,0,0) < new Date().setHours(0,0,0,0);
+                    const priorityDot = { urgent: "bg-[#DC2626]", high: "bg-[#D97706]", medium: "bg-[#2563EB]", low: "bg-[#16A34A]" };
+                    return (
+                      <div key={t.id} className="flex items-start gap-3 px-5 py-3.5 hover:bg-[#F8FAFC] transition-colors">
+                        <button
+                          onClick={() => completeTask(t.id)}
+                          disabled={completingTask === t.id}
+                          className="mt-1 w-4 h-4 rounded-full border-2 border-[#CBD5E1] hover:border-[#2563EB] flex items-center justify-center flex-shrink-0 transition-colors"
+                        >
+                          {completingTask === t.id && <Loader2 className="w-2.5 h-2.5 animate-spin text-[#2563EB]" />}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-medium text-[#1E293B] leading-snug truncate">{t.title}</p>
+                          {t.due_date && (
+                            <p className={`text-[11px] mt-0.5 font-semibold ${isOverdue ? "text-[#DC2626]" : "text-[#94A3B8]"}`}>
+                              {isOverdue ? "Overdue · " : "Due "}{new Date(t.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            </p>
+                          )}
+                        </div>
+                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 ${priorityDot[t.priority] || "bg-[#CBD5E1]"}`} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         )}
