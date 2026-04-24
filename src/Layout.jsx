@@ -24,8 +24,8 @@ import { getRolesCached, invalidateRolesCache } from "@/components/utils/rolesCa
 import NotificationToast from "@/components/notifications/NotificationToast";
 import RightPreviewPanel from "@/components/common/RightPreviewPanel";
 import CandidatePreviewLoader from "@/components/previews/CandidatePreviewLoader";
-import JobPreview from "@/components/previews/JobPreview";
-import CompanyPreview from "@/components/previews/CompanyPreview";
+import JobPreviewLoader from "@/components/previews/JobPreviewLoader";
+import CompanyPreviewLoader from "@/components/previews/CompanyPreviewLoader";
 import ApplicationPreview from "@/components/previews/ApplicationPreview";
 import TaskPreview from "@/components/previews/TaskPreview";
 import PlaybookPreview from "@/components/previews/PlaybookPreview";
@@ -860,8 +860,8 @@ export default function Layout({ children, currentPageName }) {
         <RightPreviewPanel open={preview.open} title={`${preview.entity || ""} Details`} onClose={closePreview}>
           {!preview.open ? null : (
             preview.entity === "Candidate" ? <CandidatePreviewLoader id={preview.id} /> :
-            preview.entity === "Job" ? <JobPreview id={preview.id} /> :
-            preview.entity === "Company" ? <CompanyPreview id={preview.id} /> :
+            preview.entity === "Job" ? <JobPreviewLoader id={preview.id} /> :
+            preview.entity === "Company" ? <CompanyPreviewLoader id={preview.id} /> :
             preview.entity === "Application" ? <ApplicationPreview id={preview.id} /> :
             preview.entity === "Task" ? <TaskPreview id={preview.id} /> :
             preview.entity === "Playbook" ? <PlaybookPreview id={preview.id} /> :
