@@ -2,10 +2,17 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line } from "recharts";
-import { Candidate, Job, Company, Application, Submission, Task } from "@/entities/all";
+import { base44 } from "@/api/base44Client";
 import { TrendingUp, BarChart3, PieChart as PieChartIcon, Activity } from "lucide-react";
 
-const ENTITY_MAP = { Candidate, Job, Company, Application, Submission, Task };
+const ENTITY_MAP = {
+  Candidate: base44.entities.Candidate,
+  Job: base44.entities.Job,
+  Company: base44.entities.Company,
+  Application: base44.entities.Application,
+  Submission: base44.entities.Submission,
+  Task: base44.entities.Task,
+};
 
 // Enhanced color palette with gradients
 const BRAND = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#6C00FF", "#22c55e", "#f59e0b", "#ef4444", "#6366f1", "#ec4899", "#14b8a6", "#8b5cf6"];
