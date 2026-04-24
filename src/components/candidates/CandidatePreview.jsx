@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from "react";
-import { Edit, ArrowUpRight, Mail, Phone, MapPin, ExternalLink } from "lucide-react";
+
+import React from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Mail, Phone, MapPin, ExternalLink, Edit, ArrowUpRight } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { base44 } from "@/api/base44Client";
+import { Candidate } from "@/entities/Candidate";
 import { createPageUrl } from "@/utils";
 import { Link } from "react-router-dom";
 
@@ -10,34 +14,19 @@ const statusOptions = [
   { value: "active", label: "Active" },
   { value: "placed", label: "Placed" },
   { value: "inactive", label: "Inactive" },
-  { value: "screened", label: "Screened" },
-  { value: "do_not_contact", label: "Do Not Contact" },
+  { value: "do_not_contact", label: "Do Not Contact" }
 ];
 
-const avatarColors = [
-  ["#6366F1", "#818CF8"],
-  ["#3B82F6", "#60A5FA"],
-  ["#8B5CF6", "#A78BFA"],
-  ["#10B981", "#34D399"],
-  ["#F59E0B", "#FCD34D"],
-  ["#EF4444", "#F87171"],
-];
-
-function getAvatarColors(name) {
-  const idx = (name?.charCodeAt(0) || 0) % avatarColors.length;
-  return avatarColors[idx];
-}
-
-function Section({ title, children }) {
-  return (
-    <div style={{ borderTop: "1px solid #F2F2F7", paddingTop: 18, marginTop: 18 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: "#AEAEB2", marginBottom: 12 }}>
-        {title}
-      </div>
-      {children}
-    </div>
-  );
-}
+const getStatusBadge = (s) => {
+  switch ((s || "").toLowerCase()) {
+    case "our_bench": return "bg-purple-100 text-purple-800";
+    case "active": return "bg-green-100 text-green-800";
+    case "placed": return "bg-blue-100 text-blue-800";
+    case "inactive": return "bg-slate-100 text-slate-800";
+    case "do_not_contact": return "bg-red-100 text-red-800";
+    default: return "bg-slate-100 text-slate-700";
+  }
+};
 
 export default function CandidatePreview({ candidate, onEdit, onUpdated }) {
   const [updating, setUpdating] = React.useState(false);
@@ -48,223 +37,145 @@ export default function CandidatePreview({ candidate, onEdit, onUpdated }) {
   const updateStatus = async (val) => {
     if (!val || val === status) return;
     setUpdating(true);
-    await base44.entities.Candidate.update(candidate.id, { status: val });
+    await Candidate.update(candidate.id, { status: val });
     setUpdating(false);
     setStatus(val);
     onUpdated?.();
   };
 
   const initials = `${(candidate.first_name || "?").charAt(0)}${(candidate.last_name || "").charAt(0)}`.toUpperCase();
-  const [c1, c2] = getAvatarColors(candidate.first_name);
-  const score = candidate.bench_match_score || candidate.screening_score;
-  const scoreDetails = candidate.screening_details || candidate.bench_score_details;
-
-  // Parse AI analysis if available
-  const strengths = scoreDetails?.strengths || scoreDetails?.matching_qualifications || [];
-  const gaps = scoreDetails?.gaps || scoreDetails?.missing_qualifications || [];
-  const summary = scoreDetails?.summary || scoreDetails?.explanation || "";
-  const fitLabel = score >= 85 ? "Strong Fit" : score >= 70 ? "Good Fit" : score >= 50 ? "Partial Fit" : null;
 
   return (
-    <div style={{ fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", padding: "24px 20px" }}>
-
-      {/* Avatar */}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ position: "relative", marginBottom: 14 }}>
-          <div style={{
-            width: 72, height: 72, borderRadius: "50%",
-            background: `linear-gradient(145deg, ${c1}, ${c2})`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 22, fontWeight: 700, color: "#fff",
-            boxShadow: `0 4px 16px ${c1}55`,
-          }}>
-            {initials}
-          </div>
-          {score && (
-            <div style={{
-              position: "absolute", bottom: -4, right: -4,
-              width: 26, height: 26, borderRadius: "50%",
-              background: "#fff", border: "2px solid #30A14E",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 9, fontWeight: 800, color: "#30A14E",
-            }}>
-              {Math.round(score)}
+    <div className="space-y-4">
+      {/* Header card */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 font-semibold flex items-center justify-center">
+              {initials}
             </div>
-          )}
-        </div>
-
-        {/* Name + link */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-          <h2 style={{ fontSize: 19, fontWeight: 700, color: "#1D1D1F", letterSpacing: "-.022em", margin: 0 }}>
-            {candidate.first_name} {candidate.last_name}
-          </h2>
-          <Link to={createPageUrl(`CandidateDetails?id=${candidate.id}`)} title="Open full profile">
-            <ArrowUpRight style={{ width: 15, height: 15, color: "#86868B" }} />
-          </Link>
-        </div>
-
-        {/* Subtitle */}
-        <div style={{ fontSize: 13, color: "#6E6E73", textAlign: "center", lineHeight: 1.4 }}>
-          {[candidate.current_title, candidate.current_company, candidate.location].filter(Boolean).join(" · ")}
-        </div>
-
-        {/* Pills row */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12, justifyContent: "center" }}>
-          {status && (
-            <span style={{ fontSize: 12, fontWeight: 600, padding: "4px 12px", borderRadius: 20, background: "rgba(0,113,227,.10)", color: "#0071E3" }}>
-              {status.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())} Stage
-            </span>
-          )}
-          {candidate.experience_years && (
-            <span style={{ fontSize: 12, fontWeight: 500, padding: "4px 12px", borderRadius: 20, background: "#F2F2F7", color: "#6E6E73" }}>
-              {candidate.experience_years} yrs exp
-            </span>
-          )}
-          {candidate.availability && candidate.availability !== "negotiable" && (
-            <span style={{ fontSize: 12, fontWeight: 500, padding: "4px 12px", borderRadius: 20, background: "#F2F2F7", color: "#6E6E73" }}>
-              {candidate.availability.replace(/_/g, " ")}
-            </span>
-          )}
-          {candidate.availability === "negotiable" && (
-            <span style={{ fontSize: 12, fontWeight: 500, padding: "4px 12px", borderRadius: 20, background: "#F2F2F7", color: "#6E6E73" }}>
-              Open to offers
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* AI Screening */}
-      {score && (
-        <Section title="AI Screening">
-          <div style={{ background: "#F9F9FB", borderRadius: 14, padding: "14px 16px" }}>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
-              <div>
-                <div style={{ fontSize: 11, color: "#86868B", marginBottom: 4 }}>Match Score</div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
-                  <span style={{ fontSize: 38, fontWeight: 700, color: "#30A14E", lineHeight: 1, letterSpacing: "-.04em" }}>{Math.round(score)}</span>
-                  <span style={{ fontSize: 14, color: "#86868B", fontWeight: 500 }}>/100</span>
-                </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h2 className="font-semibold text-slate-900 truncate">
+                  {candidate.first_name} {candidate.last_name}
+                </h2>
+                <Link to={createPageUrl(`CandidateDetails?id=${candidate.id}`)} title="Open full details">
+                  <ArrowUpRight className="w-4 h-4 text-slate-500" />
+                </Link>
               </div>
-              {fitLabel && (
-                <span style={{ fontSize: 11.5, fontWeight: 700, padding: "4px 10px", borderRadius: 20, background: "rgba(48,161,78,.12)", color: "#30A14E" }}>
-                  {fitLabel}
-                </span>
-              )}
+              <p className="text-sm text-slate-600">{candidate.current_title || "Not specified"}</p>
             </div>
-            {summary && (
-              <p style={{ fontSize: 12.5, color: "#6E6E73", lineHeight: 1.6, margin: 0 }}>{summary}</p>
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              data-intent="edit"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                // Close the preview and navigate to the edit page
+                try { window.dispatchEvent(new Event("preview:close")); } catch (error) {
+                    console.error("Failed to dispatch preview:close event:", error);
+                }
+                const url = createPageUrl(`CandidateDetails?id=${candidate.id}&mode=edit`);
+                window.location.href = url;
+              }}
+              className="ml-auto gap-2"
+              aria-label="Edit (opens full edit page)"
+            >
+              <Edit className="w-4 h-4" /> Edit
+            </Button>
+          </div>
+          {/* Contact info, links */}
+          <div className="mt-3 space-y-2 text-sm">
+            {candidate.email && (
+              <div className="flex items-center gap-2 text-slate-700">
+                <Mail className="w-4 h-4 text-slate-500" /> {candidate.email}
+              </div>
+            )}
+            {candidate.phone && (
+              <div className="flex items-center gap-2 text-slate-700">
+                <Phone className="w-4 h-4 text-slate-500" /> {candidate.phone}
+              </div>
+            )}
+            {(candidate.location || candidate.salary_expectation) && (
+              <div className="flex items-center gap-2 text-slate-700">
+                <MapPin className="w-4 h-4 text-slate-500" />
+                <span>{candidate.location || "—"}</span>
+                {candidate.salary_expectation ? <span className="text-slate-400">•</span> : null}
+                {candidate.salary_expectation ? <span>${Number(candidate.salary_expectation).toLocaleString()}</span> : null}
+              </div>
+            )}
+            {candidate.linkedin_url && (
+              <a href={candidate.linkedin_url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-blue-600 hover:text-blue-800">
+                <ExternalLink className="w-4 h-4" />
+                LinkedIn Profile
+              </a>
             )}
           </div>
-        </Section>
-      )}
+        </CardContent>
+      </Card>
 
-      {/* Strengths */}
-      {strengths.length > 0 && (
-        <Section title="Strengths">
-          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 7 }}>
-            {strengths.slice(0, 4).map((s, i) => (
-              <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#30A14E", flexShrink: 0, marginTop: 5 }} />
-                {s}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      {/* Gaps */}
-      {gaps.length > 0 && (
-        <Section title="Gaps">
-          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 7 }}>
-            {gaps.slice(0, 3).map((g, i) => (
-              <li key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#F4820F", flexShrink: 0, marginTop: 5 }} />
-                {g}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      {/* Skills */}
-      {Array.isArray(candidate.skills) && candidate.skills.length > 0 && (
-        <Section title="Skills">
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {candidate.skills.slice(0, 12).map((s, i) => (
-              <span key={i} style={{ fontSize: 11.5, fontWeight: 500, padding: "3px 10px", borderRadius: 20, background: "#F2F2F7", color: "#3C3C43" }}>
-                {s}
-              </span>
-            ))}
-            {candidate.skills.length > 12 && (
-              <span style={{ fontSize: 11.5, fontWeight: 500, padding: "3px 10px", borderRadius: 20, background: "#F2F2F7", color: "#86868B" }}>
-                +{candidate.skills.length - 12}
-              </span>
-            )}
+      {/* Current status */}
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-slate-700">Current Status</p>
+            <Badge className={getStatusBadge(status)}>{(status || "").replace(/_/g, " ")}</Badge>
           </div>
-        </Section>
-      )}
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Update Status</p>
+            <Select value={status} onValueChange={updateStatus} disabled={updating}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Change status..." />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map(s => (
+                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
-      {/* Contact */}
-      <Section title="Contact">
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {candidate.email && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-              <Mail style={{ width: 14, height: 14, color: "#AEAEB2", flexShrink: 0 }} />
-              <a href={`mailto:${candidate.email}`} style={{ color: "#0071E3", textDecoration: "none" }}>{candidate.email}</a>
+      {/* Additional info */}
+      <Card>
+        <CardContent className="p-4 space-y-2">
+          <p className="text-sm font-medium text-slate-700">Additional Information</p>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <p className="text-slate-500">Experience</p>
+              <p className="font-medium">{candidate.experience_years ? `${candidate.experience_years} years` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-slate-500">Source</p>
+              <p className="font-medium">{candidate.source || "—"}</p>
+            </div>
+            <div>
+              <p className="text-slate-500">Work Auth</p>
+              <p className="font-medium">{candidate.work_authorization || "—"}</p>
+            </div>
+            <div>
+              <p className="text-slate-500">Added</p>
+              <p className="font-medium">{new Date(candidate.created_date).toLocaleDateString()}</p>
+            </div>
+          </div>
+          {Array.isArray(candidate.skills) && candidate.skills.length > 0 && (
+            <div className="mt-2">
+              <p className="text-slate-500 text-sm mb-1">Skills</p>
+              <div className="flex flex-wrap gap-1">
+                {candidate.skills.slice(0, 10).map((s, i) => (
+                  <Badge key={i} variant="outline" className="text-xs">{s}</Badge>
+                ))}
+                {candidate.skills.length > 10 && (
+                  <Badge variant="outline" className="text-xs">+{candidate.skills.length - 10}</Badge>
+                )}
+              </div>
             </div>
           )}
-          {candidate.phone && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-              <Phone style={{ width: 14, height: 14, color: "#AEAEB2", flexShrink: 0 }} />
-              {candidate.phone}
-            </div>
-          )}
-          {candidate.location && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-              <MapPin style={{ width: 14, height: 14, color: "#AEAEB2", flexShrink: 0 }} />
-              {candidate.location}
-            </div>
-          )}
-          {candidate.linkedin_url && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-              <ExternalLink style={{ width: 14, height: 14, color: "#AEAEB2", flexShrink: 0 }} />
-              <a href={candidate.linkedin_url} target="_blank" rel="noreferrer" style={{ color: "#0071E3", textDecoration: "none" }}>LinkedIn Profile</a>
-            </div>
-          )}
-        </div>
-      </Section>
-
-      {/* Update status */}
-      <Section title="Update Status">
-        <Select value={status} onValueChange={updateStatus} disabled={updating}>
-          <SelectTrigger style={{ borderRadius: 10, fontSize: 13, border: "1px solid #E5E5EA" }}>
-            <SelectValue placeholder="Change status…" />
-          </SelectTrigger>
-          <SelectContent>
-            {statusOptions.map(s => (
-              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Section>
-
-      {/* Edit button */}
-      <div style={{ marginTop: 20 }}>
-        <button
-          data-intent="edit"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            try { window.dispatchEvent(new Event("preview:close")); } catch {}
-            window.location.href = createPageUrl(`CandidateDetails?id=${candidate.id}&mode=edit`);
-          }}
-          style={{ width: "100%", padding: "10px", borderRadius: 12, border: "1px solid #E5E5EA", background: "#fff", fontSize: 13.5, fontWeight: 600, color: "#1D1D1F", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-          className="hover:bg-black/[.04] transition-colors"
-        >
-          <Edit style={{ width: 14, height: 14 }} />
-          Edit Full Profile
-        </button>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
