@@ -1,91 +1,50 @@
-import AIAgents from './pages/AIAgents';
-import AccessControl from './pages/AccessControl';
-import Approvals from './pages/Approvals';
-import AutomationRules from './pages/AutomationRules';
-import BRD from './pages/BRD';
-import Blog from './pages/Blog';
-import CandidateDetails from './pages/CandidateDetails';
-import Candidates from './pages/Candidates';
-import Careers from './pages/Careers';
-import Companies from './pages/Companies';
-import CompanyDetails from './pages/CompanyDetails';
-import Consultants from './pages/Consultants';
-import Contact from './pages/Contact';
-import Dashboard from './pages/Dashboard';
-import DuplicateManager from './pages/DuplicateManager';
-import EmailBlast from './pages/EmailBlast';
-import EmailInbox from './pages/EmailInbox';
-import EmailSettings from './pages/EmailSettings';
-import EmailTemplateBuilder from './pages/EmailTemplateBuilder';
-import Expenses from './pages/Expenses';
-import Goals from './pages/Goals';
-import Home from './pages/Home';
-import Invoices from './pages/Invoices';
-import JobDetails from './pages/JobDetails';
-import JobStack from './pages/JobStack';
-import Jobs from './pages/Jobs';
-import Landing from './pages/Landing';
-import Mobile from './pages/Mobile';
-import MyWork from './pages/MyWork';
-import PipelineAnalytics from './pages/PipelineAnalytics';
-import PlaybookDetails from './pages/PlaybookDetails';
-import Playbooks from './pages/Playbooks';
-import Products from './pages/Products';
-import Recruiters from './pages/Recruiters';
-import ResumeAnalysis from './pages/ResumeAnalysis';
-import ResumeBuilder from './pages/ResumeBuilder';
-import ResumeStudio from './pages/ResumeStudio';
-import Services from './pages/Services';
-import SkillMatrix from './pages/SkillMatrix';
-import Submissions from './pages/Submissions';
-import TaskDetails from './pages/TaskDetails';
-import Tasks from './pages/Tasks';
+import { lazy } from 'react';
 import __Layout from './Layout.jsx';
 
-
+// Lazy-load all pages for code splitting
 export const PAGES = {
-    "AIAgents": AIAgents,
-    "AccessControl": AccessControl,
-    "Approvals": Approvals,
-    "AutomationRules": AutomationRules,
-    "BRD": BRD,
-    "Blog": Blog,
-    "CandidateDetails": CandidateDetails,
-    "Candidates": Candidates,
-    "Careers": Careers,
-    "Companies": Companies,
-    "CompanyDetails": CompanyDetails,
-    "Consultants": Consultants,
-    "Contact": Contact,
-    "Dashboard": Dashboard,
-    "DuplicateManager": DuplicateManager,
-    "EmailBlast": EmailBlast,
-    "EmailInbox": EmailInbox,
-    "EmailSettings": EmailSettings,
-    "EmailTemplateBuilder": EmailTemplateBuilder,
-    "Expenses": Expenses,
-    "Goals": Goals,
-    "Home": Home,
-    "Invoices": Invoices,
-    "JobDetails": JobDetails,
-    "JobStack": JobStack,
-    "Jobs": Jobs,
-    "Landing": Landing,
-    "Mobile": Mobile,
-    "MyWork": MyWork,
-    "PipelineAnalytics": PipelineAnalytics,
-    "PlaybookDetails": PlaybookDetails,
-    "Playbooks": Playbooks,
-    "Products": Products,
-    "Recruiters": Recruiters,
-    "ResumeAnalysis": ResumeAnalysis,
-    "ResumeBuilder": ResumeBuilder,
-    "ResumeStudio": ResumeStudio,
-    "Services": Services,
-    "SkillMatrix": SkillMatrix,
-    "Submissions": Submissions,
-    "TaskDetails": TaskDetails,
-    "Tasks": Tasks,
+    "AIAgents": lazy(() => import('./pages/AIAgents')),
+    "AccessControl": lazy(() => import('./pages/AccessControl')),
+    "Approvals": lazy(() => import('./pages/Approvals')),
+    "AutomationRules": lazy(() => import('./pages/AutomationRules')),
+    "BRD": lazy(() => import('./pages/BRD')),
+    "Blog": lazy(() => import('./pages/Blog')),
+    "CandidateDetails": lazy(() => import('./pages/CandidateDetails')),
+    "Candidates": lazy(() => import('./pages/Candidates')),
+    "Careers": lazy(() => import('./pages/Careers')),
+    "Companies": lazy(() => import('./pages/Companies')),
+    "CompanyDetails": lazy(() => import('./pages/CompanyDetails')),
+    "Consultants": lazy(() => import('./pages/Consultants')),
+    "Contact": lazy(() => import('./pages/Contact')),
+    "Dashboard": lazy(() => import('./pages/Dashboard')),
+    "DuplicateManager": lazy(() => import('./pages/DuplicateManager')),
+    "EmailBlast": lazy(() => import('./pages/EmailBlast')),
+    "EmailInbox": lazy(() => import('./pages/EmailInbox')),
+    "EmailSettings": lazy(() => import('./pages/EmailSettings')),
+    "EmailTemplateBuilder": lazy(() => import('./pages/EmailTemplateBuilder')),
+    "Expenses": lazy(() => import('./pages/Expenses')),
+    "Goals": lazy(() => import('./pages/Goals')),
+    "Home": lazy(() => import('./pages/Home')),
+    "Invoices": lazy(() => import('./pages/Invoices')),
+    "JobDetails": lazy(() => import('./pages/JobDetails')),
+    "JobStack": lazy(() => import('./pages/JobStack')),
+    "Jobs": lazy(() => import('./pages/Jobs')),
+    "Landing": lazy(() => import('./pages/Landing')),
+    "Mobile": lazy(() => import('./pages/Mobile')),
+    "MyWork": lazy(() => import('./pages/MyWork')),
+    "PipelineAnalytics": lazy(() => import('./pages/PipelineAnalytics')),
+    "PlaybookDetails": lazy(() => import('./pages/PlaybookDetails')),
+    "Playbooks": lazy(() => import('./pages/Playbooks')),
+    "Products": lazy(() => import('./pages/Products')),
+    "Recruiters": lazy(() => import('./pages/Recruiters')),
+    "ResumeAnalysis": lazy(() => import('./pages/ResumeAnalysis')),
+    "ResumeBuilder": lazy(() => import('./pages/ResumeBuilder')),
+    "ResumeStudio": lazy(() => import('./pages/ResumeStudio')),
+    "Services": lazy(() => import('./pages/Services')),
+    "SkillMatrix": lazy(() => import('./pages/SkillMatrix')),
+    "Submissions": lazy(() => import('./pages/Submissions')),
+    "TaskDetails": lazy(() => import('./pages/TaskDetails')),
+    "Tasks": lazy(() => import('./pages/Tasks')),
 }
 
 export const pagesConfig = {
