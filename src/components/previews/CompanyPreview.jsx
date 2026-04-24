@@ -7,7 +7,7 @@ import { createPageUrl } from "@/utils";
 
 const STATUS_OPTS = [
   { value: "active",    label: "Active",    bg: "rgba(48,161,78,.10)",  c: "#16A34A" },
-  { value: "prospect",  label: "Prospect",  bg: "rgba(245,158,11,.10)", c: "#D97706" },
+  { value: "prospect",  label: "Prospect",  bg: "rgba(0,113,227,.10)", c: "#0071E3" },
   { value: "inactive",  label: "Inactive",  bg: "rgba(107,114,128,.10)",c: "#6B7280" },
 ];
 
