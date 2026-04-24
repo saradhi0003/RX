@@ -12,7 +12,7 @@ import { Candidate, Job, Company, Application, Submission, Task } from "@/entiti
 import { User as UserEntity } from "@/entities/all";
 import { usePermissions } from "@/components/common/PermissionsContext";
 import { getRolesCached } from "@/components/utils/rolesCache";
-import { InvokeLLM } from "@/integrations/Core";
+import { base44 } from "@/api/base44Client";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import { DashboardConfig } from "@/entities/DashboardConfig";
 import WidgetRenderer from "@/components/dashboard/WidgetRenderer";
@@ -271,7 +271,7 @@ export default function Dashboard() {
         jobs: { total: jobs.length, open: jobs.filter(j => j.status === "open").length },
         applications: { total: applications.length, hired: applications.filter(a => a.status === "hired").length }
       };
-      const r = await InvokeLLM({
+      const r = await base44.integrations.Core.InvokeLLM({
         prompt: `Recruitment pipeline data: ${JSON.stringify(dataSummary)}. Give 4 concise, actionable insights for a recruiter. Each should be 1 sentence identifying a specific issue or opportunity.`,
         response_json_schema: {
           type: "object",
