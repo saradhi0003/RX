@@ -21,6 +21,7 @@ import { AuditLog } from "@/entities/AuditLog";
 import { Role } from "@/entities/Role";
 import AccessBlocker from "@/components/common/AccessBlocker";
 import { getRolesCached, invalidateRolesCache } from "@/components/utils/rolesCache";
+import { getUserCached, invalidateUserCache } from "@/lib/userCache";
 import NotificationToast from "@/components/notifications/NotificationToast";
 import RightPreviewPanel from "@/components/common/RightPreviewPanel";
 import CandidatePreviewLoader from "@/components/previews/CandidatePreviewLoader";
@@ -459,16 +460,11 @@ export default function Layout({ children, currentPageName }) {
       setCheckingAccess(true);
 
       try {
-        const u = await UserEntity.me().catch(() => null);
+        const { user: u, role: foundRole } = await getUserCached();
         
         // CRITICAL: Check if user should be blocked BEFORE setting state
         if (u) {
-          let admin = (u.role === "admin");
-          if (u.role_id) {
-            const roles = await getRolesCached().catch(() => []);
-            const r = roles.find((it) => it.id === u.role_id);
-            admin = admin || ((r?.name || "").toLowerCase() === "admin");
-          }
+          const admin = (u.role === "admin") || ((foundRole?.name || "").toLowerCase() === "admin");
 
           // Check if user is blocked (locked or inactive non-admin)
           const isBlockedUser = (u.is_locked === true) || 
@@ -504,11 +500,7 @@ export default function Layout({ children, currentPageName }) {
 
           // User is allowed - proceed normally
           setMe(u);
-          if (u?.role_id) {
-            const roles = await getRolesCached().catch(() => []);
-            const found = roles.find((r) => r.id === u.role_id);
-            setMyRole(found || null);
-          }
+          setMyRole(foundRole || null);
         } else {
           setMe(null);
           setMyRole(null);

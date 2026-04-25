@@ -1,9 +1,7 @@
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
+import { getUserCached, invalidateUserCache } from "@/lib/userCache";
+import { invalidateRolesCache } from "@/components/utils/rolesCache";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { User as UserEntity } from "@/entities/User";
-import { getRolesCached, invalidateRolesCache } from "@/components/utils/rolesCache";
-
-// Default permission if none is configured for a role
 const DEFAULT_PERM = { view: false, create: false, update: false, delete: false, scope: "own" };
 
 const Ctx = createContext({
@@ -19,30 +17,26 @@ export function PermissionsProvider({ children }) {
   const [me, setMe] = useState(null);
   const [role, setRole] = useState(null);
 
-  const loadUserAndRole = async () => {
-    const u = await UserEntity.me().catch(() => null);
-    setMe(u);
-    if (u?.role_id) {
-      const roles = await getRolesCached().catch(() => []); // Added .catch(() => []) for robustness
-      setRole(roles.find(r => r.id === u.role_id) || null);
-    } else {
-      setRole(null);
-    }
-  };
+  const loadUserAndRole = useCallback(async () => {
+    const { user, role: r } = await getUserCached();
+    setMe(user);
+    setRole(r);
+  }, []);
 
-  useEffect(() => { loadUserAndRole(); }, []);
+  useEffect(() => { loadUserAndRole(); }, [loadUserAndRole]);
 
   // Live-update roles when Access Control saves and broadcasts a cache-bust signal
   useEffect(() => {
     const onStorage = async (e) => {
       if (e.key === "roles_cache_bust") {
         invalidateRolesCache();
+        invalidateUserCache();
         await loadUserAndRole();
       }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, []);
+  }, [loadUserAndRole]);
 
   const isAdmin = useMemo(() => {
     const byBuiltin = (me?.role || "").toLowerCase() === "admin";
@@ -50,55 +44,35 @@ export function PermissionsProvider({ children }) {
     return !!me && (byBuiltin || byRoleName);
   }, [me, role]);
 
-  const permsFor = (entity) => {
-    if (isAdmin) return { view: true, create: true, update: true, delete: true, scope: "all" };
-    const p = (role?.permissions || {})[entity];
-    if (!p) return DEFAULT_PERM;
-    return { ...DEFAULT_PERM, ...p };
-  };
-
-  const can = (entity, action = "view", record = null) => {
+  const can = useCallback((entity, action = "view") => {
     if (isAdmin) return true;
-    const p = permsFor(entity);
-    return !!p[action];
-  };
+    const p = (role?.permissions || {})[entity];
+    if (!p) return false;
+    return !!({ ...DEFAULT_PERM, ...p }[action]);
+  }, [isAdmin, role]);
 
-  const scopeFor = (entity) => {
+  const scopeFor = useCallback((entity) => {
     if (isAdmin) return "all";
-    const p = permsFor(entity);
-    return p.scope || "own";
-  };
+    const p = (role?.permissions || {})[entity];
+    return p?.scope || "own";
+  }, [isAdmin, role]);
 
-  // Build filter to enforce scope when listing on the client
-  const listFilterFor = (entity) => {
+  const listFilterFor = useCallback((entity) => {
     if (!me) return null;
     const scope = scopeFor(entity);
     if (scope === "all") return null;
-
-    // Entity-specific "own" semantics
     switch (entity) {
-      case "Task":
-        return { assigned_to: me.email };
-      case "Submission":
-        return { recruiter_id: me.id };
-      // Most entities use created_by ownership
-      case "Candidate":
-      case "Company":
-      case "Job":
-      case "Application":
-      case "Invoice":
-      case "Expense":
-      case "Playbook":
-      case "Recruiter":
-      case "Consultant":
-      case "Resume":
-      case "EmailTemplate":
-      default:
-        return { created_by: me.email };
+      case "Task":       return { assigned_to: me.email };
+      case "Submission": return { recruiter_id: me.id };
+      default:           return { created_by: me.email };
     }
-  };
+  }, [me, scopeFor]);
 
-  const value = { me, role, isAdmin, can, scopeFor, listFilterFor };
+  const value = useMemo(
+    () => ({ me, role, isAdmin, can, scopeFor, listFilterFor }),
+    [me, role, isAdmin, can, scopeFor, listFilterFor]
+  );
+
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

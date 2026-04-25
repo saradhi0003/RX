@@ -85,9 +85,18 @@ const EmailModal = ({ open, onClose, recipient }) => {
   );
 };
 
+// Simple debounce hook inline (avoids import dependency)
+function useDebounced(value, delay) {
+  const [debounced, setDebounced] = React.useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
 export default function Candidates() {
   const [candidates, setCandidates] = useState([]);
-  const [filteredCandidates, setFilteredCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -126,82 +135,33 @@ export default function Candidates() {
   const navigate = useNavigate();
   const { listFilterFor, me, role, isAdmin, can } = usePermissions();
 
+  const debouncedSearch = useDebounced(searchTerm, 300);
   const loadGuard = useRef({ ts: 0, inFlight: false });
 
   useEntityAutoRefresh("Candidate", () => loadCandidates(true));
 
-  const filterCandidates = useCallback(() => {
-    if (!searchTerm.trim()) {
-      setFilteredCandidates(candidates);
-      return;
-    }
-    const filtered = candidates.filter(candidate =>
-      `${candidate.first_name} ${candidate.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      candidate.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      candidate.current_title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      candidate.skills?.some(skill => skill.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-    setFilteredCandidates(filtered);
-  }, [searchTerm, candidates]);
-
   const loadCandidates = useCallback(async (force = false) => {
     const now = Date.now();
-    if (loadGuard.current.inFlight) {
-      return;
-    }
-    if (!force && now - loadGuard.current.ts < 30000) {
-      return;
-    }
+    if (loadGuard.current.inFlight) return;
+    if (!force && now - loadGuard.current.ts < 30000) return;
 
     loadGuard.current.inFlight = true;
     setLoading(true);
-
-    const cacheKey = `candidates_cache_${me?.email || "anon"}`;
-    const serveFromCache = () => {
-      try {
-        const raw = localStorage.getItem(cacheKey);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (parsed?.ts && now - parsed.ts < 60 * 1000 && Array.isArray(parsed.data)) {
-            setCandidates(parsed.data);
-            setFilteredCandidates(parsed.data);
-            return true;
-          }
-        }
-      } catch (e) {
-        console.error("Error parsing candidates cache:", e);
-      }
-      return false;
-    };
-
     try {
       const filter = listFilterFor("Candidate");
-      // CHANGED: Limit to 200 for better performance, pagination handles rest
       const data = filter
         ? await base44.entities.Candidate.filter(filter, "-created_date", 200)
         : await base44.entities.Candidate.list("-created_date", 200);
-      
-      console.log(`✅ Loaded ${data.length} candidates from database`);
-      
       setCandidates(data);
-      setFilteredCandidates(data);
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data }));
-      } catch (e) {
-        console.error("Error writing candidates to cache:", e);
-      }
     } catch (error) {
-      console.warn("Error loading candidates from API:", error?.message || error);
-      if (!serveFromCache()) {
-        setCandidates([]);
-        setFilteredCandidates([]);
-      }
+      console.warn("Error loading candidates:", error?.message || error);
+      setCandidates([]);
     } finally {
       setLoading(false);
       loadGuard.current.inFlight = false;
       loadGuard.current.ts = Date.now();
     }
-  }, [listFilterFor, me?.email]);
+  }, [listFilterFor]);
 
   const handleHighlightCandidate = (candidate) => {
     setHighlightedCandidate(candidate);
@@ -275,10 +235,10 @@ export default function Candidates() {
       return next;
     });
   };
-  const allVisibleSelected = filteredCandidates.length > 0 && filteredCandidates.every(c => selectedIds.has(c.id));
-  const someVisibleSelected = filteredCandidates.some(c => selectedIds.has(c.id)) && !allVisibleSelected;
+  const allVisibleSelected = filteredAndSorted.length > 0 && filteredAndSorted.every(c => selectedIds.has(c.id));
+  const someVisibleSelected = filteredAndSorted.some(c => selectedIds.has(c.id)) && !allVisibleSelected;
   const toggleSelectAllVisible = (checked) => {
-    if (checked) setSelectedIds(new Set(filteredCandidates.map(c => c.id)));
+    if (checked) setSelectedIds(new Set(filteredAndSorted.map(c => c.id)));
     else setSelectedIds(new Set());
   };
 
@@ -287,17 +247,12 @@ export default function Candidates() {
   }, [loadCandidates]);
 
   useEffect(() => {
-    filterCandidates();
-  }, [filterCandidates]);
-
-  useEffect(() => {
     setSelectedIds(new Set());
-  }, [filteredCandidates.length, loading]);
+  }, [loading]);
 
-  // Reset to page 1 when filters or sort change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedViewId, sortBy, sortOrder, stageFilter, filteredCandidates.length]);
+  }, [debouncedSearch, selectedViewId, sortBy, sortOrder, stageFilter]);
 
 
   const handleAddCandidate = async (candidateData) => {
@@ -386,11 +341,22 @@ export default function Candidates() {
 
   const currentView = views.find(v => v.id === selectedViewId) || null;
   const canDeleteCurrentView = !!currentView && (isAdmin || currentView.created_by === me?.email);
-  const viewStatuses = Array.isArray(currentView?.filters?.status) ? currentView.filters.status : [];
-  
-  let filteredCandidatesWithView = filteredCandidates.filter(c =>
-    viewStatuses.length === 0 || viewStatuses.includes(c.status)
-  );
+  const viewStatuses = useMemo(() => Array.isArray(currentView?.filters?.status) ? currentView.filters.status : [], [currentView]);
+
+  // Memoized filter: search + view status filter
+  const filteredCandidates = useMemo(() => {
+    const term = debouncedSearch.toLowerCase().trim();
+    return candidates.filter(c => {
+      if (viewStatuses.length > 0 && !viewStatuses.includes(c.status)) return false;
+      if (!term) return true;
+      return (
+        `${c.first_name} ${c.last_name}`.toLowerCase().includes(term) ||
+        c.email?.toLowerCase().includes(term) ||
+        c.current_title?.toLowerCase().includes(term) ||
+        c.skills?.some(s => s.toLowerCase().includes(term))
+      );
+    });
+  }, [candidates, debouncedSearch, viewStatuses]);
 
   const defaultColumns = [
     { key: "first_name", label: "Name" },
@@ -417,20 +383,17 @@ export default function Candidates() {
     }
   };
 
-  const filteredAndSorted = [...filteredCandidatesWithView].sort((a, b) => {
+  const filteredAndSorted = useMemo(() => [...filteredCandidates].sort((a, b) => {
     const aValue = a[sortBy];
     const bValue = b[sortBy];
-
-    if (typeof aValue === 'string' && typeof bValue === 'string') {
+    if (typeof aValue === 'string' && typeof bValue === 'string')
       return sortOrder === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
-    }
-    if (typeof aValue === 'number' && typeof bValue === 'number') {
+    if (typeof aValue === 'number' && typeof bValue === 'number')
       return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
-    }
-    if (aValue === null || aValue === undefined) return sortOrder === 'asc' ? 1 : -1;
-    if (bValue === null || bValue === undefined) return sortOrder === 'asc' ? -1 : 1;
+    if (aValue == null) return sortOrder === 'asc' ? 1 : -1;
+    if (bValue == null) return sortOrder === 'asc' ? -1 : 1;
     return 0;
-  });
+  }), [filteredCandidates, sortBy, sortOrder]);
 
   const saveView = async (payload) => {
     try {

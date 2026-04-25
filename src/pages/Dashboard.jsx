@@ -11,7 +11,7 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { usePermissions } from "@/components/common/PermissionsContext";
-import { getRolesCached } from "@/components/utils/rolesCache";
+import { getDashboardCache, setDashboardCache, invalidateDashboardCache } from "@/lib/dashboardCache";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import WidgetRenderer from "@/components/dashboard/WidgetRenderer";
@@ -109,8 +109,6 @@ const STAGE_PILL = {
 export default function Dashboard() {
   const [stats, setStats] = useState({ totalCandidates: 0, activeJobs: 0, totalCompanies: 0, thisMonthPlacements: 0 });
   const [loading, setLoading] = useState(true);
-  const [me, setMe] = useState(null);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [myTasksToday, setMyTasksToday] = useState([]);
   const [candidates, setCandidates] = useState([]);
   const [jobs, setJobs] = useState([]);
@@ -128,7 +126,7 @@ export default function Dashboard() {
   const [completingTask, setCompletingTask] = useState(null);
 
   const dashGuard = useRef({ ts: 0, inFlight: false });
-  const { listFilterFor } = usePermissions();
+  const { listFilterFor, me, isAdmin } = usePermissions();
 
   const today = useMemo(() => new Date(), []);
   const dateLabel = useMemo(() => today.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" }), [today]);
@@ -138,18 +136,31 @@ export default function Dashboard() {
     const now = Date.now();
     if (dashGuard.current.inFlight) return;
     if (!force && now - dashGuard.current.ts < 30000) return;
+
+    // Serve from cross-navigation cache instantly
+    if (!force) {
+      const cached = getDashboardCache();
+      if (cached) {
+        setCandidates(cached.candidates);
+        setJobs(cached.jobs);
+        setCompanies(cached.companies);
+        setApplications(cached.applications);
+        setSubmissions(cached.submissions);
+        setMyTasksToday(cached.tasks);
+        setStats(cached.stats);
+        setLoading(false);
+        dashGuard.current.ts = now;
+        return;
+      }
+    }
+
     dashGuard.current.inFlight = true;
     setLoading(true);
     try {
-      const meUser = await base44.auth.me().catch(() => null);
-      setMe(meUser);
-      let admin = meUser?.role === "admin";
-      if (meUser?.role_id) {
-        const roles = await getRolesCached().catch(() => []);
-        const r = roles.find(it => it.id === meUser.role_id);
-        admin = admin || (r?.name || "").toLowerCase() === "admin";
-      }
-      setIsAdmin(admin);
+      // Use permissions context — no extra user fetch needed
+      const meUser = me;
+      const admin = isAdmin;
+      if (!meUser) { setLoading(false); dashGuard.current.inFlight = false; return; }
 
       const cfgList = await base44.entities.DashboardConfig.filter({ is_global: true, is_active: true }, "-updated_date").catch(() => []);
       const cfg = (cfgList && cfgList[0]) || null;
@@ -172,20 +183,27 @@ export default function Dashboard() {
         taskFilter ? base44.entities.Task.filter(taskFilter, '-created_date', 50).catch(() => []) : base44.entities.Task.list('-created_date', 50).catch(() => [])
       ]);
 
-      setCandidates(candidatesData || []);
-      setJobs(jobsData || []);
-      setCompanies(companiesData || []);
-      setApplications(applicationsData || []);
-      setSubmissions(submissionsData || []);
+      const safeC = candidatesData || [];
+      const safeJ = jobsData || [];
+      const safeCo = companiesData || [];
+      const safeA = applicationsData || [];
+      const safeS = submissionsData || [];
 
-      const activeJobs = (jobsData || []).filter(j => j.status === "open").length;
+      setCandidates(safeC);
+      setJobs(safeJ);
+      setCompanies(safeCo);
+      setApplications(safeA);
+      setSubmissions(safeS);
+
+      const activeJobs = safeJ.filter(j => j.status === "open").length;
       const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
-      const thisMonthPlacements = (applicationsData || []).filter(a => {
+      const thisMonthPlacements = safeA.filter(a => {
         if (a.status !== "hired") return false;
         const d = new Date(a.created_date);
         return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
       }).length;
-      setStats({ totalCandidates: (candidatesData || []).length, activeJobs, totalCompanies: (companiesData || []).length, thisMonthPlacements });
+      const newStats = { totalCandidates: safeC.length, activeJobs, totalCompanies: safeCo.length, thisMonthPlacements };
+      setStats(newStats);
 
       const todayTs = todayMidnight.getTime();
       const my = (tasks || [])
@@ -197,6 +215,9 @@ export default function Dashboard() {
           return da - db;
         });
       setMyTasksToday(my);
+
+      // Save to cross-navigation cache
+      setDashboardCache({ candidates: safeC, jobs: safeJ, companies: safeCo, applications: safeA, submissions: safeS, tasks: my, stats: newStats });
     } catch (err) {
       console.error("Dashboard load error:", err);
       setCandidates([]);
@@ -334,7 +355,7 @@ export default function Dashboard() {
             <Button
               variant="outline" size="sm"
               className="gap-1.5 text-[13px] border-[#E2E8F0] text-[#475569]"
-              onClick={() => { setRefreshKey(k => k+1); loadDashboardData(true); }}
+              onClick={() => { invalidateDashboardCache(); setRefreshKey(k => k+1); loadDashboardData(true); }}
             >
               <RefreshCcw className="w-3.5 h-3.5" /> Refresh
             </Button>
