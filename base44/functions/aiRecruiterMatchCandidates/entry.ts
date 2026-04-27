@@ -1,65 +1,58 @@
 import { createClientFromRequest } from "npm:@base44/sdk@0.8.25";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+const LLM_PROVIDER = Deno.env.get("LLM_PROVIDER") || "openai";
 
-async function callOpenAI(params) {
-  const { model = "gpt-4o-mini", systemPrompt = "", userPrompt = "" } = params;
-  if (!OPENAI_API_KEY) throw new Error("OpenAI API key not configured");
-
-  const payload = {
-    model,
-    temperature: 0.5,
-    max_tokens: 1500,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-  };
-
+async function callOpenAI(systemPrompt, userPrompt) {
+  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify(payload),
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENAI_API_KEY}` },
+    body: JSON.stringify({
+      model: "gpt-4o",
+      temperature: 0.4,
+      max_tokens: 1500,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    }),
   });
-
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error?.message || `OpenAI error: ${res.status}`);
-  }
-
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error?.message || `OpenAI ${res.status}`); }
   const data = await res.json();
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error("Empty OpenAI response");
-
-  try {
-    return JSON.parse(content);
-  } catch {
-    return content;
-  }
+  try { return JSON.parse(content); } catch { return content; }
 }
 
-async function callBase44LLM(base44, params) {
-  const { systemPrompt = "", userPrompt = "" } = params;
-  const response = await base44.integrations.Core.InvokeLLM({
-    prompt: `${systemPrompt}\n\n${userPrompt}`,
-    response_json_schema: {
-      type: "object",
-      properties: {
-        recommendation: { type: "string" },
-        matched_skills: { type: "array", items: { type: "string" } },
-        missing_skills: { type: "array", items: { type: "string" } },
-        risk_flags: { type: "array", items: { type: "string" } },
-        strengths: { type: "array", items: { type: "string" } },
-        weaknesses: { type: "array", items: { type: "string" } },
-        summary: { type: "string" },
-        explanation: { type: "string" },
-      },
-    },
+async function callClaude(systemPrompt, userPrompt) {
+  if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not configured");
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1500,
+      temperature: 0.4,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+    }),
   });
-  return response;
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error?.message || `Anthropic ${res.status}`); }
+  const data = await res.json();
+  const raw = data.content?.[0]?.text;
+  if (!raw) throw new Error("Empty Claude response");
+  try { return JSON.parse(raw.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()); } catch { return raw; }
+}
+
+async function callLLM(systemPrompt, userPrompt) {
+  const primary = LLM_PROVIDER === "claude" ? () => callClaude(systemPrompt, userPrompt) : () => callOpenAI(systemPrompt, userPrompt);
+  const fallback = LLM_PROVIDER === "claude" ? () => callOpenAI(systemPrompt, userPrompt) : () => callClaude(systemPrompt, userPrompt);
+  try { return await primary(); } catch (e) {
+    console.warn(`Primary LLM (${LLM_PROVIDER}) failed: ${e.message}. Trying fallback.`);
+    return await fallback();
+  }
 }
 
 function normalizeSkills(skills) {
@@ -68,54 +61,29 @@ function normalizeSkills(skills) {
 
 function calculateDeterministicScore(job, candidate) {
   let score = 0;
-
-  // Required skills match (35 points)
   const requiredSkills = normalizeSkills(job.required_skills);
   const candidateSkills = normalizeSkills(candidate.skills);
   if (requiredSkills.length > 0) {
     const matched = requiredSkills.filter(s => candidateSkills.some(cs => cs.includes(s) || s.includes(cs)));
     score += (matched.length / requiredSkills.length) * 35;
   }
-
-  // Preferred skills match (15 points)
   const preferredSkills = normalizeSkills(job.preferred_skills);
   if (preferredSkills.length > 0) {
     const matched = preferredSkills.filter(s => candidateSkills.some(cs => cs.includes(s) || s.includes(cs)));
     score += (matched.length / preferredSkills.length) * 15;
   }
-
-  // Experience match (15 points)
   if (job.experience_required && candidate.experience_years) {
-    if (candidate.experience_years >= job.experience_required) {
-      score += 15;
-    } else if (candidate.experience_years >= job.experience_required * 0.8) {
-      score += 10;
-    } else if (candidate.experience_years > 0) {
-      score += 5;
-    }
+    if (candidate.experience_years >= job.experience_required) score += 15;
+    else if (candidate.experience_years >= job.experience_required * 0.8) score += 10;
+    else if (candidate.experience_years > 0) score += 5;
   } else if (candidate.experience_years > 0) {
     score += 8;
   }
-
-  // Work authorization (10 points)
-  if (candidate.work_authorization && candidate.work_authorization !== "other") {
-    score += 10;
-  }
-
-  // Availability (10 points)
-  if (candidate.availability === "immediately" || candidate.availability === "2_weeks") {
-    score += 10;
-  } else if (candidate.availability === "1_month") {
-    score += 6;
-  } else {
-    score += 3;
-  }
-
-  // Status filter (active/available)
-  if (candidate.status && (candidate.status === "active" || candidate.status === "on_bench")) {
-    score += 5;
-  }
-
+  if (candidate.work_authorization && candidate.work_authorization !== "other") score += 10;
+  if (candidate.availability === "immediately" || candidate.availability === "2_weeks") score += 10;
+  else if (candidate.availability === "1_month") score += 6;
+  else score += 3;
+  if (candidate.status === "active" || candidate.status === "on_bench") score += 5;
   return Math.min(100, Math.max(0, score));
 }
 
@@ -127,151 +95,94 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const { job_id, run_id = null, max_candidates = 50, filters = {} } = body;
+    if (!job_id) return Response.json({ error: "job_id is required" }, { status: 400 });
 
-    if (!job_id) {
-      return Response.json({ error: "job_id is required" }, { status: 400 });
-    }
+    const jobs = await base44.entities.Job.list("-created_date", 100);
+    const job = jobs.find(j => j.id === job_id);
+    if (!job) return Response.json({ error: "Job not found" }, { status: 404 });
 
-    // Load job
-    let job;
-    try {
-      const jobs = await base44.entities.Job.list("-created_date", 100);
-      job = jobs.find(j => j.id === job_id);
-    } catch (err) {
-      console.error("Failed to load job:", err);
-      job = null;
-    }
-    
-    if (!job) {
-      return Response.json({ error: "Job not found" }, { status: 404 });
-    }
-
-    // Load candidates
     let candidates = [];
-    try {
-      candidates = await base44.entities.Candidate.list("-created_date", 200);
-    } catch (err) {
-      console.error("Failed to load candidates:", err);
-      candidates = [];
-    }
+    try { candidates = await base44.entities.Candidate.list("-created_date", 200); } catch { candidates = []; }
 
-    // Filter candidates
-    let filtered = candidates.filter(c => {
-      // Status check
+    const filtered = candidates.filter(c => {
       if (c.status === "inactive" || c.status === "do_not_contact") return false;
-      // Availability filter
       if (filters.availability && c.availability !== filters.availability) return false;
-      // Work auth filter
       if (filters.work_authorization && c.work_authorization !== filters.work_authorization) return false;
       return true;
     });
 
-    // Score all candidates
-    const scored = filtered.map(c => ({
-      candidate: c,
-      deterministicScore: calculateDeterministicScore(job, c),
-    })).sort((a, b) => b.deterministicScore - a.deterministicScore);
+    const scored = filtered
+      .map(c => ({ candidate: c, deterministicScore: calculateDeterministicScore(job, c) }))
+      .sort((a, b) => b.deterministicScore - a.deterministicScore);
 
-    // Take top candidates for AI explanation
     const topCandidates = scored.slice(0, Math.min(max_candidates, 15));
 
-    // Get AI explanations for top candidates
+    const SYSTEM_PROMPT = "You are an expert technical recruiter. Analyze the fit between a job and candidate. Return JSON with: recommendation (strong_submit/maybe/not_recommended), matched_skills (array), missing_skills (array), risk_flags (array), strengths (array), weaknesses (array), summary (string), explanation (string).";
+
     const matches = [];
-    for (const item of topCandidates) {
-      const { candidate, deterministicScore } = item;
+    for (const { candidate, deterministicScore } of topCandidates) {
+      const userPrompt = `Job: ${job.title}
+Required skills: ${(job.required_skills || []).join(", ")}
+Preferred skills: ${(job.preferred_skills || []).join(", ")}
+Experience required: ${job.experience_required || "not specified"} years
 
-      let explanation;
-      let modelUsed = "gpt-4o-mini";
-      
+Candidate: ${candidate.first_name} ${candidate.last_name}
+Skills: ${(candidate.skills || []).join(", ")}
+Experience: ${candidate.experience_years || 0} years
+Current title: ${candidate.current_title || "unknown"}
+Availability: ${candidate.availability || "unknown"}
+Work authorization: ${candidate.work_authorization || "unknown"}`;
+
+      let explanation = null;
+      let modelUsed = LLM_PROVIDER;
       try {
-        explanation = await callOpenAI({
-          model: "gpt-4o-mini",
-          systemPrompt: "You are an expert recruiter. Analyze the fit between a job and candidate. Return JSON with: recommendation (strong_submit/maybe/not_recommended), matched_skills, missing_skills, risk_flags (array), strengths, weaknesses, summary, explanation.",
-          userPrompt: `Job: ${job.title}, Required: ${(job.required_skills || []).join(", ")}, Preferred: ${(job.preferred_skills || []).join(", ")}. Candidate: ${candidate.first_name} ${candidate.last_name}, Skills: ${(candidate.skills || []).join(", ")}, Experience: ${candidate.experience_years} years, Availability: ${candidate.availability}.`,
-        });
-      } catch (openaiErr) {
-        // Fallback to Base44 LLM if OpenAI fails
-        console.warn(`OpenAI failed for candidate ${candidate.id}, falling back to Base44 LLM:`, openaiErr.message);
-        try {
-          explanation = await callBase44LLM(base44, {
-            systemPrompt: "You are an expert recruiter. Analyze the fit between a job and candidate. Return JSON with: recommendation (strong_submit/maybe/not_recommended), matched_skills, missing_skills, risk_flags (array), strengths, weaknesses, summary, explanation.",
-            userPrompt: `Job: ${job.title}, Required: ${(job.required_skills || []).join(", ")}, Preferred: ${(job.preferred_skills || []).join(", ")}. Candidate: ${candidate.first_name} ${candidate.last_name}, Skills: ${(candidate.skills || []).join(", ")}, Experience: ${candidate.experience_years} years, Availability: ${candidate.availability}.`,
-          });
-          modelUsed = "base44-llm";
-        } catch (base44Err) {
-          console.warn(`Base44 LLM also failed for candidate ${candidate.id}:`, base44Err.message);
-          throw base44Err;
-        }
+        explanation = await callLLM(SYSTEM_PROMPT, userPrompt);
+      } catch (err) {
+        console.warn(`LLM failed for candidate ${candidate.id}:`, err.message);
       }
 
-      try {
+      const requiredSkills = normalizeSkills(job.required_skills);
+      const candidateSkills = normalizeSkills(candidate.skills);
+      const matched = requiredSkills.filter(s => candidateSkills.some(cs => cs.includes(s) || s.includes(cs)));
+      const missing = requiredSkills.filter(s => !matched.includes(s));
 
-        const requiredSkills = normalizeSkills(job.required_skills);
-        const candidateSkills = normalizeSkills(candidate.skills);
-        const matched = requiredSkills.filter(s => candidateSkills.some(cs => cs.includes(s) || s.includes(cs)));
-        const missing = requiredSkills.filter(s => !matched.includes(s));
+      const result = {
+        candidate_id: candidate.id,
+        score: Math.min(100, deterministicScore + (explanation?.score_adjustment || 0)),
+        recommendation: explanation?.recommendation || "maybe",
+        matched_skills: matched.length > 0 ? matched : (explanation?.matched_skills || []),
+        missing_skills: missing.length > 0 ? missing : (explanation?.missing_skills || []),
+        risk_flags: explanation?.risk_flags || [],
+        strengths: explanation?.strengths || [],
+        weaknesses: explanation?.weaknesses || [],
+        ai_summary: explanation?.summary || "",
+        explanation: explanation?.explanation || "",
+        model_used: modelUsed,
+      };
 
-        const result = {
-          candidate_id: candidate.id,
-          score: Math.min(100, deterministicScore + (explanation.score_adjustment || 0)),
-          recommendation: explanation.recommendation || "maybe",
-          matched_skills: matched.length > 0 ? matched : (explanation.matched_skills || []),
-           missing_skills: missing.length > 0 ? missing : (explanation.missing_skills || []),
-           risk_flags: explanation.risk_flags || [],
-           strengths: explanation.strengths || [],
-           weaknesses: explanation.weaknesses || [],
-           ai_summary: explanation.summary || explanation.ai_summary || "",
-           explanation: explanation.explanation || "",
-           model_used: modelUsed,
-        };
-
-        // Save to CandidateMatchResult
-        const matchResult = await base44.entities.CandidateMatchResult.create({
-          run_id: run_id || "temp",
-          job_id,
-          candidate_id: candidate.id,
-          score: result.score,
-          recommendation: result.recommendation,
-          matched_skills: result.matched_skills,
-          missing_skills: result.missing_skills,
-          risk_flags: result.risk_flags,
-          strengths: result.strengths,
-          weaknesses: result.weaknesses,
-          ai_summary: result.ai_summary,
-          explanation: result.explanation,
-          model_used: modelUsed,
-        });
-
-        matches.push(result);
-      } catch (error) {
-        console.warn(`Failed to get AI explanation for candidate ${candidate.id}:`, error.message);
-        // Still include the candidate with deterministic score only
-        matches.push({
-          candidate_id: candidate.id,
-          score: deterministicScore,
-          recommendation: "maybe",
-          matched_skills: [],
-          missing_skills: [],
-          risk_flags: ["AI explanation failed"],
-          strengths: [],
-          weaknesses: [],
-          ai_summary: "AI analysis unavailable",
-          explanation: "",
-          model_used: "deterministic",
-        });
-      }
-    }
-
-    // Sort by final score
-    matches.sort((a, b) => b.score - a.score);
-
-    // Update run if provided
-    if (run_id) {
-      await base44.entities.AIRecruiterRun.update(run_id, {
-        status: "matched",
-        match_count: matches.length,
+      await base44.entities.CandidateMatchResult.create({
+        run_id: run_id || "temp",
+        job_id,
+        candidate_id: candidate.id,
+        score: result.score,
+        recommendation: result.recommendation,
+        matched_skills: result.matched_skills,
+        missing_skills: result.missing_skills,
+        risk_flags: result.risk_flags,
+        strengths: result.strengths,
+        weaknesses: result.weaknesses,
+        ai_summary: result.ai_summary,
+        explanation: result.explanation,
+        model_used: modelUsed,
       });
 
+      matches.push(result);
+    }
+
+    matches.sort((a, b) => b.score - a.score);
+
+    if (run_id) {
+      await base44.entities.AIRecruiterRun.update(run_id, { status: "matched", match_count: matches.length });
       await base44.entities.RecruiterActivity.create({
         run_id,
         entity_type: "job",
@@ -279,16 +190,11 @@ Deno.serve(async (req) => {
         activity_type: "ai_candidates_matched",
         title: `Matched ${matches.length} candidates`,
         description: `AI found and ranked ${matches.length} candidates for ${job.title}`,
-        metadata: { top_score: matches[0]?.score || 0 },
+        metadata: { top_score: matches[0]?.score || 0, model: LLM_PROVIDER },
       });
     }
 
-    return Response.json({
-      success: true,
-      run_id: run_id || null,
-      job_id,
-      matches,
-    });
+    return Response.json({ success: true, run_id: run_id || null, job_id, matches });
   } catch (error) {
     console.error("aiRecruiterMatchCandidates error:", error);
     return Response.json({ error: error.message }, { status: 500 });
