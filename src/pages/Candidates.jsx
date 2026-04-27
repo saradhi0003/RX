@@ -235,12 +235,7 @@ export default function Candidates() {
       return next;
     });
   };
-  const allVisibleSelected = filteredAndSorted.length > 0 && filteredAndSorted.every(c => selectedIds.has(c.id));
-  const someVisibleSelected = filteredAndSorted.some(c => selectedIds.has(c.id)) && !allVisibleSelected;
-  const toggleSelectAllVisible = (checked) => {
-    if (checked) setSelectedIds(new Set(filteredAndSorted.map(c => c.id)));
-    else setSelectedIds(new Set());
-  };
+
 
   useEffect(() => {
     loadCandidates();
@@ -394,6 +389,13 @@ export default function Candidates() {
     if (bValue == null) return sortOrder === 'asc' ? -1 : 1;
     return 0;
   }), [filteredCandidates, sortBy, sortOrder]);
+
+  const allVisibleSelected = filteredAndSorted.length > 0 && filteredAndSorted.every(c => selectedIds.has(c.id));
+  const someVisibleSelected = filteredAndSorted.some(c => selectedIds.has(c.id)) && !allVisibleSelected;
+  const toggleSelectAllVisible = (checked) => {
+    if (checked) setSelectedIds(new Set(filteredAndSorted.map(c => c.id)));
+    else setSelectedIds(new Set());
+  };
 
   const saveView = async (payload) => {
     try {
