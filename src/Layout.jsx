@@ -21,7 +21,7 @@ import { AuditLog } from "@/entities/AuditLog";
 import { Role } from "@/entities/Role";
 import AccessBlocker from "@/components/common/AccessBlocker";
 import { getRolesCached, invalidateRolesCache } from "@/components/utils/rolesCache";
-import { getUserCached, invalidateUserCache } from "@/lib/userCache";
+import { getUserCached, invalidateUserCache, getQuickStatsCached, getCachedUser } from "@/lib/appCache";
 import NotificationToast from "@/components/notifications/NotificationToast";
 import RightPreviewPanel from "@/components/common/RightPreviewPanel";
 import CandidatePreviewLoader from "@/components/previews/CandidatePreviewLoader";
@@ -142,11 +142,12 @@ export default function Layout({ children, currentPageName }) {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const [me, setMe] = React.useState(null);
+  // Seed from cache synchronously — no spinner on navigation if user already loaded
+  const [me, setMe] = React.useState(() => getCachedUser() || null);
   const [myRole, setMyRole] = React.useState(null);
   const [quickStats, setQuickStats] = React.useState({ activeJobs: 0, newCandidates: 0, thisMonthPlacements: 0 });
   const [qsLoading, setQsLoading] = React.useState(true);
-  const [checkingAccess, setCheckingAccess] = React.useState(true);
+  const [checkingAccess, setCheckingAccess] = React.useState(() => !getCachedUser());
 
   const [preview, setPreview] = React.useState({ open: false, entity: null, id: null });
   const [commandPaletteOpen, setCommandPaletteOpen] = React.useState(false);
@@ -253,7 +254,6 @@ export default function Layout({ children, currentPageName }) {
     return () => document.removeEventListener("click", onClick, true);
   }, [openPreview]);
 
-  const qsGuard = React.useRef({ ts: 0, inFlight: false });
   const userGuard = React.useRef({ ts: 0, inFlight: false });
   const [renderAssistant, setRenderAssistant] = React.useState(false);
   const logoutTimer = React.useRef(null);
@@ -264,9 +264,6 @@ export default function Layout({ children, currentPageName }) {
   const [sidebarPinned, setSidebarPinned] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem("sidebar_pinned") || "true"); } catch { return true; }
   });
-
-  // Cache quick stats to avoid repeated fetches on navigation
-  const quickStatsCacheRef = React.useRef(null);
 
   const toggleSidebar = React.useCallback(() => {
     setSidebarCollapsed(prev => {
@@ -385,59 +382,34 @@ export default function Layout({ children, currentPageName }) {
     return qp.get("hide_badge") === "true";
   }, [location.search]);
 
-  // Load quick stats for sidebar (non-blocking, cached)
+  // Load quick stats using unified cross-navigation cache
   React.useEffect(() => {
-    if (skipQuickStats) {
-      setQsLoading(false);
-      return;
-    }
-
-    // If we have cached stats, use them immediately
-    if (quickStatsCacheRef.current) {
-      setQuickStats(quickStatsCacheRef.current);
-      setQsLoading(false);
-    }
+    if (skipQuickStats) { setQsLoading(false); return; }
 
     const loadQuickStats = async () => {
-      const now = Date.now();
-      // Only refetch every 60 seconds or on first load
-      if (qsGuard.current.inFlight || (qsGuard.current.ts > 0 && now - qsGuard.current.ts < 60000)) {
-        return;
-      }
+      const today = new Date();
+      const sevenDaysAgo = new Date(today);
+      sevenDaysAgo.setDate(today.getDate() - 7);
 
-      qsGuard.current.inFlight = true;
-      qsGuard.current.ts = now;
-
-      try {
-        const today = new Date();
-        const sevenDaysAgo = new Date(today);
-        sevenDaysAgo.setDate(today.getDate() - 7);
-
+      const stats = await getQuickStatsCached(async () => {
         const [jobsData, candidatesData, applicationsData] = await Promise.all([
           Job.filter({ status: 'open' }, '', 50).catch(() => []),
           Candidate.filter({ status: 'active' }, '-created_date', 30).catch(() => []),
           Application.filter({ status: 'hired' }, '-created_date', 20).catch(() => [])
         ]);
-
         const activeJobs = (jobsData || []).length;
         const newCandidates = (candidatesData || []).filter(c => new Date(c.created_date) >= sevenDaysAgo).length;
         const thisMonthPlacements = (applicationsData || []).filter(app => {
           const d = new Date(app.created_date);
           return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
         }).length;
+        return { activeJobs, newCandidates, thisMonthPlacements };
+      });
 
-        const stats = { activeJobs, newCandidates, thisMonthPlacements };
-        quickStatsCacheRef.current = stats;
-        setQuickStats(stats);
-      } catch (error) {
-        console.warn("Error loading quick stats:", error);
-      } finally {
-        setQsLoading(false);
-        qsGuard.current.inFlight = false;
-      }
+      setQuickStats(stats);
+      setQsLoading(false);
     };
 
-    // Load asynchronously in background
     loadQuickStats();
   }, [skipQuickStats]);
 
@@ -450,7 +422,7 @@ export default function Layout({ children, currentPageName }) {
   React.useEffect(() => {
     const loadUser = async () => {
       const now = Date.now();
-      if (userGuard.current.inFlight || now - userGuard.current.ts < 30000) {
+      if (userGuard.current.inFlight || now - userGuard.current.ts < 120000) {
         setCheckingAccess(false);
         return;
       }
@@ -541,26 +513,15 @@ export default function Layout({ children, currentPageName }) {
     const logOnce = async () => {
       if (!me) return;
       if (sessionStorage.getItem("audit_logged") === "1") return;
-      
-      try {
-        let ip = "unknown";
-        try {
-          const res = await fetch("https://api.ipify.org?format=json");
-          const j = await res.json();
-          if (j?.ip) ip = j.ip;
-        } catch (_) {}
-        
-        await AuditLog.create({
-          user_email: me.email,
-          action: "login",
-          ip,
-          user_agent: navigator.userAgent || "",
-          app: "Recruiter X"
-        });
-        sessionStorage.setItem("audit_logged", "1");
-      } catch (e) {
-        console.warn("Audit log failed:", e);
-      }
+      sessionStorage.setItem("audit_logged", "1");
+      // Fire-and-forget, non-blocking
+      AuditLog.create({
+        user_email: me.email,
+        action: "login",
+        ip: "unknown",
+        user_agent: navigator.userAgent || "",
+        app: "Recruiter X"
+      }).catch(() => {});
     };
     logOnce();
   }, [me]);
@@ -634,8 +595,8 @@ export default function Layout({ children, currentPageName }) {
           .rx-topbar { height:52px; background:rgba(255,255,255,.85); backdrop-filter:blur(24px) saturate(180%); border-bottom:1px solid #E5E5EA; display:flex; align-items:center; padding:0 22px; gap:12px; flex-shrink:0; }
           .rx-nav-scroll { flex:1; overflow-y:auto; overflow-x:hidden; padding:8px; scrollbar-width:none; }
           .rx-nav-scroll::-webkit-scrollbar { display:none; }
-          @keyframes rx-page-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
-          .rx-page-in { animation: rx-page-in 280ms cubic-bezier(.25,.46,.45,.94) both; }
+          @keyframes rx-page-in { from { opacity:0; } to { opacity:1; } }
+          .rx-page-in { animation: rx-page-in 120ms ease both; }
           @media (max-width:1023px) {
             .rx-sidebar { position:fixed; left:0; top:0; transform:translateX(-100%); transition:transform .22s ease; }
             .rx-sidebar.open { transform:translateX(0); }
