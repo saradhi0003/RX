@@ -56,6 +56,51 @@
       "type": "boolean",
       "default": true,
       "description": "Fall back to Base44 LLM if OpenAI fails"
+    },
+    "auto_match_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Automatically match candidates when a new job or candidate is created"
+    },
+    "auto_draft_on_match": {
+      "type": "boolean",
+      "default": false,
+      "description": "Auto-create draft emails when a strong match is found (still requires approval)"
+    },
+    "auto_draft_clarification": {
+      "type": "boolean",
+      "default": true,
+      "description": "Auto-create recruiter clarification drafts when a job is missing critical fields"
+    },
+    "send_immediately_on_approval": {
+      "type": "boolean",
+      "default": true,
+      "description": "Send email via Postmark immediately after draft is approved"
+    },
+    "auto_followup_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable automated follow-up scheduling after submissions"
+    },
+    "default_followup_cadence": {
+      "type": "number",
+      "default": 3,
+      "description": "Days between follow-up emails"
+    },
+    "max_followups": {
+      "type": "number",
+      "default": 3,
+      "description": "Maximum number of follow-up emails to send per submission"
+    },
+    "workspace_timezone": {
+      "type": "string",
+      "default": "UTC",
+      "description": "Timezone for scheduling (e.g. America/New_York)"
+    },
+    "followup_send_hour": {
+      "type": "number",
+      "default": 9,
+      "description": "Hour of day (0-23) to send follow-up emails"
     }
   },
   "rls": {

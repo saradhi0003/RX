@@ -1,0 +1,111 @@
+{
+  "name": "InboundChannelMessage",
+  "type": "object",
+  "properties": {
+    "channel_connection_id": {
+      "type": "string",
+      "description": "References ChannelConnection that received this message"
+    },
+    "channel_type": {
+      "type": "string",
+      "enum": ["telegram", "slack", "email_inbound", "whatsapp"],
+      "description": "Denormalized for fast filtering"
+    },
+    "external_message_id": {
+      "type": "string",
+      "description": "Telegram message_id, Slack ts, email Message-ID"
+    },
+    "sender": {
+      "type": "string",
+      "description": "Phone number, Slack user ID, or email address"
+    },
+    "sender_name": {
+      "type": "string",
+      "description": "Display name of sender"
+    },
+    "subject": {
+      "type": "string",
+      "description": "Email subject; null for chat messages"
+    },
+    "body": {
+      "type": "string",
+      "description": "Full message text"
+    },
+    "attachments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string" },
+          "filename": { "type": "string" },
+          "mime_type": { "type": "string" }
+        }
+      },
+      "description": "File attachments"
+    },
+    "raw_payload": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Full JSON payload from the channel for audit/replay"
+    },
+    "received_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the message was received"
+    },
+    "classification": {
+      "type": "string",
+      "enum": ["job", "resume", "reply", "spam", "unknown"],
+      "description": "AI-determined content classification"
+    },
+    "classification_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence score for classification (0-1)"
+    },
+    "processing_status": {
+      "type": "string",
+      "enum": ["pending", "processed", "failed", "ignored"],
+      "default": "pending",
+      "description": "Current processing state"
+    },
+    "processed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When processing completed"
+    },
+    "resulting_entity_type": {
+      "type": "string",
+      "enum": ["Job", "Candidate", "Application"],
+      "description": "Type of entity created from this message"
+    },
+    "resulting_entity_id": {
+      "type": "string",
+      "description": "ID of entity created from this message"
+    },
+    "ai_recruiter_run_id": {
+      "type": "string",
+      "description": "References AIRecruiterRun if one was triggered"
+    },
+    "error_message": {
+      "type": "string",
+      "description": "Error details if processing_status = failed"
+    }
+  },
+  "required": ["channel_type", "external_message_id", "body", "received_at"],
+  "rls": {
+    "read": {
+      "$or": [
+        { "created_by": "{{user.email}}" },
+        { "user_condition": { "role": "admin" } }
+      ]
+    },
+    "write": {
+      "$or": [
+        { "created_by": "{{user.email}}" },
+        { "user_condition": { "role": "admin" } }
+      ]
+    }
+  }
+}

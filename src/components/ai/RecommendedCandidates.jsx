@@ -3,7 +3,8 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { base44 } from "@/api/base44Client";
+import { Candidate } from "@/entities/Candidate";
+import * as Core from "@/integrations/Core";
 import { Sparkles, User, MapPin, Briefcase, Award, TrendingUp, Loader2, RefreshCw, AlertCircle, Brain, Target, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -23,7 +24,7 @@ export default function RecommendedCandidates({ job }) {
 
     try {
       // Get all active candidates
-      const allCandidates = await base44.entities.Candidate.filter(
+      const allCandidates = await Candidate.filter(
         { status: "active" },
         "-updated_date",
         300
@@ -365,7 +366,7 @@ For EACH required skill:
 - If in doubt about domain compatibility, REJECT (false negatives > false positives)
 - Return empty array if truly no qualified candidates exist`;
 
-      const response = await base44.integrations.Core.InvokeLLM({
+      const response = await Core.InvokeLLM({
         prompt,
         response_json_schema: {
           type: "object",

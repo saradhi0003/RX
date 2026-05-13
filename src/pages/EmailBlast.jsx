@@ -16,7 +16,8 @@ import {
   Sparkles,
   Download
 } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { Company } from "@/entities/Company";
+import * as Core from "@/integrations/Core";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import PageHeader from "@/components/common/PageHeader";
 import Breadcrumbs from "@/components/common/Breadcrumbs";
@@ -42,7 +43,7 @@ export default function EmailBlast() {
   const loadCompanies = async () => {
     setLoading(true);
     try {
-      const data = await base44.entities.Company.list("-updated_date");
+      const data = await Company.list("-updated_date");
       setCompanies(data || []);
       
       // Select all by default
@@ -140,7 +141,7 @@ export default function EmailBlast() {
 
     setGenerating(true);
     try {
-      const response = await base44.integrations.Core.InvokeLLM({
+      const response = await Core.InvokeLLM({
         prompt: `You are a professional business email writer for a recruitment agency.
 
 Write a compelling email blast for the following purpose:

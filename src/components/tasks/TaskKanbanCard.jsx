@@ -43,7 +43,7 @@ export default function TaskKanbanCard({ task, onClick }) {
       }}
     >
       {/* Title */}
-      <div style={{ fontSize: 14, fontWeight: 700, color: "#1D1D1F", marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A", marginBottom: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
         {task.title}
       </div>
 
@@ -63,7 +63,7 @@ export default function TaskKanbanCard({ task, onClick }) {
               width: 28,
               height: 28,
               borderRadius: "50%",
-              background: "linear-gradient(135deg,#0071E3,#6366F1)",
+              background: "linear-gradient(135deg,#9333EA,#6366F1)",
               color: "#fff",
               display: "flex",
               alignItems: "center",
@@ -75,7 +75,7 @@ export default function TaskKanbanCard({ task, onClick }) {
           >
             {ini}
           </div>
-          <span style={{ fontSize: 12, color: "#1D1D1F", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 12, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {task.assigned_to.split("@")[0]}
           </span>
         </div>
@@ -84,7 +84,7 @@ export default function TaskKanbanCard({ task, onClick }) {
       {/* Due date + Priority */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         {task.due_date && (
-          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: isOverdue ? "#DC2626" : "#86868B", fontWeight: isOverdue ? 600 : 400 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: isOverdue ? "#DC2626" : "#94A3B8", fontWeight: isOverdue ? 600 : 400 }}>
             <Calendar style={{ width: 12, height: 12 }} />
             {new Date(task.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
             {isOverdue && " ⚠"}
@@ -99,7 +99,7 @@ export default function TaskKanbanCard({ task, onClick }) {
 
       {/* Related entity */}
       {task.related_entity && (
-        <div style={{ marginTop: 8, fontSize: 10, color: "#86868B", background: "rgba(0,0,0,.04)", padding: "4px 8px", borderRadius: 6, display: "inline-block" }}>
+        <div style={{ marginTop: 8, fontSize: 10, color: "#94A3B8", background: "rgba(0,0,0,.04)", padding: "4px 8px", borderRadius: 6, display: "inline-block" }}>
           {task.related_entity}
         </div>
       )}

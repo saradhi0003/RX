@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { X, Loader2, ClipboardPaste, Sparkles } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { Candidate } from "@/entities/Candidate";
+import * as Core from "@/integrations/Core";
 import { addNotification } from "@/components/notifications/NotificationToast";
 
 export default function PasteToAddCandidate({ open, onClose, onSuccess }) {
@@ -25,7 +26,7 @@ export default function PasteToAddCandidate({ open, onClose, onSuccess }) {
 
     try {
       // Use AI to parse the pasted text into candidate fields
-      const response = await base44.integrations.Core.InvokeLLM({
+      const response = await Core.InvokeLLM({
         prompt: `You are an expert recruiter assistant. Parse the following candidate information and extract structured data.
 
 CANDIDATE TEXT:
@@ -77,7 +78,7 @@ If information is not available, omit the field or use null.`,
 
       // Check for duplicate by email before creating
       if (response.email) {
-        const existing = await base44.entities.Candidate.filter({ 
+        const existing = await Candidate.filter({ 
           email: response.email.trim().toLowerCase() 
         });
         
@@ -93,7 +94,7 @@ If information is not available, omit the field or use null.`,
           
           if (shouldUpdate) {
             // Update existing candidate
-            await base44.entities.Candidate.update(duplicate.id, {
+            await Candidate.update(duplicate.id, {
               ...response,
               notes: `${duplicate.notes || ""}\n\nUpdated from pasted text (${new Date().toLocaleString()}):\n${pastedText}`.trim()
             });
@@ -123,7 +124,7 @@ If information is not available, omit the field or use null.`,
         source: "Pasted Text"
       };
 
-      const newCandidate = await base44.entities.Candidate.create(candidateData);
+      const newCandidate = await Candidate.create(candidateData);
 
       addNotification({
         type: "success",

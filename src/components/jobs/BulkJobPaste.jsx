@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { X, Loader2, CheckCircle2, AlertTriangle, FileText } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { Company } from "@/entities/Company";
+import { Job } from "@/entities/Job";
 import { addNotification } from "@/components/notifications/NotificationToast";
 
 // Extract emails from text
@@ -153,7 +154,7 @@ export default function BulkJobPaste({ open, onClose, onSuccess, companies }) {
 
       if (!companyId) {
         // Create default company if none exists
-        const newCompany = await base44.entities.Company.create({
+        const newCompany = await Company.create({
           name: "TalentStack",
           status: "active",
           type: "internal"
@@ -167,12 +168,12 @@ export default function BulkJobPaste({ open, onClose, onSuccess, companies }) {
       };
 
       // Create the job
-      const createdJob = await base44.entities.Job.create(jobData);
+      const createdJob = await Job.create(jobData);
 
       // If we have requester email, create/update company contact
       if (preview.requester_email && companyId) {
         try {
-          const company = await base44.entities.Company.get(companyId);
+          const company = await Company.get(companyId);
           const existingContacts = company.contacts || [];
           
           // Check if contact already exists
@@ -188,7 +189,7 @@ export default function BulkJobPaste({ open, onClose, onSuccess, companies }) {
               is_primary: existingContacts.length === 0
             };
             
-            await base44.entities.Company.update(companyId, {
+            await Company.update(companyId, {
               contacts: [...existingContacts, newContact]
             });
 

@@ -1,0 +1,57 @@
+{
+  "name": "ChannelConnection",
+  "type": "object",
+  "properties": {
+    "workspace_id": {
+      "type": "string",
+      "description": "Workspace this connection belongs to"
+    },
+    "channel_type": {
+      "type": "string",
+      "enum": ["telegram", "slack", "email_inbound", "whatsapp"],
+      "description": "Type of inbound channel"
+    },
+    "channel_name": {
+      "type": "string",
+      "description": "Human-readable name, e.g. Acme Staffing Telegram Group"
+    },
+    "external_id": {
+      "type": "string",
+      "description": "Telegram chat_id, Slack channel_id, or email alias"
+    },
+    "credentials": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Bot tokens, webhook secrets (stored encrypted by Base44)"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether this connection is active"
+    },
+    "filter_keywords": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Optional keyword pre-filter; empty = accept all"
+    },
+    "default_classification": {
+      "type": "string",
+      "enum": ["auto", "job", "resume"],
+      "default": "auto",
+      "description": "Override AI classification for all messages from this channel"
+    },
+    "created_by": {
+      "type": "string",
+      "description": "Email of user who created this connection"
+    }
+  },
+  "required": ["channel_type", "external_id"],
+  "rls": {
+    "read": {
+      "user_condition": { "role": "admin" }
+    },
+    "write": {
+      "user_condition": { "role": "admin" }
+    }
+  }
+}

@@ -10,8 +10,10 @@ import { Input } from "@/components/ui/input";
 import { X, Calendar as CalendarIcon, Loader2, Save as SaveIcon, Search, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
-import { base44 } from "@/api/base44Client";
-
+import { Candidate } from "@/entities/Candidate";
+import { Job } from "@/entities/Job";
+import { Submission } from "@/entities/Submission";
+import { User } from "@/entities/User";
 // Searchable Lookup Component
 const SearchableLookup = ({ 
   options = [], 
@@ -128,7 +130,7 @@ export default function SubmissionForm({ submission, candidates, jobs, onSuccess
     (async () => {
       if ((!jobOptions || jobOptions.length === 0) && (!jobs || jobs.length === 0)) {
         try {
-          const list = await base44.entities.Job.filter({ status: "open" }, "-created_date", 200);
+          const list = await Job.filter({ status: "open" }, "-created_date", 200);
           setJobOptions(list || []);
         } catch (_) { /* ignore */ }
       }
@@ -136,14 +138,14 @@ export default function SubmissionForm({ submission, candidates, jobs, onSuccess
   }, [jobOptions, jobs]);
 
   useEffect(() => {
-    base44.auth.me().then(setMe).catch(() => setMe(null));
+    User.me().then(setMe).catch(() => setMe(null));
   }, []);
 
   // Load users with Recruiter, Admin, or Accounts roles
   useEffect(() => {
     (async () => {
       try {
-        const allUsers = await base44.entities.User.list();
+        const allUsers = await User.list();
         const filteredUsers = (allUsers || []).filter(user => {
           const role = (user.role || "").toLowerCase();
           const roleName = (user.role_name || "").toLowerCase();
@@ -182,7 +184,7 @@ export default function SubmissionForm({ submission, candidates, jobs, onSuccess
   useEffect(() => {
     (async () => {
       try {
-        const list = await base44.entities.Candidate.list("-created_date", 100);
+        const list = await Candidate.list("-created_date", 100);
         setCandidateOptions(list);
       } catch (_) {
         // ignore refresh errors
@@ -211,9 +213,9 @@ export default function SubmissionForm({ submission, candidates, jobs, onSuccess
       };
 
       if (submission?.id) {
-        await base44.entities.Submission.update(submission.id, payload);
+        await Submission.update(submission.id, payload);
       } else {
-        await base44.entities.Submission.create(payload);
+        await Submission.create(payload);
       }
 
       onSuccess?.();

@@ -2,7 +2,12 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { base44 } from "@/api/base44Client";
+import { Application } from "@/entities/Application";
+import { Candidate } from "@/entities/Candidate";
+import { Submission } from "@/entities/Submission";
+import { Task } from "@/entities/Task";
+import { User } from "@/entities/User";
+import * as Core from "@/integrations/Core";
 import { 
   Sparkles, 
   Loader2, 
@@ -40,10 +45,10 @@ export default function CandidateWorkflowAgent() {
     try {
       // Load candidates and applications
       const [candidates, applications, tasks, submissions] = await Promise.all([
-        base44.entities.Candidate.list("-updated_date", 500),
-        base44.entities.Application.list("-updated_date", 500),
-        base44.entities.Task.list("-created_date", 500),
-        base44.entities.Submission.list("-updated_date", 500)
+        Candidate.list("-updated_date", 500),
+        Application.list("-updated_date", 500),
+        Task.list("-created_date", 500),
+        Submission.list("-updated_date", 500)
       ]);
 
       const candidateContext = candidates.slice(0, 100).map(c => ({
@@ -181,7 +186,7 @@ Flag urgent items:
   }
 }`;
 
-      const response = await base44.integrations.Core.InvokeLLM({
+      const response = await Core.InvokeLLM({
         prompt,
         response_json_schema: {
           type: "object",
@@ -268,7 +273,7 @@ Flag urgent items:
   const executeWorkflow = async (workflow) => {
     try {
       if (workflow.workflow_type === "status_update" && workflow.recommended_status) {
-        await base44.entities.Candidate.update(workflow.candidate_id, {
+        await Candidate.update(workflow.candidate_id, {
           status: workflow.recommended_status,
           notes: `${workflow.rationale} - Auto-updated by AI Workflow Agent`
         });
@@ -295,7 +300,7 @@ Flag urgent items:
   const executeAction = async (action) => {
     try {
       if (action.action_type === "create_task") {
-        await base44.entities.Task.create({
+        await Task.create({
           title: action.action_title,
           description: action.action_details,
           related_entity: "candidate",
@@ -325,7 +330,7 @@ Flag urgent items:
 
   const getCurrentUser = async () => {
     try {
-      const user = await base44.auth.me();
+      const user = await User.me();
       return user?.email || "";
     } catch {
       return "";

@@ -1,0 +1,41 @@
+{
+  "name": "WhatsAppRegistration",
+  "type": "object",
+  "properties": {
+    "code": {
+      "type": "string",
+      "description": "8-character alphanumeric registration code (uppercase)"
+    },
+    "workspace_id": {
+      "type": "string",
+      "description": "Workspace this code belongs to"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Code expires 24 hours after creation"
+    },
+    "used_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the code was consumed (null if unused)"
+    },
+    "registered_phone": {
+      "type": "string",
+      "description": "Phone number that used this code"
+    },
+    "channel_connection_id": {
+      "type": "string",
+      "description": "ChannelConnection created when code was used"
+    }
+  },
+  "required": ["code", "workspace_id", "expires_at"],
+  "rls": {
+    "read": {
+      "user_condition": { "role": "admin" }
+    },
+    "write": {
+      "user_condition": { "role": "admin" }
+    }
+  }
+}

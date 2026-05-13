@@ -1,6 +1,6 @@
 import React from "react";
 import { Loader2, Mail, Phone, MapPin, LinkedinIcon, ArrowUpRight, Edit, Briefcase, Calendar, Code2, Zap } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { Candidate } from "@/entities/Candidate";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -37,7 +37,7 @@ export default function CandidatePreview({ id }) {
     let mounted = true;
     (async () => {
       try {
-        const res = await base44.entities.Candidate.filter({ id }, "-created_date", 1);
+        const res = await Candidate.filter({ id }, "-created_date", 1);
         const c = res?.[0] || null;
         if (!mounted) return;
         setCandidate(c);
@@ -50,13 +50,13 @@ export default function CandidatePreview({ id }) {
   const updateStatus = async (val) => {
     if (!val || val === status) return;
     setSaving(true);
-    await base44.entities.Candidate.update(candidate.id, { status: val }).catch(() => {});
+    await Candidate.update(candidate.id, { status: val }).catch(() => {});
     setSaving(false);
     setStatus(val);
   };
 
   if (!candidate) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 80, color: "#86868B" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 80, color: "#94A3B8" }}>
       <Loader2 style={{ width: 16, height: 16, marginRight: 6 }} className="animate-spin" /> Loading candidate…
     </div>
   );
@@ -76,15 +76,15 @@ export default function CandidatePreview({ id }) {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: "#1D1D1F", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fullName}</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fullName}</h2>
               <Link to={createPageUrl(`CandidateDetails?id=${candidate.id}`)} title="Open full details">
-                <ArrowUpRight style={{ width: 14, height: 14, color: "#86868B" }} />
+                <ArrowUpRight style={{ width: 14, height: 14, color: "#94A3B8" }} />
               </Link>
             </div>
-            <div style={{ fontSize: 13, color: "#86868B" }}>{candidate.current_title || candidate.current_company || "—"}</div>
+            <div style={{ fontSize: 13, color: "#94A3B8" }}>{candidate.current_title || candidate.current_company || "—"}</div>
           </div>
           <Link to={createPageUrl(`CandidateDetails?id=${candidate.id}&edit=true`)} data-intent="edit"
-            style={{ fontSize: 12, fontWeight: 600, color: "#0071E3", padding: "5px 12px", borderRadius: 20, border: "1px solid #0071E3", textDecoration: "none", flexShrink: 0 }}>
+            style={{ fontSize: 12, fontWeight: 600, color: "#9333EA", padding: "5px 12px", borderRadius: 20, border: "1px solid #9333EA", textDecoration: "none", flexShrink: 0 }}>
             <Edit style={{ width: 12, height: 12, display: "inline", marginRight: 4, verticalAlign: "middle" }} />Edit
           </Link>
         </div>
@@ -93,17 +93,17 @@ export default function CandidatePreview({ id }) {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
           <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: sb.bg, color: sb.c }}>{sb.label}</span>
           {candidate.experience_years && (
-            <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: "rgba(0,0,0,.05)", color: "#6E6E73" }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: "rgba(0,0,0,.05)", color: "#64748B" }}>
               {candidate.experience_years}+ yrs exp
             </span>
           )}
           {candidate.work_authorization && (
-            <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: "rgba(0,113,227,.08)", color: "#0071E3" }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: "rgba(0,113,227,.08)", color: "#9333EA" }}>
               {candidate.work_authorization.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
             </span>
           )}
           {candidate.availability && candidate.availability !== "negotiable" && (
-            <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: "rgba(0,0,0,.05)", color: "#6E6E73" }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: "rgba(0,0,0,.05)", color: "#64748B" }}>
               {candidate.availability.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
             </span>
           )}
@@ -112,7 +112,7 @@ export default function CandidatePreview({ id }) {
 
       {/* Status control */}
       <div style={{ padding: "14px 20px", borderBottom: "1px solid #F2F2F7" }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Status</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Status</div>
         <Select value={status || candidate.status} onValueChange={updateStatus} disabled={saving}>
           <SelectTrigger style={{ fontSize: 13, borderRadius: 8 }}>
             <SelectValue />
@@ -125,29 +125,29 @@ export default function CandidatePreview({ id }) {
 
       {/* Contact info */}
       <div style={{ padding: "14px 20px", borderBottom: "1px solid #F2F2F7" }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 10 }}>Contact</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 10 }}>Contact</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {candidate.email && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-              <Mail style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0F172A" }}>
+              <Mail style={{ width: 14, height: 14, color: "#94A3B8", flexShrink: 0 }} />
               <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{candidate.email}</span>
             </div>
           )}
           {candidate.phone && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-              <Phone style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0F172A" }}>
+              <Phone style={{ width: 14, height: 14, color: "#94A3B8", flexShrink: 0 }} />
               {candidate.phone}
             </div>
           )}
           {candidate.location && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-              <MapPin style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0F172A" }}>
+              <MapPin style={{ width: 14, height: 14, color: "#94A3B8", flexShrink: 0 }} />
               {candidate.location}
             </div>
           )}
           {candidate.linkedin_url && (
             <a href={candidate.linkedin_url} target="_blank" rel="noreferrer"
-              style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0071E3", textDecoration: "none" }}>
+              style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#9333EA", textDecoration: "none" }}>
               <LinkedinIcon style={{ width: 14, height: 14, flexShrink: 0 }} />
               LinkedIn
             </a>
@@ -157,23 +157,23 @@ export default function CandidatePreview({ id }) {
 
       {/* Professional details */}
       <div style={{ padding: "14px 20px", borderBottom: "1px solid #F2F2F7" }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 10 }}>Profile</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 10 }}>Profile</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {candidate.current_company && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-              <Briefcase style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0F172A" }}>
+              <Briefcase style={{ width: 14, height: 14, color: "#94A3B8", flexShrink: 0 }} />
               {candidate.current_company}
             </div>
           )}
           {candidate.experience_years != null && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-              <Zap style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0F172A" }}>
+              <Zap style={{ width: 14, height: 14, color: "#94A3B8", flexShrink: 0 }} />
               {candidate.experience_years}+ years
             </div>
           )}
           {candidate.salary_expectation && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-              <Calendar style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0F172A" }}>
+              <Calendar style={{ width: 14, height: 14, color: "#94A3B8", flexShrink: 0 }} />
               ${candidate.salary_expectation.toLocaleString()}
             </div>
           )}
@@ -183,12 +183,12 @@ export default function CandidatePreview({ id }) {
       {/* Skills */}
       {Array.isArray(candidate.skills) && candidate.skills.length > 0 && (
         <div style={{ padding: "14px 20px" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Skills</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Skills</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
             {candidate.skills.slice(0, 12).map((s, i) => (
-              <span key={i} style={{ fontSize: 11.5, padding: "3px 9px", borderRadius: 20, background: "rgba(0,113,227,.08)", color: "#0071E3", fontWeight: 500 }}>{s}</span>
+              <span key={i} style={{ fontSize: 11.5, padding: "3px 9px", borderRadius: 20, background: "rgba(0,113,227,.08)", color: "#9333EA", fontWeight: 500 }}>{s}</span>
             ))}
-            {candidate.skills.length > 12 && <span style={{ fontSize: 11.5, color: "#86868B" }}>+{candidate.skills.length - 12} more</span>}
+            {candidate.skills.length > 12 && <span style={{ fontSize: 11.5, color: "#94A3B8" }}>+{candidate.skills.length - 12} more</span>}
           </div>
         </div>
       )}

@@ -18,7 +18,11 @@ import {
   Loader2,
   RefreshCw
 } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { Application } from "@/entities/Application";
+import { Candidate } from "@/entities/Candidate";
+import { Company } from "@/entities/Company";
+import { Job } from "@/entities/Job";
+import * as Core from "@/integrations/Core";
 import { createPageUrl } from "@/utils";
 import { Link, useNavigate } from "react-router-dom";
 import JobForm from "@/components/jobs/JobForm";
@@ -52,8 +56,8 @@ export default function JobDetails() {
 
       try {
         const [jobData, appsData] = await Promise.all([
-          base44.entities.Job.get(jobId),
-          base44.entities.Application.filter({ job_id: jobId })
+          Job.get(jobId),
+          Application.filter({ job_id: jobId })
         ]);
 
         setJob(jobData);
@@ -62,7 +66,7 @@ export default function JobDetails() {
         // Gracefully handle missing company reference
         if (jobData?.company_id) {
           try {
-            const companyData = await base44.entities.Company.get(jobData.company_id);
+            const companyData = await Company.get(jobData.company_id);
             setCompany(companyData);
           } catch (companyError) {
             console.warn("Company not found for job:", jobData.company_id, companyError);
@@ -74,7 +78,7 @@ export default function JobDetails() {
         if (appsData?.length > 0) {
           const candidateIds = [...new Set(appsData.map(app => app.candidate_id))];
           const candidatesData = await Promise.all(
-            candidateIds.map(id => base44.entities.Candidate.get(id).catch(() => null))
+            candidateIds.map(id => Candidate.get(id).catch(() => null))
           );
           setCandidates(candidatesData.filter(c => c));
         }
@@ -114,7 +118,7 @@ For EACH question, provide:
 
 Make questions specific to the role, not generic. Focus on skills, experience, and job requirements.`;
 
-      const response = await base44.integrations.Core.InvokeLLM({
+      const response = await Core.InvokeLLM({
         prompt,
         response_json_schema: {
           type: "object",
@@ -156,8 +160,8 @@ Make questions specific to the role, not generic. Focus on skills, experience, a
   }, [job, screeningQuestions, loadingQuestions]);
 
   const handleSaveJob = async (updatedJob) => {
-    await base44.entities.Job.update(jobId, updatedJob);
-    const refreshed = await base44.entities.Job.get(jobId);
+    await Job.update(jobId, updatedJob);
+    const refreshed = await Job.get(jobId);
     setJob(refreshed);
     setShowEditForm(false);
   };

@@ -642,49 +642,49 @@ export default function CompaniesPage() { // Renamed component
   const avatarPalette = ["#3B82F6,#6366F1","#F59E0B,#EA580C","#8B5CF6,#7C3AED","#10B981,#059669","#EF4444,#DC2626","#0EA5E9,#0284C7"];
   const avatarGrad = (name) => { const p = avatarPalette[(name?.charCodeAt(0)||0) % avatarPalette.length].split(","); return `linear-gradient(135deg,${p[0]},${p[1]})`; };
   const getInitials = (name) => name ? name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase() : "?";
-  const connStatusBadge = (s) => ({ active:{bg:"rgba(48,161,78,.12)",c:"#16A34A"}, prospect:{bg:"rgba(0,113,227,.10)",c:"#0071E3"}, inactive:{bg:"rgba(0,0,0,.06)",c:"#86868B"} }[s] || {bg:"rgba(0,0,0,.06)",c:"#86868B"});
+  const connStatusBadge = (s) => ({ active:{bg:"rgba(48,161,78,.12)",c:"#16A34A"}, prospect:{bg:"rgba(0,113,227,.10)",c:"#9333EA"}, inactive:{bg:"rgba(0,0,0,.06)",c:"#94A3B8"} }[s] || {bg:"rgba(0,0,0,.06)",c:"#94A3B8"});
   const timeAgo = (d) => { const days = Math.floor((Date.now()-new Date(d))/86400000); return days===0?"Today":days===1?"1d ago":days<7?`${days}d ago`:`${Math.floor(days/7)}w ago`; };
 
   return (
-    <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background:"#F5F5F7", minHeight:"100vh" }}>
+    <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background:"#F8FAFC", minHeight:"100vh" }}>
 
       {/* ── Metrics bar ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:"1px solid #E5E5EA" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:"1px solid #E2E8F0" }}>
         {[
           { label:"Total Connections", value:loading?"—":totalConnections, sub:"in network" },
-          { label:"Active", value:loading?"—":activeConnections, sub:"current clients", subColor:"#30A14E" },
-          { label:"Open Roles", value:loading?"—":totalOpenJobs, sub:"across all clients", valColor:"#0071E3" },
+          { label:"Active", value:loading?"—":activeConnections, sub:"current clients", subColor:"#10B981" },
+          { label:"Open Roles", value:loading?"—":totalOpenJobs, sub:"across all clients", valColor:"#9333EA" },
           { label:"Prospects", value:loading?"—":prospectConnections, sub:"in pipeline" },
         ].map((m,i) => (
-          <div key={i} style={{ padding:"22px 28px", borderRight:i<3?"1px solid #E5E5EA":"none" }}>
-            <div style={{ fontSize:11.5, fontWeight:500, color:"#86868B", marginBottom:5 }}>{m.label}</div>
-            <div style={{ fontSize:42, fontWeight:700, letterSpacing:"-.04em", lineHeight:1, color:m.valColor||"#1D1D1F" }}>{m.value}</div>
-            <div style={{ fontSize:11.5, color:m.subColor||"#86868B", marginTop:6 }}>{m.sub}</div>
+          <div key={i} style={{ padding:"22px 28px", borderRight:i<3?"1px solid #E2E8F0":"none" }}>
+            <div style={{ fontSize:11.5, fontWeight:500, color:"#94A3B8", marginBottom:5 }}>{m.label}</div>
+            <div style={{ fontSize:42, fontWeight:700, letterSpacing:"-.04em", lineHeight:1, color:m.valColor||"#0F172A" }}>{m.value}</div>
+            <div style={{ fontSize:11.5, color:m.subColor||"#94A3B8", marginTop:6 }}>{m.sub}</div>
           </div>
         ))}
       </div>
 
       {/* ── Filter bar ── */}
-      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 24px", background:"#fff", borderBottom:"1px solid #E5E5EA", flexWrap:"wrap" }}>
-        <span style={{ fontSize:12, fontWeight:600, color:"#86868B", marginRight:4 }}>Status</span>
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 24px", background:"#fff", borderBottom:"1px solid #E2E8F0", flexWrap:"wrap" }}>
+        <span style={{ fontSize:12, fontWeight:600, color:"#94A3B8", marginRight:4 }}>Status</span>
         {[{k:"all",l:"All"},{k:"active",l:"Active"},{k:"prospect",l:"Prospect"},{k:"inactive",l:"Inactive"}].map(s => (
           <button key={s.k} onClick={() => { setConnStatusFilter(s.k); setCurrentPage(1); }}
-            style={{ padding:"5px 13px", borderRadius:20, fontSize:13, fontWeight:connStatusFilter===s.k?600:500, border:"none", cursor:"pointer", background:connStatusFilter===s.k?"#1D1D1F":"#fff", color:connStatusFilter===s.k?"#fff":"#6E6E73", boxShadow:connStatusFilter===s.k?"none":"0 1px 4px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)", transition:"all 120ms" }}>
+            style={{ padding:"5px 13px", borderRadius:20, fontSize:13, fontWeight:connStatusFilter===s.k?600:500, border:"none", cursor:"pointer", background:connStatusFilter===s.k?"#0F172A":"#fff", color:connStatusFilter===s.k?"#fff":"#64748B", boxShadow:connStatusFilter===s.k?"none":"0 1px 4px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)", transition:"all 120ms" }}>
             {s.l}
           </button>
         ))}
 
         {/* Search */}
         <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(0,0,0,.06)", borderRadius:10, padding:"5px 10px", marginLeft:8 }}>
-          <Search style={{ width:13, height:13, color:"#86868B" }} />
+          <Search style={{ width:13, height:13, color:"#94A3B8" }} />
           <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search connections…"
-            style={{ border:"none", background:"transparent", outline:"none", fontSize:13, color:"#1D1D1F", width:160 }} />
+            style={{ border:"none", background:"transparent", outline:"none", fontSize:13, color:"#0F172A", width:160 }} />
         </div>
 
         <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8 }}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button style={{ padding:"6px 14px", borderRadius:20, fontSize:13, fontWeight:500, border:"1px solid #E5E5EA", background:"#fff", color:"#6E6E73", cursor:"pointer" }}>More ▾</button>
+              <button style={{ padding:"6px 14px", borderRadius:20, fontSize:13, fontWeight:500, border:"1px solid #E2E8F0", background:"#fff", color:"#64748B", cursor:"pointer" }}>More ▾</button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => loadCompanies(true)}><RefreshCcw className="w-4 h-4 mr-2" />Refresh</DropdownMenuItem>
@@ -698,7 +698,7 @@ export default function CompaniesPage() { // Renamed component
           </DropdownMenu>
           <PermissionGate entity="Company" action="create">
             <button onClick={() => { setShowForm(true); setFormCompany(null); setSelectedCompany(null); setHighlightedCompany(null); }}
-              style={{ padding:"7px 16px", borderRadius:20, fontSize:13, fontWeight:600, border:"none", background:"#0071E3", color:"#fff", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,113,227,.3)" }}>
+              style={{ padding:"7px 16px", borderRadius:20, fontSize:13, fontWeight:600, border:"none", background:"#9333EA", color:"#fff", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,113,227,.3)" }}>
               + Add Connection
             </button>
           </PermissionGate>
@@ -709,9 +709,9 @@ export default function CompaniesPage() { // Renamed component
       <div style={{ padding:"20px 24px 40px" }}>
         <div style={{ background:"#fff", borderRadius:16, boxShadow:"0 2px 12px rgba(0,0,0,.07),0 0 0 .5px rgba(0,0,0,.05)", overflow:"hidden" }}>
           {/* Header */}
-          <div style={{ display:"grid", gridTemplateColumns:"1.8fr 120px 130px 90px 90px 80px 36px", gap:0, padding:"9px 20px", borderBottom:"1px solid #E5E5EA", background:"#FAFAFA" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1.8fr 120px 130px 90px 90px 80px 36px", gap:0, padding:"9px 20px", borderBottom:"1px solid #E2E8F0", background:"#FAFAFA" }}>
             {["CONNECTION","INDUSTRY","PRIMARY CONTACT","OPEN JOBS","STATUS","ADDED",""].map((h,i) => (
-              <div key={i} style={{ fontSize:11, fontWeight:600, letterSpacing:".04em", color:"#86868B", display:"flex", alignItems:"center", gap:i===0?8:0 }}>
+              <div key={i} style={{ fontSize:11, fontWeight:600, letterSpacing:".04em", color:"#94A3B8", display:"flex", alignItems:"center", gap:i===0?8:0 }}>
                 {i===0 && <Checkbox checked={allVisibleSelected} onCheckedChange={c=>toggleSelectAllVisible(!!c)} />}
                 {h}
               </div>
@@ -719,15 +719,15 @@ export default function CompaniesPage() { // Renamed component
           </div>
 
           {loading ? (
-            <div style={{ padding:"48px", textAlign:"center", color:"#86868B" }}>
-              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color:"#0071E3" }} />
+            <div style={{ padding:"48px", textAlign:"center", color:"#94A3B8" }}>
+              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color:"#9333EA" }} />
               <div style={{ fontSize:13 }}>Loading connections…</div>
             </div>
           ) : paginatedConn.length === 0 ? (
             <div style={{ padding:"60px", textAlign:"center" }}>
-              <Building2 style={{ width:36, height:36, color:"#AEAEB2", margin:"0 auto 12px" }} />
-              <div style={{ fontSize:15, fontWeight:600, color:"#1D1D1F", marginBottom:6 }}>No connections found</div>
-              <div style={{ fontSize:13, color:"#86868B" }}>{searchTerm ? "Try adjusting your search" : "Add your first connection to get started"}</div>
+              <Building2 style={{ width:36, height:36, color:"#94A3B8", margin:"0 auto 12px" }} />
+              <div style={{ fontSize:15, fontWeight:600, color:"#0F172A", marginBottom:6 }}>No connections found</div>
+              <div style={{ fontSize:13, color:"#94A3B8" }}>{searchTerm ? "Try adjusting your search" : "Add your first connection to get started"}</div>
             </div>
           ) : paginatedConn.map((company, idx) => {
             const isSelected = selectedCompany?.id === company.id;
@@ -748,23 +748,23 @@ export default function CompaniesPage() { // Renamed component
                     {getInitials(company.name)}
                   </div>
                   <div style={{ minWidth:0 }}>
-                    <div style={{ fontSize:13.5, fontWeight:600, color:"#1D1D1F", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                    <div style={{ fontSize:13.5, fontWeight:600, color:"#0F172A", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                       {company.name}
                     </div>
-                    <div style={{ fontSize:11.5, color:"#86868B" }}>{company.location || "—"}</div>
+                    <div style={{ fontSize:11.5, color:"#94A3B8" }}>{company.location || "—"}</div>
                   </div>
                 </div>
-                <div style={{ fontSize:12.5, color:"#6E6E73", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{company.industry || "—"}</div>
-                <div style={{ fontSize:12.5, color:"#6E6E73", minWidth:0 }}>
-                  {primaryContact ? <div><div style={{ fontWeight:600, color:"#1D1D1F", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{primaryContact.name}</div><div style={{ fontSize:11 }}>{primaryContact.email || "—"}</div></div> : "—"}
+                <div style={{ fontSize:12.5, color:"#64748B", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{company.industry || "—"}</div>
+                <div style={{ fontSize:12.5, color:"#64748B", minWidth:0 }}>
+                  {primaryContact ? <div><div style={{ fontWeight:600, color:"#0F172A", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{primaryContact.name}</div><div style={{ fontSize:11 }}>{primaryContact.email || "—"}</div></div> : "—"}
                 </div>
-                <div style={{ fontSize:13, fontWeight:600, color:openJobsCount>0?"#0071E3":"#AEAEB2" }}>{openJobsCount > 0 ? openJobsCount : "—"}</div>
+                <div style={{ fontSize:13, fontWeight:600, color:openJobsCount>0?"#9333EA":"#94A3B8" }}>{openJobsCount > 0 ? openJobsCount : "—"}</div>
                 <div><span style={{ fontSize:11.5, fontWeight:600, padding:"3px 10px", borderRadius:20, background:sb.bg, color:sb.c }}>{(company.status||"").replace(/\b\w/g,l=>l.toUpperCase()) || "—"}</span></div>
-                <div style={{ fontSize:12, color:"#86868B" }}>{company.created_date ? timeAgo(company.created_date) : "—"}</div>
+                <div style={{ fontSize:12, color:"#94A3B8" }}>{company.created_date ? timeAgo(company.created_date) : "—"}</div>
                 <div onClick={e=>e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button style={{ width:28, height:28, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", border:"none", background:"none", cursor:"pointer", color:"#86868B" }} className="hover:bg-black/[.07]">
+                      <button style={{ width:28, height:28, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", border:"none", background:"none", cursor:"pointer", color:"#94A3B8" }} className="hover:bg-black/[.07]">
                         <MoreHorizontal style={{ width:14, height:14 }} />
                       </button>
                     </DropdownMenuTrigger>
@@ -789,7 +789,7 @@ export default function CompaniesPage() { // Renamed component
         {!loading && currentPage < totalConnPages && (
           <div style={{ display:"flex", justifyContent:"center", marginTop:24, marginBottom:20 }}>
             <button onClick={()=>goToPage(currentPage+1)}
-              style={{ padding:"8px 24px", borderRadius:20, border:"1px solid #E5E5EA", background:"#fff", color:"#0071E3", cursor:"pointer", fontSize:13, fontWeight:600, boxShadow:"0 1px 4px rgba(0,0,0,.08)" }}>
+              style={{ padding:"8px 24px", borderRadius:20, border:"1px solid #E2E8F0", background:"#fff", color:"#9333EA", cursor:"pointer", fontSize:13, fontWeight:600, boxShadow:"0 1px 4px rgba(0,0,0,.08)" }}>
               Load More
             </button>
           </div>
@@ -798,13 +798,13 @@ export default function CompaniesPage() { // Renamed component
 
       {/* Quick Edit floating bar */}
       {highlightedCompany && (
-        <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:"#1D1D1F", borderRadius:16, padding:"14px 20px", boxShadow:"0 8px 32px rgba(0,0,0,.28)", display:"flex", alignItems:"center", gap:10, zIndex:50, flexWrap:"wrap" }}>
+        <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:"#0F172A", borderRadius:16, padding:"14px 20px", boxShadow:"0 8px 32px rgba(0,0,0,.28)", display:"flex", alignItems:"center", gap:10, zIndex:50, flexWrap:"wrap" }}>
           <div style={{ color:"#fff", fontSize:13, fontWeight:600 }}>{highlightedCompany.name}</div>
           <div style={{ width:1, height:18, background:"rgba(255,255,255,.15)" }} />
-          {statusOptions.map(o => <button key={o.value} onClick={()=>updateHighlightedField("status",o.value)} style={{ padding:"4px 10px", borderRadius:20, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:currentStatus===o.value?"#0071E3":"rgba(255,255,255,.12)", color:"#fff" }}>{o.label}</button>)}
+          {statusOptions.map(o => <button key={o.value} onClick={()=>updateHighlightedField("status",o.value)} style={{ padding:"4px 10px", borderRadius:20, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:currentStatus===o.value?"#9333EA":"rgba(255,255,255,.12)", color:"#fff" }}>{o.label}</button>)}
           <div style={{ width:1, height:18, background:"rgba(255,255,255,.15)" }} />
           <button onClick={saveHighlightedChanges} disabled={savingHighlighted||Object.keys(highlightedChanges).length===0}
-            style={{ padding:"4px 12px", borderRadius:20, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:"#30A14E", color:"#fff", opacity:Object.keys(highlightedChanges).length===0?.5:1 }}>
+            style={{ padding:"4px 12px", borderRadius:20, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:"#10B981", color:"#fff", opacity:Object.keys(highlightedChanges).length===0?.5:1 }}>
             {savingHighlighted?"Saving…":"Save"}
           </button>
           <button onClick={closeHighlightPanel} style={{ background:"none", border:"none", color:"rgba(255,255,255,.5)", cursor:"pointer", fontSize:16 }}>✕</button>

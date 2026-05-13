@@ -4,11 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Upload, RefreshCcw, Copy } from "lucide-react";
+import { Plus, Upload, RefreshCcw, Copy, FileText } from "lucide-react";
 import PageHeader from "@/components/common/PageHeader";
 import { Expense } from "@/entities/Expense";
 import ExpenseForm from "@/components/accounts/ExpenseForm";
 import ImportModal from "@/components/common/ImportModal";
+import BankStatementUpload from "@/components/accounts/BankStatementUpload";
 import { usePermissions } from "@/components/common/PermissionsContext";
 import { emitEntityChanged, useEntityAutoRefresh } from "@/components/common/refreshBus";
 
@@ -32,6 +33,7 @@ export default function Expenses() {
   const [editing, setEditing] = React.useState(null);
   const [isCloning, setIsCloning] = React.useState(false);
   const [showImport, setShowImport] = React.useState(false);
+  const [showBank, setShowBank] = React.useState(false);
 
   const { listFilterFor, can, scopeFor, me } = usePermissions();
   const canView = can("Expense", "view");
@@ -113,6 +115,16 @@ export default function Expenses() {
             {canCreate && (
               <Button variant="outline" className="gap-2 bg-white text-blue-700 hover:bg-slate-50" onClick={()=>setShowImport(true)}>
                 <Upload className="w-4 h-4" /> Import CSV
+              </Button>
+            )}
+            {canCreate && (
+              <Button
+                variant="outline"
+                className="gap-2 text-white"
+                onClick={()=>setShowBank(true)}
+                style={{ background: "linear-gradient(135deg,#9333EA 0%,#2563EB 100%)", border: "none" }}
+              >
+                <FileText className="w-4 h-4" /> Upload Bank Statement
               </Button>
             )}
             {canCreate && (
@@ -213,6 +225,12 @@ export default function Expenses() {
           onImported={()=>{ setShowImport(false); load(); }}
         />
       )}
+
+      <BankStatementUpload
+        open={showBank}
+        onClose={()=>setShowBank(false)}
+        onSaved={()=>{ setShowBank(false); load(); emitEntityChanged("Expense"); }}
+      />
 
       {showForm && (
         <ExpenseForm

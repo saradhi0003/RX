@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { base44 } from "@/api/base44Client";
+import { Candidate } from "@/entities/Candidate";
+import * as Core from "@/integrations/Core";
 import {
   Loader2,
   AlertTriangle,
@@ -50,7 +51,7 @@ export default function DuplicateManager() {
   const loadCandidates = async () => {
     setLoading(true);
     try {
-      const data = await base44.entities.Candidate.list("-created_date", 1000);
+      const data = await Candidate.list("-created_date", 1000);
       setCandidates(data || []);
     } catch (error) {
       console.error("Error loading candidates:", error);
@@ -222,7 +223,7 @@ Example output structure:
   }
 }`;
 
-      const response = await base44.integrations.Core.InvokeLLM({
+      const response = await Core.InvokeLLM({
         prompt,
         response_json_schema: {
           type: "object",
@@ -414,13 +415,13 @@ Example output structure:
           });
 
           // Update primary record with merged data
-          await base44.entities.Candidate.update(primary.id, mergedData);
+          await Candidate.update(primary.id, mergedData);
           mergedCount++;
 
           // Delete duplicate records
           for (const dup of duplicates) {
             try {
-              await base44.entities.Candidate.delete(dup.id);
+              await Candidate.delete(dup.id);
               deletedCount++;
             } catch (delError) {
               errors.push(`Failed to delete ${dup.first_name} ${dup.last_name} (${dup.id}): ${delError.message}`);

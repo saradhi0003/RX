@@ -32,7 +32,7 @@ import {
   Star,
   Globe
 } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import * as Core from "@/integrations/Core";
 import { addNotification } from "@/components/notifications/NotificationToast";
 
 export default function Landing() {
@@ -53,7 +53,7 @@ export default function Landing() {
 
     try {
       // Send trial request email to admin
-      await base44.integrations.Core.SendEmail({
+      await Core.SendEmail({
         to: "admin@recruiterx.com", // Replace with your admin email
         subject: `Trial Access Request - ${formData.company_name}`,
         body: `
@@ -71,7 +71,7 @@ Please review and respond to this trial access request.
       });
 
       // Send confirmation to requester
-      await base44.integrations.Core.SendEmail({
+      await Core.SendEmail({
         to: formData.email,
         subject: "Trial Access Request Received - Recruiter X",
         body: `
@@ -115,12 +115,8 @@ The Recruiter X Team
     }
   };
 
-  const handleLogin = async () => {
-    try {
-      await base44.auth.redirectToLogin();
-    } catch (error) {
-      console.error("Login error:", error);
-    }
+  const handleLogin = () => {
+    window.location.href = "/login";
   };
 
   const features = [

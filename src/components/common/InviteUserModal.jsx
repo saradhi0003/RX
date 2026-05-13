@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { base44 } from "@/api/base44Client";
+import { User } from "@/entities/User";
 import { Loader2, UserPlus, AlertCircle, CheckCircle, Mail, Shield, ExternalLink, Copy } from "lucide-react";
 import { addNotification } from "@/components/notifications/NotificationToast";
 
@@ -30,12 +30,12 @@ export default function InviteUserModal({ open, onClose, roles, onSuccess }) {
 
     try {
       // Check if user already exists in the app
-      const existingUsers = await base44.entities.User.list();
+      const existingUsers = await User.list();
       const userExists = existingUsers.find(u => u.email === email);
 
       if (userExists) {
         // Update existing user's role and seat
-        await base44.auth.updateUser(userExists.id, {
+        await User.update(userExists.id, {
           role_id: roleId,
           seat: seat,
           status: "active"

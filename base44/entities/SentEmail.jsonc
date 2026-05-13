@@ -1,0 +1,87 @@
+{
+  "name": "SentEmail",
+  "type": "object",
+  "properties": {
+    "draft_id": {
+      "type": "string",
+      "description": "References the approved EmailDraft"
+    },
+    "to_email": {
+      "type": "string",
+      "description": "Recipient email address"
+    },
+    "cc": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "CC recipients"
+    },
+    "subject": {
+      "type": "string",
+      "description": "Email subject line"
+    },
+    "body": {
+      "type": "string",
+      "description": "Email body (plain text)"
+    },
+    "message_id": {
+      "type": "string",
+      "description": "RFC822 Message-ID generated at send time for threading"
+    },
+    "in_reply_to": {
+      "type": "string",
+      "description": "RFC822 Message-ID of the email this replies to (for follow-ups)"
+    },
+    "thread_id": {
+      "type": "string",
+      "description": "Logical thread grouping across all related emails"
+    },
+    "provider": {
+      "type": "string",
+      "enum": ["postmark", "gmail", "zoho", "app"],
+      "default": "postmark",
+      "description": "Email provider used to send"
+    },
+    "provider_message_id": {
+      "type": "string",
+      "description": "Provider's own message ID (e.g., Postmark MessageID)"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["sent", "delivered", "opened", "replied", "bounced", "failed"],
+      "default": "sent",
+      "description": "Delivery status"
+    },
+    "sent_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the email was sent"
+    },
+    "related_entity_type": {
+      "type": "string",
+      "description": "Entity type this email relates to (Job, Candidate, Submission)"
+    },
+    "related_entity_id": {
+      "type": "string",
+      "description": "ID of the related entity"
+    },
+    "followup_schedule_id": {
+      "type": "string",
+      "description": "References FollowupSchedule if this is a follow-up email"
+    }
+  },
+  "required": ["to_email", "subject", "body", "sent_at"],
+  "rls": {
+    "read": {
+      "$or": [
+        { "created_by": "{{user.email}}" },
+        { "user_condition": { "role": "admin" } }
+      ]
+    },
+    "write": {
+      "$or": [
+        { "created_by": "{{user.email}}" },
+        { "user_condition": { "role": "admin" } }
+      ]
+    }
+  }
+}

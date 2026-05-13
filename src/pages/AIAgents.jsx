@@ -18,7 +18,7 @@ import {
   TrendingUp,
   Code
 } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+
 import { addNotification } from "@/components/notifications/NotificationToast";
 import PageHeader from "@/components/common/PageHeader";
 import Breadcrumbs from "@/components/common/Breadcrumbs";

@@ -31,6 +31,26 @@ Deno.serve(async (req) => {
 
     const updated = await base44.entities.EmailDraft.update(draft_id, updateData);
 
+    // If approved and send_immediately_on_approval is enabled, trigger send
+    if (action === "approve") {
+      try {
+        let settings: any = {};
+        const settingsList = await base44.entities.AIRecruiterSettings.list("", 1).catch(() => []);
+        settings = settingsList[0] || {};
+
+        if (settings.send_immediately_on_approval !== false) {
+          // Fire-and-forget: don't await so the approval response returns quickly
+          fetch(req.url.replace("aiRecruiterApproveDraft", "sendApprovedDraft"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": req.headers.get("Authorization") || "" },
+            body: JSON.stringify({ draft_id }),
+          }).catch(err => console.warn("sendApprovedDraft call failed:", err.message));
+        }
+      } catch (err) {
+        console.warn("aiRecruiterApproveDraft: Could not trigger send:", (err as Error).message);
+      }
+    }
+
     // Log activity
     if (draft.run_id) {
       const activityType = action === "approve" ? "ai_email_draft_approved" : "ai_email_draft_rejected";

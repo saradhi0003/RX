@@ -53,7 +53,7 @@ export default function KanbanBoard({ columns = [], tasks = [], onDragEnd, onCar
                   {/* Header */}
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                     <div style={{ width: 4, height: 18, background: col.accent, borderRadius: 2, flexShrink: 0 }} />
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "#1D1D1F" }}>{statusLabels[colId] || colId}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{statusLabels[colId] || colId}</span>
                     <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: col.accent, background: col.pill, padding: "1px 8px", borderRadius: 20 }}>
                       {grouped[colId]?.length || 0}
                     </span>
@@ -88,7 +88,7 @@ export default function KanbanBoard({ columns = [], tasks = [], onDragEnd, onCar
                       background: "transparent",
                       cursor: "pointer",
                       fontSize: 12,
-                      color: "#AEAEB2",
+                      color: "#94A3B8",
                       fontWeight: 500,
                       marginTop: 4,
                       display: "flex",
@@ -97,8 +97,8 @@ export default function KanbanBoard({ columns = [], tasks = [], onDragEnd, onCar
                       gap: 4,
                       transition: "all 100ms"
                     }}
-                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#86868B"; e.currentTarget.style.color = "#6E6E73"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#C7C7CC"; e.currentTarget.style.color = "#AEAEB2"; }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#94A3B8"; e.currentTarget.style.color = "#64748B"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#C7C7CC"; e.currentTarget.style.color = "#94A3B8"; }}
                   >
                     <Plus style={{ width: 13, height: 13 }} />
                     Add Task

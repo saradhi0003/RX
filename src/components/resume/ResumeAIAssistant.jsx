@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { base44 } from "@/api/base44Client";
+import * as Core from "@/integrations/Core";
 import { Sparkles, Loader2, Wand2, Plus, Copy, CheckCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -80,7 +80,7 @@ Write a compelling 3-4 sentence professional summary that:
   ]
 }`;
 
-      const response = await base44.integrations.Core.InvokeLLM({
+      const response = await Core.InvokeLLM({
         prompt,
         response_json_schema: {
           type: "object",
@@ -150,7 +150,7 @@ Create a compelling job experience entry with 4-6 achievement-focused bullet poi
   ]
 }`;
 
-      const response = await base44.integrations.Core.InvokeLLM({
+      const response = await Core.InvokeLLM({
         prompt,
         response_json_schema: {
           type: "object",
@@ -208,7 +208,7 @@ Create a compelling project description with 3-4 bullet points that showcase tec
   "suggested_skills": ["Skill1", "Skill2", "Skill3"]
 }`;
 
-      const response = await base44.integrations.Core.InvokeLLM({
+      const response = await Core.InvokeLLM({
         prompt,
         response_json_schema: {
           type: "object",

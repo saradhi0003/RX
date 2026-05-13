@@ -2,17 +2,17 @@ import React, { useState, useEffect, memo, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell, LineChart, Line } from "recharts";
-import { base44 } from "@/api/base44Client";
+import { Candidate, Job, Company, Application, Submission, Task } from "@/entities/all";
 import { TrendingUp, BarChart3, PieChart as PieChartIcon, Activity } from "lucide-react";
 
 // Defined once at module level — never recreated
 const ENTITY_MAP = {
-  Candidate: base44.entities.Candidate,
-  Job: base44.entities.Job,
-  Company: base44.entities.Company,
-  Application: base44.entities.Application,
-  Submission: base44.entities.Submission,
-  Task: base44.entities.Task,
+  Candidate,
+  Job,
+  Company,
+  Application,
+  Submission,
+  Task,
 };
 
 // Enhanced color palette with gradients

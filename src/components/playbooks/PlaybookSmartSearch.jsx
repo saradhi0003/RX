@@ -3,7 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { base44 } from "@/api/base44Client";
+import { Playbook } from "@/entities/Playbook";
+import * as Core from "@/integrations/Core";
 import { Search, Loader2, BookOpen, Star, TrendingUp, Clock, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -20,7 +21,7 @@ export default function PlaybookSmartSearch({ context = null, onSelect = null })
     setSearching(true);
     try {
       // Get all playbooks
-      const playbooks = await base44.entities.Playbook.filter({ is_active: true });
+      const playbooks = await Playbook.filter({ is_active: true });
       
       // Prepare context for AI search
       const searchContext = {
@@ -94,7 +95,7 @@ Analyze the search query and context, then:
 
 Return only playbooks with relevance_score >= 50, sorted by score descending.`;
 
-      const response = await base44.integrations.Core.InvokeLLM({
+      const response = await Core.InvokeLLM({
         prompt,
         response_json_schema: {
           type: "object",
@@ -153,7 +154,7 @@ Return only playbooks with relevance_score >= 50, sorted by score descending.`;
   const handlePlaybookClick = async (playbook) => {
     // Track usage
     try {
-      await base44.entities.Playbook.update(playbook.id, {
+      await Playbook.update(playbook.id, {
         usage_count: (playbook.usage_count || 0) + 1,
         last_used: new Date().toISOString()
       });

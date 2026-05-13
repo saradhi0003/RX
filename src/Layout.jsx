@@ -5,7 +5,8 @@ import {
   Users, Briefcase, Building2, BarChart3, Settings, User, LogOut,
   Search, Bell, Send, CheckSquare, BookOpen, BrainCircuit, FileText,
   Mail, Clock, CheckCircle, Wallet, Receipt, Zap, AlertTriangle,
-  Loader2, Brain, MailPlus, MoreHorizontal,
+  Loader2, Brain, MailPlus, MoreHorizontal, Inbox, Activity, MailCheck, MessageCircle,
+  Sparkles, Home, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -99,42 +100,254 @@ const navigationItems = [
   }
 ];
 
-// Nav item for new design
-function NavItem({ to, icon: Icon, label, badge, badgeColor, active }) {
-  const badgeCls = badgeColor === 'blue' ? 'bg-blue-50 text-[#0071E3]'
-    : badgeColor === 'green' ? 'bg-green-50 text-green-600'
-    : badgeColor === 'orange' ? 'bg-orange-50 text-orange-500'
-    : 'bg-[#F5F5F7] text-[#6E6E73]';
+// ── HubSpot-style nav groups ────────────────────────────────────────────────
+// Each group is one icon on the 56px rail. Hover → flyout panel with its items.
+const navGroups = [
+  {
+    id: "home",
+    label: "Home",
+    icon: Home,
+    items: [
+      { title: "Dashboard", url: createPageUrl("Dashboard"), icon: BarChart3, badge: "Live", badgeColor: "blue" },
+      { title: "My Work", url: createPageUrl("MyWork"), icon: Clock },
+    ],
+  },
+  {
+    id: "recruiting",
+    label: "Recruiting",
+    icon: Users,
+    items: [
+      { title: "Candidates", url: createPageUrl("Candidates"), icon: Users },
+      { title: "Jobs", url: createPageUrl("Jobs"), icon: Briefcase },
+      { title: "Connections", url: createPageUrl("Companies"), icon: Building2 },
+      { title: "Applications", url: createPageUrl("Submissions"), icon: Send },
+      { title: "Tasks", url: createPageUrl("Tasks"), icon: CheckSquare },
+      { title: "Duplicates", url: createPageUrl("DuplicateManager"), icon: AlertTriangle },
+    ],
+  },
+  {
+    id: "ai",
+    label: "AI & Intelligence",
+    icon: Sparkles,
+    items: [
+      { title: "AI Recruiter", url: "/AIRecruiter", icon: BrainCircuit, badge: "Beta", badgeColor: "blue" },
+      { title: "AI Agents", url: createPageUrl("AIAgents"), icon: Brain, badge: "3", badgeColor: "blue" },
+      { title: "Resume Studio", url: createPageUrl("ResumeStudio"), icon: BrainCircuit },
+      { title: "Automation", url: createPageUrl("AutomationRules"), icon: Zap },
+      { title: "Approval Queue", url: createPageUrl("ApprovalQueue"), icon: MailCheck },
+    ],
+  },
+  {
+    id: "operations",
+    label: "Operations",
+    icon: Zap,
+    items: [
+      { title: "Playbooks", url: createPageUrl("Playbooks"), icon: BookOpen },
+    ],
+  },
+  {
+    id: "comms",
+    label: "Communication",
+    icon: Inbox,
+    items: [
+      { title: "Email Inbox", url: createPageUrl("EmailInbox"), icon: Mail },
+      { title: "Channel Inbox", url: createPageUrl("ChannelInbox"), icon: Inbox },
+      { title: "WhatsApp Setup", url: createPageUrl("WhatsappSetup"), icon: MessageCircle },
+      { title: "Email Settings", url: createPageUrl("EmailSettings"), icon: Mail },
+    ],
+  },
+  {
+    id: "accounts",
+    label: "Accounts",
+    icon: Wallet,
+    gate: "accounts",
+    items: [
+      { title: "Invoices", url: createPageUrl("Invoices"), icon: Receipt, gate: "Invoice" },
+      { title: "Expenses", url: createPageUrl("Expenses"), icon: Wallet, gate: "Expense" },
+    ],
+  },
+  {
+    id: "admin",
+    label: "Admin",
+    icon: Settings,
+    gate: "admin",
+    items: [
+      { title: "Access Control", url: createPageUrl("AccessControl?hide_badge=true"), icon: Settings, matchUrl: createPageUrl("AccessControl") },
+      { title: "Approvals", url: createPageUrl("Approvals"), icon: CheckCircle },
+      { title: "Job Stack", url: createPageUrl("JobStack"), icon: Briefcase },
+      { title: "Email Blast", url: createPageUrl("EmailBlast"), icon: MailPlus },
+      { title: "BRD", url: createPageUrl("BRD"), icon: FileText },
+      { title: "System Health", url: createPageUrl("SystemHealth"), icon: Activity },
+    ],
+  },
+];
+
+// Which group "owns" the current path? Used to highlight the rail icon.
+function activeGroupId(pathname) {
+  for (const g of navGroups) {
+    for (const it of g.items) {
+      const match = it.matchUrl || it.url;
+      if (pathname === match) return g.id;
+    }
+  }
+  return null;
+}
+
+// Filter items by permission gate within a group
+function visibleItems(group, { isAdmin, can }) {
+  if (group.gate === "admin" && !isAdmin) return [];
+  return group.items.filter(it => {
+    if (!it.gate) return true;
+    return can(it.gate, "view");
+  });
+}
+
+// Rail icon button (56px column)
+function RailButton({ group, isActive, isHover, onMouseEnter, onMouseLeave, onClick }) {
+  const Icon = group.icon;
   return (
-    <Link
-      to={to}
-      className={`flex items-center gap-2 px-2.5 py-[7px] rounded-[10px] text-[13.5px] font-medium transition-all duration-130 select-none group ${
-        active
-          ? 'bg-[rgba(0,113,227,.08)] text-[#0071E3] font-semibold'
-          : 'text-[#6E6E73] hover:bg-black/5 hover:text-[#1D1D1F]'
+    <button
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onClick={onClick}
+      aria-label={group.label}
+      title={group.label}
+      style={{ position: 'relative' }}
+      className={`flex items-center justify-center w-10 h-10 rounded-[10px] transition-colors duration-150 ${
+        isActive
+          ? 'bg-[rgba(147,51,234,.10)] text-[#9333EA]'
+          : isHover
+            ? 'bg-slate-100 text-slate-700'
+            : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
       }`}
     >
-      <Icon className={`w-[15px] h-[15px] flex-shrink-0 ${active ? 'text-[#0071E3]' : 'text-[#86868B] group-hover:text-[#6E6E73]'}`} />
-      <span className="flex-1 truncate">{label}</span>
-      {badge !== undefined && (
-        <span className={`text-[11px] font-semibold px-[7px] py-px rounded-[10px] ml-auto ${badgeCls}`}>{badge}</span>
+      {isActive && (
+        <span style={{
+          position: 'absolute', left: -10, top: 8, bottom: 8, width: 3,
+          background: 'linear-gradient(180deg,#9333EA 0%,#2563EB 100%)',
+          borderRadius: 2,
+        }} />
+      )}
+      <Icon className="w-[18px] h-[18px]" />
+    </button>
+  );
+}
+
+// Flyout sub-nav item
+function FlyoutItem({ item, active, onNavigate }) {
+  const Icon = item.icon || ChevronRight;
+  const badgeCls = item.badgeColor === 'blue' ? 'bg-purple-50 text-[#9333EA]'
+    : item.badgeColor === 'green' ? 'bg-emerald-50 text-emerald-600'
+    : item.badgeColor === 'orange' ? 'bg-orange-50 text-orange-500'
+    : 'bg-slate-50 text-slate-500';
+  return (
+    <Link
+      to={item.url}
+      onClick={onNavigate}
+      className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13.5px] font-medium transition-colors duration-130 select-none ${
+        active
+          ? 'bg-[rgba(147,51,234,.08)] text-[#9333EA] font-semibold'
+          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+      }`}
+    >
+      <Icon className={`w-[15px] h-[15px] flex-shrink-0 ${active ? 'text-[#9333EA]' : 'text-slate-400'}`} />
+      <span className="flex-1 truncate">{item.title}</span>
+      {item.badge !== undefined && (
+        <span className={`text-[10.5px] font-semibold px-[7px] py-px rounded-full ${badgeCls}`}>{item.badge}</span>
       )}
     </Link>
   );
 }
 
-// Permission-aware Accounts section
-function AccountsNav({ location }) {
+// Build a breadcrumb (group label / page title) from current path.
+function getBreadcrumb(pathname) {
+  for (const g of navGroups) {
+    for (const it of g.items) {
+      const match = it.matchUrl || it.url;
+      if (pathname === match) return { group: g.label, page: it.title };
+    }
+  }
+  return { group: null, page: null };
+}
+
+// Rail + flyout. Calls usePermissions (must be a child of PermissionsProvider).
+function SidebarRail({ isAdmin, activeGid, hoveredGid, hoveredGroupObj, scheduleOpenGroup, scheduleCloseFlyout, cancelClose, currentPath }) {
   const { can } = usePermissions();
-  const showInvoices = can("Invoice", "view");
-  const showExpenses = can("Expense", "view");
-  if (!showInvoices && !showExpenses) return null;
+  const renderableGroups = navGroups
+    .map(g => ({ group: g, items: visibleItems(g, { isAdmin, can }) }))
+    .filter(({ items }) => items.length > 0);
+
+  const flyoutItems = hoveredGroupObj
+    ? visibleItems(hoveredGroupObj, { isAdmin, can })
+    : [];
+
   return (
-    <div>
-      <div className="text-[11px] font-semibold text-[#86868B] uppercase tracking-[.01em] px-2.5 py-[10px] pt-3">Accounts</div>
-      {showInvoices && <NavItem to={createPageUrl("Invoices")} icon={Receipt} label="Invoices" active={location.pathname === createPageUrl("Invoices")} />}
-      {showExpenses && <NavItem to={createPageUrl("Expenses")} icon={Wallet} label="Expenses" active={location.pathname === createPageUrl("Expenses")} />}
-    </div>
+    <>
+      <aside className="rx-rail" onMouseLeave={scheduleCloseFlyout}>
+        {/* Logo */}
+        <div
+          style={{
+            width: 36, height: 36, borderRadius: 9,
+            background: 'linear-gradient(135deg,#9333EA 0%,#2563EB 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontSize: 12, fontWeight: 800, letterSpacing: '-.04em',
+            margin: '10px 0 6px',
+            boxShadow: '0 4px 14px -4px rgba(147,51,234,.45)',
+          }}
+          title="Recruiter X"
+        >RX</div>
+
+        <div className="rx-rail-scroll">
+          {renderableGroups.map(({ group }, idx) => {
+            // Visual divider before Operations and Accounts
+            const showDivider = group.id === 'operations' || group.id === 'accounts';
+            return (
+              <React.Fragment key={group.id}>
+                {showDivider && <div className="rx-rail-divider" />}
+                <RailButton
+                  group={group}
+                  isActive={activeGid === group.id}
+                  isHover={hoveredGid === group.id}
+                  onMouseEnter={() => scheduleOpenGroup(group.id)}
+                  onMouseLeave={scheduleCloseFlyout}
+                />
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </aside>
+
+      {/* Flyout panel anchored to the right of the rail */}
+      <div
+        className={`rx-flyout ${hoveredGid ? 'open' : ''}`}
+        onMouseEnter={cancelClose}
+        onMouseLeave={scheduleCloseFlyout}
+      >
+        {hoveredGroupObj && (
+          <>
+            <div className="rx-flyout-header">
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', color: '#9333EA', textTransform: 'uppercase' }}>
+                  {hoveredGroupObj.label}
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', letterSpacing: '-.01em' }}>
+                  {hoveredGroupObj.label}
+                </div>
+              </div>
+            </div>
+            <div className="rx-flyout-body">
+              {flyoutItems.map(it => (
+                <FlyoutItem
+                  key={it.url}
+                  item={it}
+                  active={(it.matchUrl || it.url) === currentPath}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -516,11 +729,11 @@ export default function Layout({ children, currentPageName }) {
       sessionStorage.setItem("audit_logged", "1");
       // Fire-and-forget, non-blocking
       AuditLog.create({
+        user_id: me.id || null,
         user_email: me.email,
         action: "login",
-        ip: "unknown",
-        user_agent: navigator.userAgent || "",
-        app: "Recruiter X"
+        entity_type: "system",
+        new_data: { user_agent: navigator.userAgent || "", app: "Recruiter X" },
       }).catch(() => {});
     };
     logOnce();
@@ -571,13 +784,38 @@ export default function Layout({ children, currentPageName }) {
     }
   }, [isAdmin, me]);
 
+  // ── Flyout hover state (declared BEFORE any early return so hook order is stable) ──
+  const [hoveredGroup, setHoveredGroup] = React.useState(null);
+  const openTimer = React.useRef(null);
+  const closeTimer = React.useRef(null);
+
+  const scheduleOpenGroup = React.useCallback((groupId) => {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+    if (openTimer.current) clearTimeout(openTimer.current);
+    openTimer.current = setTimeout(() => setHoveredGroup(groupId), 80);
+  }, []);
+  const scheduleCloseFlyout = React.useCallback(() => {
+    if (openTimer.current) { clearTimeout(openTimer.current); openTimer.current = null; }
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = setTimeout(() => setHoveredGroup(null), 180);
+  }, []);
+  const cancelClose = React.useCallback(() => {
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
+  }, []);
+  React.useEffect(() => () => {
+    if (openTimer.current) clearTimeout(openTimer.current);
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+  }, []);
+
+  React.useEffect(() => { setHoveredGroup(null); }, [location.pathname]);
+
   // Show loading while checking access
   if (checkingAccess && !me) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F5F5F7' }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#F8FAFC' }}>
         <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin mx-auto mb-3" style={{ color: '#0071E3' }} />
-          <p style={{ color: '#6E6E73', fontSize: 13 }}>Verifying access…</p>
+          <Loader2 className="w-10 h-10 animate-spin mx-auto mb-3" style={{ color: '#9333EA' }} />
+          <p style={{ color: '#64748B', fontSize: 13 }}>Verifying access…</p>
         </div>
       </div>
     );
@@ -587,183 +825,118 @@ export default function Layout({ children, currentPageName }) {
     ? me.full_name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()
     : (me?.email ? me.email[0].toUpperCase() : 'U');
 
+  const activeGid = activeGroupId(location.pathname);
+  const hoveredGroupObj = navGroups.find(g => g.id === hoveredGroup) || null;
+  const breadcrumb = getBreadcrumb(location.pathname);
+
   return (
     <PermissionsProvider>
-      <div className="flex h-screen overflow-hidden" style={{ background: '#F5F5F7', fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif" }}>
+      <div className="flex h-screen overflow-hidden" style={{ background: '#F8FAFC', fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif" }}>
         <style>{`
-          .rx-sidebar { width:240px; height:100vh; background:rgba(255,255,255,.85); backdrop-filter:blur(24px) saturate(180%); border-right:1px solid #E5E5EA; display:flex; flex-direction:column; flex-shrink:0; z-index:20; }
-          .rx-topbar { height:52px; background:rgba(255,255,255,.85); backdrop-filter:blur(24px) saturate(180%); border-bottom:1px solid #E5E5EA; display:flex; align-items:center; padding:0 22px; gap:12px; flex-shrink:0; }
-          .rx-nav-scroll { flex:1; overflow-y:auto; overflow-x:hidden; padding:8px; scrollbar-width:none; }
-          .rx-nav-scroll::-webkit-scrollbar { display:none; }
+          /* Thin icon rail (HubSpot pattern) */
+          .rx-rail { width:56px; height:100vh; background:#FFFFFF; border-right:1px solid #E2E8F0; display:flex; flex-direction:column; align-items:center; flex-shrink:0; z-index:30; position:relative; }
+          .rx-rail-scroll { flex:1; width:100%; overflow-y:auto; overflow-x:hidden; padding:6px 0; display:flex; flex-direction:column; align-items:center; gap:2px; scrollbar-width:none; }
+          .rx-rail-scroll::-webkit-scrollbar { display:none; }
+          .rx-rail-divider { width:28px; height:1px; background:#E2E8F0; margin:6px 0; }
+
+          /* Flyout panel anchored to the right of the rail */
+          .rx-flyout { position:fixed; top:0; left:56px; height:100vh; width:240px; background:#FFFFFF; border-right:1px solid #E2E8F0; box-shadow: 6px 0 24px -12px rgba(15, 23, 42, 0.12); display:flex; flex-direction:column; z-index:29; opacity:0; transform: translateX(-6px); pointer-events:none; transition: opacity 140ms ease, transform 140ms ease; }
+          .rx-flyout.open { opacity:1; transform:translateX(0); pointer-events:auto; }
+          .rx-flyout-header { height:52px; padding:0 16px; display:flex; align-items:center; gap:8px; border-bottom:1px solid #E2E8F0; flex-shrink:0; }
+          .rx-flyout-body { flex:1; overflow-y:auto; padding:8px; scrollbar-width:none; }
+          .rx-flyout-body::-webkit-scrollbar { display:none; }
+
+          .rx-topbar { height:52px; background:#FFFFFF; border-bottom:1px solid #E2E8F0; display:flex; align-items:center; padding:0 16px 0 20px; gap:12px; flex-shrink:0; }
+
           @keyframes rx-page-in { from { opacity:0; } to { opacity:1; } }
           .rx-page-in { animation: rx-page-in 120ms ease both; }
-          @media (max-width:1023px) {
-            .rx-sidebar { position:fixed; left:0; top:0; transform:translateX(-100%); transition:transform .22s ease; }
-            .rx-sidebar.open { transform:translateX(0); }
-          }
         `}</style>
 
-        {/* ── SIDEBAR ── */}
-        <aside className="rx-sidebar">
-          {/* Logo */}
-          <div style={{ height:52, display:'flex', alignItems:'center', gap:9, padding:'0 18px', borderBottom:'1px solid #E5E5EA', flexShrink:0 }}>
-            <div style={{ width:28, height:28, background:'#1D1D1F', borderRadius:7, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:'#fff', letterSpacing:'-.04em', flexShrink:0 }}>RX</div>
-            <div style={{ fontSize:15, fontWeight:700, color:'#1D1D1F', letterSpacing:'-.022em' }}>Recruiter<span style={{ color:'#0071E3' }}> X</span></div>
-          </div>
-
-          {/* Nav */}
-          <nav className="rx-nav-scroll">
-            <div style={{ fontSize:11, fontWeight:600, letterSpacing:'.01em', color:'#86868B', padding:'10px 10px 4px', textTransform:'uppercase' }}>Workspace</div>
-            <NavItem to={createPageUrl("Dashboard")} icon={BarChart3} label="Dashboard" active={location.pathname === createPageUrl("Dashboard")} badge="Live" badgeColor="blue" />
-            <NavItem to={createPageUrl("Candidates")} icon={Users} label="Candidates" active={location.pathname === createPageUrl("Candidates")} />
-            <NavItem to={createPageUrl("Jobs")} icon={Briefcase} label="Jobs" active={location.pathname === createPageUrl("Jobs")} />
-            <NavItem to={createPageUrl("Companies")} icon={Building2} label="Connections" active={location.pathname === createPageUrl("Companies")} />
-            <NavItem to={createPageUrl("Submissions")} icon={Send} label="Applications" active={location.pathname === createPageUrl("Submissions")} />
-            <NavItem to={createPageUrl("Tasks")} icon={CheckSquare} label="Tasks" active={location.pathname === createPageUrl("Tasks")} />
-            <NavItem to={createPageUrl("ResumeStudio")} icon={BrainCircuit} label="Resume Studio" active={location.pathname === createPageUrl("ResumeStudio")} />
-            <NavItem to={createPageUrl("MyWork")} icon={Clock} label="My Work" active={location.pathname === createPageUrl("MyWork")} />
-            <NavItem to={createPageUrl("Playbooks")} icon={BookOpen} label="Playbooks" active={location.pathname === createPageUrl("Playbooks")} />
-
-            <NavItem to={createPageUrl("DuplicateManager")} icon={AlertTriangle} label="Duplicates" active={location.pathname === createPageUrl("DuplicateManager")} />
-            <NavItem to={createPageUrl("EmailSettings")} icon={Mail} label="Email Settings" active={location.pathname === createPageUrl("EmailSettings")} />
-
-            <div style={{ height:1, background:'#E5E5EA', margin:'5px 10px' }} />
-            <div style={{ fontSize:11, fontWeight:600, letterSpacing:'.01em', color:'#86868B', padding:'10px 10px 4px', textTransform:'uppercase' }}>Intelligence</div>
-            <NavItem to="/AIRecruiter" icon={BrainCircuit} label="AI Recruiter" active={location.pathname === "/AIRecruiter"} badge="Beta" badgeColor="blue" />
-            <NavItem to={createPageUrl("AIAgents")} icon={Brain} label="AI Agents" active={location.pathname === createPageUrl("AIAgents")} badge="3" badgeColor="blue" />
-            <NavItem to={createPageUrl("AutomationRules")} icon={Zap} label="Automation" active={location.pathname === createPageUrl("AutomationRules")} />
-            <NavItem to={createPageUrl("EmailInbox")} icon={Mail} label="Email Inbox" active={location.pathname === createPageUrl("EmailInbox")} />
-
-            {isAdmin && (
-              <>
-                <div style={{ height:1, background:'#E5E5EA', margin:'5px 10px' }} />
-                <div style={{ fontSize:11, fontWeight:600, letterSpacing:'.01em', color:'#86868B', padding:'10px 10px 4px', textTransform:'uppercase' }}>Admin</div>
-                <NavItem to={createPageUrl("AccessControl?hide_badge=true")} icon={Settings} label="Access Control" active={location.pathname === createPageUrl("AccessControl")} />
-                <NavItem to={createPageUrl("Approvals")} icon={CheckCircle} label="Approvals" active={location.pathname === createPageUrl("Approvals")} />
-                <NavItem to={createPageUrl("JobStack")} icon={Briefcase} label="Job Stack" active={location.pathname === createPageUrl("JobStack")} />
-                <NavItem to={createPageUrl("EmailBlast")} icon={MailPlus} label="Email Blast" active={location.pathname === createPageUrl("EmailBlast")} />
-                <NavItem to={createPageUrl("BRD")} icon={FileText} label="BRD" active={location.pathname === createPageUrl("BRD")} />
-              </>
-            )}
-
-            <AccountsNav location={location} />
-          </nav>
-
-          {/* Quick Stats */}
-          {!skipQuickStats && (
-            <div style={{ padding:'8px 18px', borderTop:'1px solid #E5E5EA' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'3px 0' }}>
-                <span style={{ fontSize:12, color:'#86868B' }}>Active Roles</span>
-                <span style={{ fontSize:12, fontWeight:600, color:'#0071E3' }}>
-                  {qsLoading ? '—' : quickStats.activeJobs}
-                </span>
-              </div>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'3px 0' }}>
-                <span style={{ fontSize:12, color:'#86868B' }}>New Candidates</span>
-                <span style={{ fontSize:12, fontWeight:600, color:'#30A14E' }}>
-                  {qsLoading ? '—' : quickStats.newCandidates}
-                </span>
-              </div>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'3px 0' }}>
-                <span style={{ fontSize:12, color:'#86868B' }}>Placed (Month)</span>
-                <span style={{ fontSize:12, fontWeight:600, color:'#1D1D1F' }}>
-                  {qsLoading ? '—' : quickStats.thisMonthPlacements}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* User */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <div style={{ padding:'9px 12px', borderTop:'1px solid #E5E5EA', display:'flex', alignItems:'center', gap:9, cursor:'pointer' }}
-                className="hover:bg-black/[.03] transition-colors">
-                <div style={{ width:32, height:32, borderRadius:'50%', background:'linear-gradient(145deg,#0071E3,#30A14E)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:700, color:'#fff', flexShrink:0 }}>
-                  {initials}
-                </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:13.5, fontWeight:600, color:'#1D1D1F', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{me?.full_name || me?.email || 'User'}</div>
-                  <div style={{ fontSize:11, color:'#86868B' }}>{myRole?.name || (me?.role === 'admin' ? 'Administrator' : 'User')}</div>
-                </div>
-                <MoreHorizontal style={{ width:14, height:14, color:'#AEAEB2', flexShrink:0 }} />
-              </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem><User className="w-4 h-4 mr-2" />Profile Settings</DropdownMenuItem>
-              <DropdownMenuItem><Settings className="w-4 h-4 mr-2" />Company Settings</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600"><LogOut className="w-4 h-4 mr-2" />Sign Out</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </aside>
+        {/* ── RAIL + FLYOUT ── */}
+        <SidebarRail
+          isAdmin={isAdmin}
+          activeGid={activeGid}
+          hoveredGid={hoveredGroup}
+          hoveredGroupObj={hoveredGroupObj}
+          scheduleOpenGroup={scheduleOpenGroup}
+          scheduleCloseFlyout={scheduleCloseFlyout}
+          cancelClose={cancelClose}
+          currentPath={location.pathname}
+        />
 
         {/* ── MAIN ── */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-          {/* Topbar */}
+          {/* Topbar with breadcrumb */}
           <header className="rx-topbar">
-            <div style={{ fontSize:17, fontWeight:700, color:'#1D1D1F', letterSpacing:'-.022em', flexShrink:0 }}>
-              {navigationItems.find(n => location.pathname === n.url)?.title ||
-               (location.pathname === '/AIRecruiter' ? 'AI Recruiter' :
-                location.pathname.includes('Dashboard') ? 'Dashboard' :
-                location.pathname.includes('Candidates') ? 'Candidates' :
-                location.pathname.includes('Jobs') ? 'Jobs' :
-                location.pathname.includes('Companies') ? 'Connections' :
-                location.pathname.includes('Submissions') ? 'Applications' :
-                location.pathname.includes('Tasks') ? 'Tasks' :
-                location.pathname.includes('ResumeStudio') ? 'Resume Studio' :
-                location.pathname.includes('MyWork') ? 'My Work' :
-                location.pathname.includes('Playbooks') ? 'Playbooks' :
-
-                location.pathname.includes('AIAgents') ? 'AI Agents' :
-                location.pathname.includes('AutomationRules') ? 'Automation' :
-                location.pathname.includes('EmailInbox') ? 'Email Inbox' :
-                location.pathname.includes('AccessControl') ? 'Access Control' :
-                location.pathname.includes('Approvals') ? 'Approvals' :
-                location.pathname.includes('JobStack') ? 'Job Stack' :
-                location.pathname.includes('EmailBlast') ? 'Email Blast' :
-                location.pathname.includes('BRD') ? 'BRD' :
-                location.pathname.includes('Invoices') ? 'Invoices' :
-                location.pathname.includes('Expenses') ? 'Expenses' :
-                location.pathname.includes('DuplicateManager') ? 'Duplicate Manager' :
-                'Recruiter X')}
-            </div>
+            <nav aria-label="Breadcrumb" style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, color:'#64748B', fontWeight:500, flexShrink:0, minWidth:0 }}>
+              {breadcrumb.group ? (
+                <>
+                  <span style={{ whiteSpace:'nowrap' }}>{breadcrumb.group}</span>
+                  <ChevronRight style={{ width:14, height:14, color:'#CBD5E1', flexShrink:0 }} />
+                  <span style={{ color:'#0F172A', fontWeight:600, whiteSpace:'nowrap' }}>{breadcrumb.page}</span>
+                </>
+              ) : (
+                <span style={{ color:'#0F172A', fontWeight:600 }}>Recruiter X</span>
+              )}
+            </nav>
 
             <div
               onClick={() => setCommandPaletteOpen(true)}
-              style={{ flex:1, maxWidth:340, display:'flex', alignItems:'center', gap:7, background:'rgba(0,0,0,.06)', borderRadius:10, padding:'6px 11px', cursor:'text' }}
-              className="hover:bg-black/[.09] transition-colors"
+              style={{ flex:1, maxWidth:380, display:'flex', alignItems:'center', gap:7, background:'#F1F5F9', borderRadius:10, padding:'6px 11px', cursor:'text' }}
+              className="hover:bg-slate-200 transition-colors"
             >
-              <Search style={{ width:13, height:13, color:'#86868B', flexShrink:0 }} />
-              <span style={{ flex:1, fontSize:13, color:'#86868B' }}>Search candidates, jobs, companies…</span>
-              <kbd style={{ fontFamily:"'SF Mono','Menlo',monospace", fontSize:10, color:'#AEAEB2', background:'#fff', border:'1px solid rgba(0,0,0,.08)', borderRadius:5, padding:'1px 5px' }}>⌘K</kbd>
+              <Search style={{ width:13, height:13, color:'#64748B', flexShrink:0 }} />
+              <span style={{ flex:1, fontSize:13, color:'#64748B' }}>Search candidates, jobs, companies…</span>
+              <kbd style={{ fontFamily:"'SF Mono','Menlo',monospace", fontSize:10, color:'#94A3B8', background:'#fff', border:'1px solid #E2E8F0', borderRadius:5, padding:'1px 5px' }}>⌘K</kbd>
             </div>
 
             <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
               <button
                 onClick={() => setAiQuickActionsOpen(true)}
-                style={{ display:'flex', alignItems:'center', gap:5, background:'#0071E3', color:'#fff', border:'none', borderRadius:20, padding:'6px 16px', fontSize:13, fontWeight:600, cursor:'pointer', letterSpacing:'-.01em' }}
-                className="hover:bg-[#0077ED] transition-colors"
+                style={{ display:'flex', alignItems:'center', gap:5, background:'linear-gradient(135deg,#9333EA 0%,#2563EB 100%)', color:'#fff', border:'none', borderRadius:20, padding:'6px 16px', fontSize:13, fontWeight:600, cursor:'pointer', letterSpacing:'-.01em', boxShadow:'0 4px 14px -4px rgba(147,51,234,.45)' }}
+                className="hover:opacity-90 transition-opacity"
               >
                 <Zap style={{ width:12, height:12 }} />
                 AI Actions
               </button>
               <button
                 onClick={() => {}}
-                style={{ width:32, height:32, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', border:'none', background:'none', cursor:'pointer', position:'relative', color:'#6E6E73' }}
-                className="hover:bg-black/[.07] transition-colors"
+                style={{ width:32, height:32, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', border:'none', background:'none', cursor:'pointer', position:'relative', color:'#64748B' }}
+                className="hover:bg-slate-100 transition-colors"
+                aria-label="Notifications"
               >
                 <Bell style={{ width:16, height:16 }} />
-                <div style={{ position:'absolute', top:7, right:6, width:7, height:7, background:'#FF3B30', borderRadius:'50%', border:'1.5px solid #fff' }} />
+                <div style={{ position:'absolute', top:7, right:7, width:7, height:7, background:'#EF4444', borderRadius:'50%', border:'1.5px solid #fff' }} />
               </button>
-              <div style={{ width:1, height:18, background:'#E5E5EA' }} />
-              <div style={{ width:28, height:28, borderRadius:'50%', background:'linear-gradient(145deg,#0071E3,#30A14E)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'#fff', cursor:'pointer', flexShrink:0 }}>
-                {initials}
-              </div>
+              <div style={{ width:1, height:18, background:'#E2E8F0' }} />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    style={{ display:'flex', alignItems:'center', gap:8, padding:'4px 8px 4px 4px', borderRadius:999, border:'1px solid #E2E8F0', background:'#fff', cursor:'pointer' }}
+                    className="hover:bg-slate-50 transition-colors"
+                    aria-label="Account menu"
+                  >
+                    <div style={{ width:28, height:28, borderRadius:'50%', background:'linear-gradient(135deg,#9333EA 0%,#2563EB 100%)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'#fff', flexShrink:0, boxShadow:'0 4px 14px -4px rgba(147,51,234,.45)' }}>
+                      {initials}
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', maxWidth:140 }}>
+                      <span style={{ fontSize:12, fontWeight:600, color:'#0F172A', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:140 }}>{me?.full_name || me?.email || 'User'}</span>
+                      <span style={{ fontSize:10, color:'#94A3B8' }}>{myRole?.name || (me?.role === 'admin' ? 'Administrator' : 'User')}</span>
+                    </div>
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52">
+                  <DropdownMenuItem><User className="w-4 h-4 mr-2" />Profile Settings</DropdownMenuItem>
+                  <DropdownMenuItem><Settings className="w-4 h-4 mr-2" />Company Settings</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="text-red-600"><LogOut className="w-4 h-4 mr-2" />Sign Out</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </header>
 
           {/* Page content */}
-          <div className="flex-1 overflow-auto" style={{ background:'#F5F5F7' }}>
+          <div className="flex-1 overflow-auto" style={{ background:'#F8FAFC' }}>
             <div className="rx-page-in">
               {isBlocked ? (
                 <AccessBlocker user={me} />

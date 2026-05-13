@@ -14,7 +14,8 @@ import {
   CheckCircle,
   XCircle
 } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { AutomationRule } from "@/entities/AutomationRule";
+import { EmailTemplate } from "@/entities/EmailTemplate";
 import PageHeader from "@/components/common/PageHeader";
 import AutomationRuleForm from "@/components/automation/AutomationRuleForm";
 import { addNotification } from "@/components/notifications/NotificationToast";
@@ -30,8 +31,8 @@ export default function AutomationRules() {
     setLoading(true);
     try {
       const [rulesData, templatesData] = await Promise.all([
-        base44.entities.AutomationRule.list("-created_date"),
-        base44.entities.EmailTemplate.list()
+        AutomationRule.list("-created_date"),
+        EmailTemplate.list()
       ]);
       setRules(rulesData || []);
       setTemplates(templatesData || []);
@@ -48,7 +49,7 @@ export default function AutomationRules() {
 
   const handleToggleActive = async (rule) => {
     try {
-      await base44.entities.AutomationRule.update(rule.id, { is_active: !rule.is_active });
+      await AutomationRule.update(rule.id, { is_active: !rule.is_active });
       addNotification({ 
         type: "success", 
         title: rule.is_active ? "Deactivated" : "Activated", 
@@ -64,7 +65,7 @@ export default function AutomationRules() {
   const handleDelete = async (rule) => {
     if (!confirm(`Are you sure you want to delete "${rule.name}"?`)) return;
     try {
-      await base44.entities.AutomationRule.delete(rule.id);
+      await AutomationRule.delete(rule.id);
       addNotification({ type: "success", title: "Deleted", message: `Rule "${rule.name}" deleted` });
       loadRules();
     } catch (error) {

@@ -1,4 +1,10 @@
-import { base44 } from "@/api/base44Client";
+import { AutomationRule } from "@/entities/AutomationRule";
+import { Candidate } from "@/entities/Candidate";
+import { Company } from "@/entities/Company";
+import { EmailTemplate } from "@/entities/EmailTemplate";
+import { Job } from "@/entities/Job";
+import { Recruiter } from "@/entities/Recruiter";
+import { Task } from "@/entities/Task";
 import { sendAppEmail } from "@/components/utils/email";
 
 /**
@@ -7,7 +13,7 @@ import { sendAppEmail } from "@/components/utils/email";
 export async function executeAutomationRules(entityName, entityId, oldData, newData) {
   try {
     // Get all active automation rules
-    const rules = await base44.entities.AutomationRule.filter({ 
+    const rules = await AutomationRule.filter({ 
       is_active: true,
       trigger_entity: entityName,
       trigger_type: "status_change"
@@ -35,7 +41,7 @@ export async function executeAutomationRules(entityName, entityId, oldData, newD
         await executeRule(rule, entityName, entityId, newData);
         
         // Update trigger count and last triggered
-        await base44.entities.AutomationRule.update(rule.id, {
+        await AutomationRule.update(rule.id, {
           trigger_count: (rule.trigger_count || 0) + 1,
           last_triggered: new Date().toISOString()
         });
@@ -81,7 +87,7 @@ async function executeRuleAction(rule, entityName, entityId, entityData) {
 async function sendAutomatedEmail(rule, entityName, entityId, entityData) {
   try {
     // Get email template
-    const template = await base44.entities.EmailTemplate.get(rule.email_template_id);
+    const template = await EmailTemplate.get(rule.email_template_id);
     if (!template) {
       console.error("Email template not found:", rule.email_template_id);
       return;
@@ -95,16 +101,16 @@ async function sendAutomatedEmail(rule, entityName, entityId, entityData) {
 
     if (entityName === "Submission" || entityName === "Application") {
       if (entityData.candidate_id) {
-        candidate = await base44.entities.Candidate.get(entityData.candidate_id).catch(() => null);
+        candidate = await Candidate.get(entityData.candidate_id).catch(() => null);
       }
       if (entityData.job_id) {
-        job = await base44.entities.Job.get(entityData.job_id).catch(() => null);
+        job = await Job.get(entityData.job_id).catch(() => null);
       }
       if (job?.company_id) {
-        company = await base44.entities.Company.get(job.company_id).catch(() => null);
+        company = await Company.get(job.company_id).catch(() => null);
       }
       if (entityData.recruiter_id) {
-        recruiter = await base44.entities.Recruiter.get(entityData.recruiter_id).catch(() => null);
+        recruiter = await Recruiter.get(entityData.recruiter_id).catch(() => null);
       }
     }
 
@@ -176,7 +182,7 @@ async function createAutomatedTask(rule, entityName, entityId, entityData) {
       assigned_to: entityData.created_by || entityData.recruiter_id
     };
 
-    await base44.entities.Task.create(taskData);
+    await Task.create(taskData);
     console.log(`Automated task created for rule ${rule.id}`);
   } catch (error) {
     console.error("Error creating automated task:", error);

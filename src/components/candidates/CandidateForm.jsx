@@ -11,7 +11,6 @@ import { X, Plus, Upload, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { UploadFile, ExtractDataFromUploadedFile, InvokeLLM } from "@/integrations/Core";
 import { Candidate } from "@/entities/all";
-import { base44 } from "@/api/base44Client";
 import { addNotification } from "@/components/notifications/NotificationToast";
 
 export default function CandidateForm({ candidate, onSave, onCancel }) {
@@ -87,7 +86,7 @@ export default function CandidateForm({ candidate, onSave, onCancel }) {
     if (!email || !email.trim()) return null;
     
     try {
-      const existing = await base44.entities.Candidate.filter({ email: email.trim().toLowerCase() });
+      const existing = await Candidate.filter({ email: email.trim().toLowerCase() });
       if (existing && existing.length > 0) {
         // If editing current candidate, don't flag as duplicate if it's the same candidate
         if (candidate && existing[0].id === candidate.id) {
@@ -257,7 +256,7 @@ export default function CandidateForm({ candidate, onSave, onCancel }) {
         if (confirmUpdate) {
           // Update existing candidate
           try {
-            await base44.entities.Candidate.update(duplicate.id, {
+            await Candidate.update(duplicate.id, {
               ...formData,
               experience_years: formData.experience_years ? Number(formData.experience_years) : undefined,
               salary_expectation: formData.salary_expectation ? Number(formData.salary_expectation) : undefined,

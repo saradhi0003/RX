@@ -4,7 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { X, Send, Loader2, Sparkles, Plus, Search, Calendar, Mail, Phone, Briefcase, Users, Building2, ClipboardList, Zap, Clock, Upload, FileText } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { Candidate } from "@/entities/Candidate";
+import { Company } from "@/entities/Company";
+import { Job } from "@/entities/Job";
+import { LeaveRequest } from "@/entities/LeaveRequest";
+import { Task } from "@/entities/Task";
+import { Timesheet } from "@/entities/Timesheet";
+import { User } from "@/entities/User";
+import * as Core from "@/integrations/Core";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -109,7 +116,7 @@ export default function AIQuickActions({ open, onClose }) {
 
       try {
         // Upload file
-        const { file_url } = await base44.integrations.Core.UploadFile({ file });
+        const { file_url } = await Core.UploadFile({ file });
 
         // Check file extension
         const ext = (file.name.split(".").pop() || "").toLowerCase();
@@ -129,7 +136,7 @@ export default function AIQuickActions({ open, onClose }) {
         let parsedData;
         
         try {
-          const parseResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
+          const parseResult = await Core.ExtractDataFromUploadedFile({
             file_url,
             json_schema: {
               type: "object",
@@ -171,14 +178,14 @@ export default function AIQuickActions({ open, onClose }) {
         }
 
         // Check for duplicate by email
-        const existing = await base44.entities.Candidate.filter({ 
+        const existing = await Candidate.filter({ 
           email: parsedData.email.trim().toLowerCase() 
         });
 
         if (existing && existing.length > 0) {
           const duplicate = existing[0];
           // Update existing candidate with new resume
-          await base44.entities.Candidate.update(duplicate.id, {
+          await Candidate.update(duplicate.id, {
             resume_url: file_url,
             // Only update fields if they're missing in existing record
             ...(!duplicate.phone && parsedData.phone && { phone: parsedData.phone }),
@@ -203,7 +210,7 @@ export default function AIQuickActions({ open, onClose }) {
             notes: `Uploaded from file: ${file.name}`
           };
 
-          const candidate = await base44.entities.Candidate.create(candidateData);
+          const candidate = await Candidate.create(candidateData);
           results.successful.push({
             file: file.name,
             candidate: `${candidate.first_name} ${candidate.last_name}`
@@ -300,7 +307,7 @@ export default function AIQuickActions({ open, onClose }) {
         case "create_candidate":
           // Check for duplicate by email before creating
           if (data.email) {
-            const existing = await base44.entities.Candidate.filter({ 
+            const existing = await Candidate.filter({ 
               email: data.email.trim().toLowerCase() 
             });
             
@@ -316,7 +323,7 @@ export default function AIQuickActions({ open, onClose }) {
             }
           }
           
-          const candidate = await base44.entities.Candidate.create(data);
+          const candidate = await Candidate.create(data);
           addNotification({
             type: "success",
             title: "Candidate Added",
@@ -327,7 +334,7 @@ export default function AIQuickActions({ open, onClose }) {
           break;
 
         case "create_job":
-          const job = await base44.entities.Job.create(data);
+          const job = await Job.create(data);
           addNotification({
             type: "success",
             title: "Job Posted",
@@ -338,7 +345,7 @@ export default function AIQuickActions({ open, onClose }) {
           break;
 
         case "create_company":
-          const company = await base44.entities.Company.create(data);
+          const company = await Company.create(data);
           addNotification({
             type: "success",
             title: "Connection Added",
@@ -349,7 +356,7 @@ export default function AIQuickActions({ open, onClose }) {
           break;
 
         case "create_task":
-          const task = await base44.entities.Task.create(data);
+          const task = await Task.create(data);
           addNotification({
             type: "success",
             title: "Task Created",
@@ -360,7 +367,7 @@ export default function AIQuickActions({ open, onClose }) {
           break;
 
         case "create_timesheet":
-          const timesheet = await base44.entities.Timesheet.create(data);
+          const timesheet = await Timesheet.create(data);
           addNotification({
             type: "success",
             title: "Time Logged",
@@ -371,7 +378,7 @@ export default function AIQuickActions({ open, onClose }) {
           break;
 
         case "create_leave_request":
-          const leave = await base44.entities.LeaveRequest.create(data);
+          const leave = await LeaveRequest.create(data);
           addNotification({
             type: "success",
             title: "Leave Request Submitted",
@@ -416,10 +423,10 @@ export default function AIQuickActions({ open, onClose }) {
 
     try {
       // Get current user context
-      const user = await base44.auth.me().catch(() => null);
+      const user = await User.me().catch(() => null);
 
       // Use AI to understand the intent and generate response
-      const response = await base44.integrations.Core.InvokeLLM({
+      const response = await Core.InvokeLLM({
         prompt: `You are an AI assistant for a recruitment platform called Recruiter X. You help recruiters and hiring managers manage candidates, jobs, companies, tasks, timesheets, leave requests, and recruitment workflows.
 
 Current User: ${user?.full_name || "User"} (${user?.email || "unknown"})

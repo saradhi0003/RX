@@ -1,6 +1,6 @@
 import React from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import { base44 } from "@/api/base44Client";
+import { Submission } from "@/entities/Submission";
 import { executeAutomationRules } from "@/components/automation/executeAutomation";
 import { Plus } from "lucide-react";
 
@@ -9,7 +9,7 @@ const COLUMNS = [
   { id: "under_review", label: "Screening",    color: "#F59E0B", bg: "rgba(245,158,11,.08)" },
   { id: "interviewing", label: "Interviewing", color: "#8B5CF6", bg: "rgba(139,92,246,.08)" },
   { id: "offered",      label: "Offer",        color: "#10B981", bg: "rgba(16,185,129,.08)" },
-  { id: "hired",        label: "Hired",        color: "#30A14E", bg: "rgba(48,161,78,.08)"  },
+  { id: "hired",        label: "Hired",        color: "#10B981", bg: "rgba(48,161,78,.08)"  },
   { id: "rejected",     label: "Rejected",     color: "#EF4444", bg: "rgba(239,68,68,.08)"  },
   { id: "withdrawn",    label: "Withdrawn",    color: "#6B7280", bg: "rgba(107,114,128,.08)"},
 ];
@@ -55,7 +55,7 @@ function KanbanCard({ submission, candidate, job, company, onClick, drag }) {
       style={{
         background: "#fff",
         borderRadius: 12,
-        border: "1px solid #E5E5EA",
+        border: "1px solid #E2E8F0",
         padding: "14px 16px",
         marginBottom: 10,
         cursor: "pointer",
@@ -67,10 +67,10 @@ function KanbanCard({ submission, candidate, job, company, onClick, drag }) {
       onMouseLeave={e => e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,.06)"}
     >
       {/* Job title */}
-      <div style={{ fontSize: 13.5, fontWeight: 700, color: "#1D1D1F", marginBottom: 3, lineHeight: 1.3 }}>{jobTitle}</div>
+      <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0F172A", marginBottom: 3, lineHeight: 1.3 }}>{jobTitle}</div>
 
       {/* Company · location · rate */}
-      <div style={{ fontSize: 11.5, color: "#86868B", marginBottom: 10 }}>
+      <div style={{ fontSize: 11.5, color: "#94A3B8", marginBottom: 10 }}>
         {[compName, location, rate ? rate : null].filter(Boolean).join(" · ")}
       </div>
 
@@ -80,12 +80,12 @@ function KanbanCard({ submission, candidate, job, company, onClick, drag }) {
           {(submission.status || "").replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}
         </span>
         {submission.match_score != null && (
-          <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 20, background: "rgba(0,113,227,.10)", color: "#0071E3" }}>
+          <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 9px", borderRadius: 20, background: "rgba(0,113,227,.10)", color: "#9333EA" }}>
             ⚡ {submission.match_score} AI fit
           </span>
         )}
         {submission.submitted_date && (
-          <span style={{ fontSize: 11, color: "#AEAEB2", marginLeft: "auto" }}>
+          <span style={{ fontSize: 11, color: "#94A3B8", marginLeft: "auto" }}>
             {timeAgo(submission.submitted_date)}
           </span>
         )}
@@ -97,10 +97,10 @@ function KanbanCard({ submission, candidate, job, company, onClick, drag }) {
           <div style={{ width: 26, height: 26, borderRadius: "50%", background: avatarGrad(candName), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#fff", border: "2px solid #fff", boxShadow: "0 1px 4px rgba(0,0,0,.12)" }}>
             {initials(candName)}
           </div>
-          <span style={{ fontSize: 12, fontWeight: 500, color: "#1D1D1F" }}>{candName}</span>
+          <span style={{ fontSize: 12, fontWeight: 500, color: "#0F172A" }}>{candName}</span>
         </div>
         {candidate?.current_title && (
-          <span style={{ fontSize: 11, color: "#86868B" }}>{candidate.current_title}</span>
+          <span style={{ fontSize: 11, color: "#94A3B8" }}>{candidate.current_title}</span>
         )}
       </div>
     </div>
@@ -130,7 +130,7 @@ export default function KanbanBoard({ submissions = [], candidates = [], jobs = 
     try {
       const old = submissions.find(s => s.id === draggableId);
       if (!old) return;
-      await base44.entities.Submission.update(draggableId, { status: destStatus });
+      await Submission.update(draggableId, { status: destStatus });
       executeAutomationRules("Submission", draggableId, old, { ...old, status: destStatus }).catch(() => {});
       if (onRefresh) onRefresh();
     } catch (e) {
@@ -151,17 +151,17 @@ export default function KanbanBoard({ submissions = [], candidates = [], jobs = 
                   minWidth: 250,
                   width: 260,
                   flexShrink: 0,
-                  background: snapshot.isDraggingOver ? col.bg : "#F5F5F7",
+                  background: snapshot.isDraggingOver ? col.bg : "#F8FAFC",
                   borderRadius: 14,
                   padding: "12px 12px 6px",
-                  border: `1px solid ${snapshot.isDraggingOver ? col.color + "44" : "#E5E5EA"}`,
+                  border: `1px solid ${snapshot.isDraggingOver ? col.color + "44" : "#E2E8F0"}`,
                   transition: "background 150ms, border 150ms",
                 }}
               >
                 {/* Column header */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
                   <div style={{ width: 4, height: 18, borderRadius: 2, background: col.color, flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, fontWeight: 700, color: "#1D1D1F" }}>{col.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{col.label}</span>
                   <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: col.color, background: col.bg, padding: "1px 8px", borderRadius: 20 }}>
                     {grouped[col.id]?.length || 0}
                   </span>
@@ -187,7 +187,7 @@ export default function KanbanBoard({ submissions = [], candidates = [], jobs = 
                 {/* Add role CTA */}
                 <button
                   onClick={() => onAddNew?.()}
-                  style={{ width: "100%", padding: "8px", borderRadius: 10, border: "1.5px dashed #C7C7CC", background: "transparent", cursor: "pointer", fontSize: 12, color: "#AEAEB2", fontWeight: 500, marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}
+                  style={{ width: "100%", padding: "8px", borderRadius: 10, border: "1.5px dashed #C7C7CC", background: "transparent", cursor: "pointer", fontSize: 12, color: "#94A3B8", fontWeight: 500, marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}
                   className="hover:border-slate-400 hover:text-slate-500 transition-colors"
                 >
                   <Plus style={{ width: 13, height: 13 }} /> Add Application

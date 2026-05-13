@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { X, Save, Loader2 } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { AutomationRule } from "@/entities/AutomationRule";
 import { addNotification } from "@/components/notifications/NotificationToast";
 
 export default function AutomationRuleForm({ open, rule, templates, onClose, onSave }) {
@@ -48,10 +48,10 @@ export default function AutomationRuleForm({ open, rule, templates, onClose, onS
     setSaving(true);
     try {
       if (rule?.id) {
-        await base44.entities.AutomationRule.update(rule.id, formData);
+        await AutomationRule.update(rule.id, formData);
         addNotification({ type: "success", title: "Updated", message: "Automation rule updated successfully" });
       } else {
-        await base44.entities.AutomationRule.create(formData);
+        await AutomationRule.create(formData);
         addNotification({ type: "success", title: "Created", message: "Automation rule created successfully" });
       }
       onSave?.();

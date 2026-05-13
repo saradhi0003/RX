@@ -153,7 +153,41 @@ Deno.serve(async (req) => {
       metadata: { source, skills_found: (parsed.required_skills || []).length },
     });
 
-    return Response.json({ success: true, run_id: run.id, job, parsed });
+    // Detect missing critical fields and decide if clarification draft is needed
+    const criticalFields = ["rate", "location", "employment_type"];
+    const missingFields = criticalFields.filter(f => !parsed[f]);
+
+    // Load settings for conditional triggers
+    let settings = {};
+    try {
+      const settingsList = await base44.entities.AIRecruiterSettings.list("", 1);
+      settings = settingsList[0] || {};
+    } catch { /* use defaults */ }
+
+    // Trigger auto-match asynchronously (fire-and-forget style — don't await to keep response fast)
+    if ((settings as any).auto_match_enabled !== false) {
+      fetch(req.url.replace("aiRecruiterParseJob", "autoMatchOnInsert"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": req.headers.get("Authorization") || "" },
+        body: JSON.stringify({ entity_type: "Job", entity_id: job.id, triggered_by: "aiRecruiterParseJob" }),
+      }).catch(err => console.warn("autoMatchOnInsert call failed:", err.message));
+    }
+
+    // Trigger recruiter clarification draft if missing fields
+    if ((settings as any).auto_draft_clarification !== false && missingFields.length > 0) {
+      fetch(req.url.replace("aiRecruiterParseJob", "aiRecruiterDraftEmail"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": req.headers.get("Authorization") || "" },
+        body: JSON.stringify({
+          run_id: run.id,
+          job_id: job.id,
+          candidate_ids: [],
+          draft_type: "recruiter_clarification",
+        }),
+      }).catch(err => console.warn("Clarification draft call failed:", err.message));
+    }
+
+    return Response.json({ success: true, run_id: run.id, job, parsed, missing_fields: missingFields });
   } catch (error) {
     console.error("aiRecruiterParseJob error:", error);
     return Response.json({ error: error.message }, { status: 500 });

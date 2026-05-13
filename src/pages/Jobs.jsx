@@ -48,7 +48,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Job, Company, Recruiter, Candidate } from "@/entities/all";
-import { Link } from "react-router-dom";
+import { supabase } from "@/lib/supabase";
+import { Link, useSearchParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import PermissionGate from "@/components/common/PermissionGate";
 import PageHeader from "@/components/common/PageHeader";
@@ -65,7 +66,37 @@ import JobsBulkUpdateModal from "../components/jobs/JobsBulkUpdateModal";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import { emitEntityChanged } from "@/components/common/refreshBus";
 import RecommendedCandidates from "../components/ai/RecommendedCandidates";
-import { base44 } from "@/api/base44Client";
+
+function exportJobsToCSV(rows) {
+  const headers = [
+    "Title", "Company", "Location", "Type", "Status", "Priority",
+    "Skills Required", "Experience Min", "Experience Max",
+    "Salary Range", "Openings", "Source", "Posted Date"
+  ];
+  const escape = (v) => {
+    if (v == null) return "";
+    const s = Array.isArray(v) ? v.join("; ") : String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n")
+      ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [
+    headers.join(","),
+    ...rows.map(j => [
+      escape(j.title), escape(j.company_name), escape(j.location),
+      escape(j.job_type), escape(j.status), escape(j.priority),
+      escape(j.skills_required), escape(j.experience_min), escape(j.experience_max),
+      escape(j.salary_range), escape(j.openings), escape(j.source),
+      escape(j.created_date),
+    ].join(","))
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `jobs_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState([]);
@@ -340,8 +371,8 @@ export default function JobsPage() {
       
       if (savedJob.status === 'open') {
         try {
-          const syncResult = await base44.functions.invoke('syncJobToCareers', { 
-            job_id: savedJob.id 
+          const syncResult = await supabase.functions.invoke('syncJobToCareers', {
+            body: { job_id: savedJob.id }
           });
           
           if (syncResult.data?.success) {
@@ -551,35 +582,35 @@ export default function JobsPage() {
   const getInitials = (name) => name ? name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase() : "?";
   const avatarPalette = ["#3B82F6,#6366F1","#F59E0B,#EA580C","#8B5CF6,#7C3AED","#10B981,#059669","#EF4444,#DC2626","#0EA5E9,#0284C7"];
   const avatarGrad = (name) => { const p = avatarPalette[(name?.charCodeAt(0)||0) % avatarPalette.length].split(","); return `linear-gradient(135deg,${p[0]},${p[1]})`; };
-  const statusBadge = (s) => ({ open:{bg:"rgba(48,161,78,.12)",c:"#16A34A"}, draft:{bg:"rgba(0,0,0,.06)",c:"#86868B"}, on_hold:{bg:"rgba(244,130,15,.12)",c:"#D97706"}, filled:{bg:"rgba(0,113,227,.10)",c:"#0071E3"}, cancelled:{bg:"rgba(255,59,48,.10)",c:"#DC2626"} }[s] || {bg:"rgba(0,0,0,.06)",c:"#86868B"});
-  const priorityBadge = (p) => ({ urgent:{bg:"rgba(255,59,48,.10)",c:"#DC2626"}, high:{bg:"rgba(244,130,15,.12)",c:"#D97706"}, medium:{bg:"rgba(0,113,227,.10)",c:"#0071E3"}, low:{bg:"rgba(0,0,0,.06)",c:"#86868B"} }[p] || {bg:"rgba(0,0,0,.06)",c:"#86868B"});
+  const statusBadge = (s) => ({ open:{bg:"rgba(48,161,78,.12)",c:"#16A34A"}, draft:{bg:"rgba(0,0,0,.06)",c:"#94A3B8"}, on_hold:{bg:"rgba(244,130,15,.12)",c:"#D97706"}, filled:{bg:"rgba(0,113,227,.10)",c:"#9333EA"}, cancelled:{bg:"rgba(255,59,48,.10)",c:"#DC2626"} }[s] || {bg:"rgba(0,0,0,.06)",c:"#94A3B8"});
+  const priorityBadge = (p) => ({ urgent:{bg:"rgba(255,59,48,.10)",c:"#DC2626"}, high:{bg:"rgba(244,130,15,.12)",c:"#D97706"}, medium:{bg:"rgba(0,113,227,.10)",c:"#9333EA"}, low:{bg:"rgba(0,0,0,.06)",c:"#94A3B8"} }[p] || {bg:"rgba(0,0,0,.06)",c:"#94A3B8"});
   const timeAgo = (d) => { const days = Math.floor((Date.now()-new Date(d))/86400000); return days===0?"Today":days===1?"1d ago":days<7?`${days}d ago`:`${Math.floor(days/7)}w ago`; };
 
   return (
-    <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background:"#F5F5F7", minHeight:"100vh" }}>
+    <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background:"#F8FAFC", minHeight:"100vh" }}>
 
       {/* ── Metrics bar ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:"1px solid #E5E5EA" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:"1px solid #E2E8F0" }}>
         {[
           { label:"Open Roles", value:loading?"—":openJobs, sub:"actively hiring" },
-          { label:"New This Week", value:loading?"—":newThisWeek, sub:`+${newThisWeek} posted`, subColor:"#30A14E" },
+          { label:"New This Week", value:loading?"—":newThisWeek, sub:`+${newThisWeek} posted`, subColor:"#10B981" },
           { label:"High Priority", value:loading?"—":urgentJobs, sub:"urgent + high", valColor:"#D97706" },
           { label:"Filled", value:loading?"—":filledJobs, sub:"this pipeline" },
         ].map((m,i) => (
-          <div key={i} style={{ padding:"22px 28px", borderRight:i<3?"1px solid #E5E5EA":"none" }}>
-            <div style={{ fontSize:11.5, fontWeight:500, color:"#86868B", marginBottom:5 }}>{m.label}</div>
-            <div style={{ fontSize:42, fontWeight:700, letterSpacing:"-.04em", lineHeight:1, color:m.valColor||"#1D1D1F" }}>{m.value}</div>
-            <div style={{ fontSize:11.5, color:m.subColor||"#86868B", marginTop:6 }}>{m.sub}</div>
+          <div key={i} style={{ padding:"22px 28px", borderRight:i<3?"1px solid #E2E8F0":"none" }}>
+            <div style={{ fontSize:11.5, fontWeight:500, color:"#94A3B8", marginBottom:5 }}>{m.label}</div>
+            <div style={{ fontSize:42, fontWeight:700, letterSpacing:"-.04em", lineHeight:1, color:m.valColor||"#0F172A" }}>{m.value}</div>
+            <div style={{ fontSize:11.5, color:m.subColor||"#94A3B8", marginTop:6 }}>{m.sub}</div>
           </div>
         ))}
       </div>
 
       {/* ── Filter bar ── */}
-      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 24px", background:"#fff", borderBottom:"1px solid #E5E5EA", flexWrap:"wrap" }}>
-        <span style={{ fontSize:12, fontWeight:600, color:"#86868B", marginRight:4 }}>Status</span>
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 24px", background:"#fff", borderBottom:"1px solid #E2E8F0", flexWrap:"wrap" }}>
+        <span style={{ fontSize:12, fontWeight:600, color:"#94A3B8", marginRight:4 }}>Status</span>
         {[{k:"all",l:"All"},{k:"open",l:"Open"},{k:"draft",l:"Draft"},{k:"on_hold",l:"On Hold"},{k:"filled",l:"Filled"}].map(s => (
           <button key={s.k} onClick={() => { setStatusFilter(s.k); setCurrentPage(1); }}
-            style={{ padding:"5px 13px", borderRadius:20, fontSize:13, fontWeight:statusFilter===s.k?600:500, border:"none", cursor:"pointer", background:statusFilter===s.k?"#1D1D1F":"#fff", color:statusFilter===s.k?"#fff":"#6E6E73", boxShadow:statusFilter===s.k?"none":"0 1px 4px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)", transition:"all 120ms" }}>
+            style={{ padding:"5px 13px", borderRadius:20, fontSize:13, fontWeight:statusFilter===s.k?600:500, border:"none", cursor:"pointer", background:statusFilter===s.k?"#0F172A":"#fff", color:statusFilter===s.k?"#fff":"#64748B", boxShadow:statusFilter===s.k?"none":"0 1px 4px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)", transition:"all 120ms" }}>
             {s.l}
           </button>
         ))}
@@ -590,15 +621,15 @@ export default function JobsPage() {
 
         {/* Search */}
         <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(0,0,0,.06)", borderRadius:10, padding:"5px 10px", marginLeft:8 }}>
-          <Search style={{ width:13, height:13, color:"#86868B" }} />
+          <Search style={{ width:13, height:13, color:"#94A3B8" }} />
           <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search jobs…"
-            style={{ border:"none", background:"transparent", outline:"none", fontSize:13, color:"#1D1D1F", width:160 }} />
+            style={{ border:"none", background:"transparent", outline:"none", fontSize:13, color:"#0F172A", width:160 }} />
         </div>
 
         <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8 }}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button style={{ padding:"6px 14px", borderRadius:20, fontSize:13, fontWeight:500, border:"1px solid #E5E5EA", background:"#fff", color:"#6E6E73", cursor:"pointer" }}>More ▾</button>
+              <button style={{ padding:"6px 14px", borderRadius:20, fontSize:13, fontWeight:500, border:"1px solid #E2E8F0", background:"#fff", color:"#64748B", cursor:"pointer" }}>More ▾</button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => loadData(true)}><RefreshCcw className="w-4 h-4 mr-2" />Refresh</DropdownMenuItem>
@@ -606,6 +637,11 @@ export default function JobsPage() {
               <DropdownMenuItem onClick={() => setShowImport(true)}><Upload className="w-4 h-4 mr-2" />Import CSV</DropdownMenuItem>
               <DropdownMenuItem onClick={() => setShowBulkPaste(true)}><FileText className="w-4 h-4 mr-2" />Paste Requirement</DropdownMenuItem>
               {selectedIds.size > 0 && <DropdownMenuItem onClick={() => setShowBulkUpdate(true)}>Mass Update ({selectedIds.size})</DropdownMenuItem>}
+              {selectedIds.size > 0 && <DropdownMenuItem onClick={() => {
+                const sel = visibleJobs.filter(j => selectedIds.has(j.id));
+                exportJobsToCSV(sel);
+              }}>Export Selected ({selectedIds.size}) as CSV</DropdownMenuItem>}
+              <DropdownMenuItem onClick={() => exportJobsToCSV(visibleJobs)}>Export All ({visibleJobs.length}) as CSV</DropdownMenuItem>
               {selectedIds.size > 0 && <DropdownMenuItem onClick={() => setShowBulkDelete(true)} className="text-red-600">Delete Selected ({selectedIds.size})</DropdownMenuItem>}
               <DropdownMenuItem onClick={() => { setSelectedViewId(null); setShowViewSettings(true); }}>+ New View</DropdownMenuItem>
               {selectedViewId && <DropdownMenuItem onClick={() => setShowViewSettings(true)}>Edit View</DropdownMenuItem>}
@@ -613,7 +649,7 @@ export default function JobsPage() {
           </DropdownMenu>
           <PermissionGate entity="Job" action="create">
             <button onClick={() => { setEditingJob(null); setShowJobForm(true); setSelectedJob(null); setHighlightedJob(null); }}
-              style={{ padding:"7px 16px", borderRadius:20, fontSize:13, fontWeight:600, border:"none", background:"#0071E3", color:"#fff", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,113,227,.3)" }}>
+              style={{ padding:"7px 16px", borderRadius:20, fontSize:13, fontWeight:600, border:"none", background:"#9333EA", color:"#fff", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,113,227,.3)" }}>
               + Add Job
             </button>
           </PermissionGate>
@@ -624,9 +660,9 @@ export default function JobsPage() {
       <div style={{ padding:"20px 24px 40px" }}>
         <div style={{ background:"#fff", borderRadius:16, boxShadow:"0 2px 12px rgba(0,0,0,.07),0 0 0 .5px rgba(0,0,0,.05)", overflow:"hidden" }}>
           {/* Header */}
-          <div style={{ display:"grid", gridTemplateColumns:"1.6fr 140px 100px 110px 100px 80px 80px 36px", gap:0, padding:"9px 20px", borderBottom:"1px solid #E5E5EA", background:"#FAFAFA" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1.6fr 140px 100px 110px 100px 80px 80px 36px", gap:0, padding:"9px 20px", borderBottom:"1px solid #E2E8F0", background:"#FAFAFA" }}>
             {["JOB","COMPANY","TYPE","PRIORITY","STATUS","RATE","ADDED",""].map((h,i) => (
-              <div key={i} style={{ fontSize:11, fontWeight:600, letterSpacing:".04em", color:"#86868B", display:"flex", alignItems:"center", gap:i===0?8:0 }}>
+              <div key={i} style={{ fontSize:11, fontWeight:600, letterSpacing:".04em", color:"#94A3B8", display:"flex", alignItems:"center", gap:i===0?8:0 }}>
                 {i===0 && <Checkbox checked={allVisibleSelected} onCheckedChange={c=>toggleSelectAllVisible(!!c)} />}
                 {h}
               </div>
@@ -634,15 +670,15 @@ export default function JobsPage() {
           </div>
 
           {loading ? (
-            <div style={{ padding:"48px", textAlign:"center", color:"#86868B" }}>
-              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color:"#0071E3" }} />
+            <div style={{ padding:"48px", textAlign:"center", color:"#94A3B8" }}>
+              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color:"#9333EA" }} />
               <div style={{ fontSize:13 }}>Loading jobs…</div>
             </div>
           ) : paginatedStatusJobs.length === 0 ? (
             <div style={{ padding:"60px", textAlign:"center" }}>
-              <Briefcase style={{ width:36, height:36, color:"#AEAEB2", margin:"0 auto 12px" }} />
-              <div style={{ fontSize:15, fontWeight:600, color:"#1D1D1F", marginBottom:6 }}>No jobs found</div>
-              <div style={{ fontSize:13, color:"#86868B" }}>{searchTerm ? "Try adjusting your search" : "Add your first job to get started"}</div>
+              <Briefcase style={{ width:36, height:36, color:"#94A3B8", margin:"0 auto 12px" }} />
+              <div style={{ fontSize:15, fontWeight:600, color:"#0F172A", marginBottom:6 }}>No jobs found</div>
+              <div style={{ fontSize:13, color:"#94A3B8" }}>{searchTerm ? "Try adjusting your search" : "Add your first job to get started"}</div>
             </div>
           ) : paginatedStatusJobs.map((job, idx) => {
             const isSelected = selectedJob?.id === job.id;
@@ -663,22 +699,22 @@ export default function JobsPage() {
                     {getInitials(compName)}
                   </div>
                   <div style={{ minWidth:0 }}>
-                    <div style={{ fontSize:13.5, fontWeight:600, color:"#1D1D1F", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                    <div style={{ fontSize:13.5, fontWeight:600, color:"#0F172A", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                       <Link to={createPageUrl(`JobDetails?id=${job.id}`)} onClick={e=>e.stopPropagation()} style={{ color:"inherit", textDecoration:"none" }}>{job.title}</Link>
                     </div>
-                    <div style={{ fontSize:11.5, color:"#86868B" }}>{job.location || "Remote"}</div>
+                    <div style={{ fontSize:11.5, color:"#94A3B8" }}>{job.location || "Remote"}</div>
                   </div>
                 </div>
-                <div style={{ fontSize:12.5, color:"#6E6E73", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{compName}</div>
-                <div style={{ fontSize:12, color:"#6E6E73" }}>{(job.employment_type||"").replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase()) || "—"}</div>
+                <div style={{ fontSize:12.5, color:"#64748B", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{compName}</div>
+                <div style={{ fontSize:12, color:"#64748B" }}>{(job.employment_type||"").replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase()) || "—"}</div>
                 <div><span style={{ fontSize:11.5, fontWeight:600, padding:"3px 10px", borderRadius:20, background:pb.bg, color:pb.c }}>{(job.priority||"").replace(/\b\w/g,l=>l.toUpperCase()) || "—"}</span></div>
                 <div><span style={{ fontSize:11.5, fontWeight:600, padding:"3px 10px", borderRadius:20, background:sb.bg, color:sb.c }}>{(job.status||"").replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase())}</span></div>
-                <div style={{ fontSize:12.5, color:"#6E6E73" }}>{job.rate || "—"}</div>
-                <div style={{ fontSize:12, color:"#86868B" }}>{job.created_date ? timeAgo(job.created_date) : "—"}</div>
+                <div style={{ fontSize:12.5, color:"#64748B" }}>{job.rate || "—"}</div>
+                <div style={{ fontSize:12, color:"#94A3B8" }}>{job.created_date ? timeAgo(job.created_date) : "—"}</div>
                 <div onClick={e=>e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button style={{ width:28, height:28, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", border:"none", background:"none", cursor:"pointer", color:"#86868B" }} className="hover:bg-black/[.07]">
+                      <button style={{ width:28, height:28, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", border:"none", background:"none", cursor:"pointer", color:"#94A3B8" }} className="hover:bg-black/[.07]">
                         <MoreHorizontal style={{ width:14, height:14 }} />
                       </button>
                     </DropdownMenuTrigger>
@@ -702,7 +738,7 @@ export default function JobsPage() {
         {!loading && currentPage < totalStatusPages && (
           <div style={{ display:"flex", justifyContent:"center", marginTop:24, marginBottom:20 }}>
             <button onClick={()=>goToPage(currentPage+1)}
-              style={{ padding:"8px 24px", borderRadius:20, border:"1px solid #E5E5EA", background:"#fff", color:"#0071E3", cursor:"pointer", fontSize:13, fontWeight:600, boxShadow:"0 1px 4px rgba(0,0,0,.08)" }}>
+              style={{ padding:"8px 24px", borderRadius:20, border:"1px solid #E2E8F0", background:"#fff", color:"#9333EA", cursor:"pointer", fontSize:13, fontWeight:600, boxShadow:"0 1px 4px rgba(0,0,0,.08)" }}>
               Load More
             </button>
           </div>
@@ -711,13 +747,13 @@ export default function JobsPage() {
 
       {/* Quick Edit floating bar */}
       {highlightedJob && (
-        <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:"#1D1D1F", borderRadius:16, padding:"14px 20px", boxShadow:"0 8px 32px rgba(0,0,0,.28)", display:"flex", alignItems:"center", gap:10, zIndex:50, flexWrap:"wrap" }}>
+        <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:"#0F172A", borderRadius:16, padding:"14px 20px", boxShadow:"0 8px 32px rgba(0,0,0,.28)", display:"flex", alignItems:"center", gap:10, zIndex:50, flexWrap:"wrap" }}>
           <div style={{ color:"#fff", fontSize:13, fontWeight:600 }}>{highlightedJob.title}</div>
           <div style={{ width:1, height:18, background:"rgba(255,255,255,.15)" }} />
-          {statusOptions.map(o => <button key={o.value} onClick={()=>updateHighlightedField("status",o.value)} style={{ padding:"4px 10px", borderRadius:20, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:currentStatus===o.value?"#0071E3":"rgba(255,255,255,.12)", color:"#fff" }}>{o.label}</button>)}
+          {statusOptions.map(o => <button key={o.value} onClick={()=>updateHighlightedField("status",o.value)} style={{ padding:"4px 10px", borderRadius:20, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:currentStatus===o.value?"#9333EA":"rgba(255,255,255,.12)", color:"#fff" }}>{o.label}</button>)}
           <div style={{ width:1, height:18, background:"rgba(255,255,255,.15)" }} />
           <button onClick={saveHighlightedChanges} disabled={savingHighlighted||Object.keys(highlightedChanges).length===0}
-            style={{ padding:"4px 12px", borderRadius:20, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:"#30A14E", color:"#fff", opacity:Object.keys(highlightedChanges).length===0?.5:1 }}>
+            style={{ padding:"4px 12px", borderRadius:20, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:"#10B981", color:"#fff", opacity:Object.keys(highlightedChanges).length===0?.5:1 }}>
             {savingHighlighted?"Saving…":"Save"}
           </button>
           <button onClick={closeHighlightPanel} style={{ background:"none", border:"none", color:"rgba(255,255,255,.5)", cursor:"pointer", fontSize:16 }}>✕</button>

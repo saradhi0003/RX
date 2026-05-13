@@ -32,7 +32,10 @@ import {
   MapPin,
   Briefcase
 } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { Candidate } from "@/entities/Candidate";
+import { MatchFeedback } from "@/entities/MatchFeedback";
+import { MatchingProfile } from "@/entities/MatchingProfile";
+import * as Core from "@/integrations/Core";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -62,7 +65,7 @@ export default function AdvancedCandidateMatching({ job, onMatchComplete }) {
   useEffect(() => {
     const loadProfiles = async () => {
       try {
-        const data = await base44.entities.MatchingProfile.list("-created_date");
+        const data = await MatchingProfile.list("-created_date");
         setProfiles(data || []);
         
         const defaultProfile = data.find(p => p.is_default && p.is_active);
@@ -81,7 +84,7 @@ export default function AdvancedCandidateMatching({ job, onMatchComplete }) {
   useEffect(() => {
     const loadCandidates = async () => {
       try {
-        const data = await base44.entities.Candidate.list("-updated_date", 200);
+        const data = await Candidate.list("-updated_date", 200);
         setCandidates(data || []);
       } catch (error) {
         console.error("Error loading candidates:", error);
@@ -209,7 +212,7 @@ Return JSON with this structure:
   ]
 }`;
 
-      const response = await base44.integrations.Core.InvokeLLM({
+      const response = await Core.InvokeLLM({
         prompt,
         response_json_schema: {
           type: "object",
@@ -258,7 +261,7 @@ Return JSON with this structure:
 
       // Update profile performance metrics
       if (profile.id) {
-        await base44.entities.MatchingProfile.update(profile.id, {
+        await MatchingProfile.update(profile.id, {
           performance_metrics: {
             ...profile.performance_metrics,
             total_matches: (profile.performance_metrics?.total_matches || 0) + enrichedMatches.length
@@ -304,7 +307,7 @@ Return JSON with this structure:
         was_helpful: rating >= 4
       };
 
-      await base44.entities.MatchFeedback.create(feedback);
+      await MatchFeedback.create(feedback);
 
       // Update profile metrics if learning enabled
       if (matchingProfile?.learning_enabled) {
@@ -327,7 +330,7 @@ Return JSON with this structure:
           }
         };
 
-        await base44.entities.MatchingProfile.update(profile.id, updates);
+        await MatchingProfile.update(profile.id, updates);
       }
 
       addNotification({
@@ -350,10 +353,10 @@ Return JSON with this structure:
   const saveProfile = async (profileData) => {
     try {
       if (profileData.id) {
-        await base44.entities.MatchingProfile.update(profileData.id, profileData);
+        await MatchingProfile.update(profileData.id, profileData);
         addNotification({ type: "success", title: "Profile Updated", message: "Matching profile updated successfully" });
       } else {
-        const created = await base44.entities.MatchingProfile.create(profileData);
+        const created = await MatchingProfile.create(profileData);
         setProfiles([created, ...profiles]);
         setSelectedProfileId(created.id);
         setMatchingProfile(created);

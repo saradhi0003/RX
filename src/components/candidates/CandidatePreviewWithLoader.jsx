@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { Candidate } from "@/entities/Candidate";
 import CandidatePreview from "./CandidatePreview";
 
 export default function CandidatePreviewWithLoader({ id, onEdit, onUpdated }) {
@@ -14,7 +14,7 @@ export default function CandidatePreviewWithLoader({ id, onEdit, onUpdated }) {
 
     const loadCandidate = async () => {
       try {
-        const c = await base44.entities.Candidate.get(id);
+        const c = await Candidate.get(id);
         setCandidate(c);
       } catch (e) {
         console.error("Error loading candidate:", e);

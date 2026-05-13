@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,8 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import { base44 } from "@/api/base44Client";
+import { Candidate } from "@/entities/Candidate";
+import { CandidateView } from "@/entities/CandidateView";
 import CandidateForm from "../components/candidates/CandidateForm";
 import CandidateDetails from "../components/candidates/CandidateDetails";
 import PermissionGate from "@/components/common/PermissionGate";
@@ -95,10 +96,46 @@ function useDebounced(value, delay) {
   return debounced;
 }
 
+// ── CSV export utility ────────────────────────────────────────────────────
+function exportCandidatesToCSV(rows) {
+  const headers = [
+    "Name", "Email", "Phone", "Current Title", "Current Company",
+    "Location", "Experience (yrs)", "Status", "Skills", "Score",
+    "Visa Status", "Notice Period", "Source", "Added Date"
+  ];
+  const escape = (v) => {
+    if (v == null) return "";
+    const s = Array.isArray(v) ? v.join("; ") : String(v);
+    return s.includes(",") || s.includes('"') || s.includes("\n")
+      ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [
+    headers.join(","),
+    ...rows.map(c => [
+      escape(`${c.first_name || ""} ${c.last_name || ""}`.trim()),
+      escape(c.email), escape(c.phone),
+      escape(c.current_title), escape(c.current_company),
+      escape(c.location), escape(c.experience_years),
+      escape(c.status), escape(c.skills),
+      escape(c.bench_match_score || c.screening_score || ""),
+      escape(c.visa_status), escape(c.notice_period),
+      escape(c.source), escape(c.created_date),
+    ].join(","))
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `candidates_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function Candidates() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("q") || "");
   const [showForm, setShowForm] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState(null);
   const [showImport, setShowImport] = useState(false);
@@ -122,15 +159,15 @@ export default function Candidates() {
   const [highlightedChanges, setHighlightedChanges] = useState({});
   const [savingHighlighted, setSavingHighlighted] = useState(false);
 
-  const [viewType, setViewType] = useState("list");
-  const [sortBy, setSortBy] = useState("created_date");
-  const [sortOrder, setSortOrder] = useState("desc");
+  const [viewType, setViewType] = useState(() => searchParams.get("view") || "list");
+  const [sortBy, setSortBy] = useState(() => searchParams.get("sort") || "created_date");
+  const [sortOrder, setSortOrder] = useState(() => searchParams.get("order") || "desc");
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [emailRecipient, setEmailRecipient] = useState(null);
 
-  const [rowsPerPage, setRowsPerPage] = useState(25);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [stageFilter, setStageFilter] = useState("all");
+  const [rowsPerPage, setRowsPerPage] = useState(() => Number(searchParams.get("per_page")) || 25);
+  const [currentPage, setCurrentPage] = useState(() => Number(searchParams.get("page")) || 1);
+  const [stageFilter, setStageFilter] = useState(() => searchParams.get("stage") || "all");
 
   const navigate = useNavigate();
   const { listFilterFor, me, role, isAdmin, can } = usePermissions();
@@ -139,6 +176,19 @@ export default function Candidates() {
   const loadGuard = useRef({ ts: 0, inFlight: false });
 
   useEntityAutoRefresh("Candidate", () => loadCandidates(true));
+
+  // Sync key state to URL so links/back-button preserve filters
+  useEffect(() => {
+    const params = {};
+    if (searchTerm)           params.q        = searchTerm;
+    if (sortBy !== "created_date") params.sort = sortBy;
+    if (sortOrder !== "desc") params.order    = sortOrder;
+    if (stageFilter !== "all") params.stage   = stageFilter;
+    if (currentPage > 1)      params.page     = String(currentPage);
+    if (rowsPerPage !== 25)   params.per_page = String(rowsPerPage);
+    if (viewType !== "list")  params.view     = viewType;
+    setSearchParams(params, { replace: true });
+  }, [searchTerm, sortBy, sortOrder, stageFilter, currentPage, rowsPerPage, viewType, setSearchParams]);
 
   const loadCandidates = useCallback(async (force = false) => {
     const now = Date.now();
@@ -150,8 +200,8 @@ export default function Candidates() {
     try {
       const filter = listFilterFor("Candidate");
       const data = filter
-        ? await base44.entities.Candidate.filter(filter, "-created_date", 200)
-        : await base44.entities.Candidate.list("-created_date", 200);
+        ? await Candidate.filter(filter, "-created_date", 200)
+        : await Candidate.list("-created_date", 200);
       setCandidates(data);
     } catch (error) {
       console.warn("Error loading candidates:", error?.message || error);
@@ -178,7 +228,7 @@ export default function Candidates() {
 
     setSavingHighlighted(true);
     try {
-      await base44.entities.Candidate.update(highlightedCandidate.id, highlightedChanges);
+      await Candidate.update(highlightedCandidate.id, highlightedChanges);
       addNotification({
         type: "success",
         title: "Updated",
@@ -203,7 +253,7 @@ export default function Candidates() {
   useEffect(() => {
     const loadViews = async () => {
       try {
-        const list = await base44.entities.CandidateView.list();
+        const list = await CandidateView.list();
         const myRoleName = (me?.role || "").toLowerCase();
         const myAccessName = (role?.name || "").toLowerCase();
 
@@ -253,7 +303,7 @@ export default function Candidates() {
   const handleAddCandidate = async (candidateData) => {
     try {
       if (editingCandidate) {
-        await base44.entities.Candidate.update(editingCandidate.id, candidateData);
+        await Candidate.update(editingCandidate.id, candidateData);
         try { localStorage.setItem("candidate_cache_bust", String(Date.now())); } catch (_) {}
         window.dispatchEvent(new Event("candidate_cache_bust"));
         window.dispatchEvent(new CustomEvent("entity:Candidate:changed"));
@@ -263,7 +313,7 @@ export default function Candidates() {
         emitEntityChanged("Candidate");
         return;
       }
-      await base44.entities.Candidate.create(candidateData);
+      await Candidate.create(candidateData);
       try { localStorage.setItem("candidate_cache_bust", String(Date.now())); } catch (_) {}
       window.dispatchEvent(new Event("candidate_cache_bust"));
       window.dispatchEvent(new CustomEvent("entity:Candidate:changed"));
@@ -292,7 +342,7 @@ export default function Candidates() {
   const deleteCandidate = async () => {
     if (!candidateToDelete) return;
     try {
-      await base44.entities.Candidate.delete(candidateToDelete.id);
+      await Candidate.delete(candidateToDelete.id);
       addNotification({ type: "success", title: "Deleted", message: `${candidateToDelete.first_name} ${candidateToDelete.last_name} deleted.` });
       setShowDelete(false);
       setCandidateToDelete(null);
@@ -308,7 +358,7 @@ export default function Candidates() {
     const ids = Array.from(selectedIds);
     if (!ids.length) return;
     try {
-      await Promise.all(ids.map(id => base44.entities.Candidate.delete(id)));
+      await Promise.all(ids.map(id => Candidate.delete(id)));
       addNotification({ type: "success", title: "Deleted", message: `${ids.length} candidates deleted.` });
       setShowBulkDelete(false);
       setSelectedIds(new Set());
@@ -401,10 +451,10 @@ export default function Candidates() {
     try {
       let savedView;
       if (payload.id) {
-        savedView = await base44.entities.CandidateView.update(payload.id, payload);
+        savedView = await CandidateView.update(payload.id, payload);
         setViews(prevViews => prevViews.map(v => (v.id === savedView.id ? savedView : v)));
       } else {
-        savedView = await base44.entities.CandidateView.create(payload);
+        savedView = await CandidateView.create(payload);
         setViews(prevViews => [savedView, ...prevViews]);
         setSelectedViewId(savedView.id);
       }
@@ -419,7 +469,7 @@ export default function Candidates() {
   const handleDeleteView = async () => {
     if (!currentView) return;
     try {
-      await base44.entities.CandidateView.delete(currentView.id);
+      await CandidateView.delete(currentView.id);
       setViews(prev => prev.filter(v => v.id !== currentView.id));
       setSelectedViewId(null);
       addNotification({ type: "success", title: "View Deleted", message: `View "${currentView.name}" deleted.` });
@@ -470,60 +520,60 @@ export default function Candidates() {
   const getInitials = (c) => `${c.first_name?.[0]||""}${c.last_name?.[0]||""}`.toUpperCase();
   const avatarPalette = ["#3B82F6,#6366F1","#F59E0B,#EA580C","#8B5CF6,#7C3AED","#10B981,#059669","#EF4444,#DC2626","#0EA5E9,#0284C7"];
   const avatarGrad = (c) => { const p = avatarPalette[(c.first_name?.charCodeAt(0)||0) % avatarPalette.length].split(","); return `linear-gradient(135deg,${p[0]},${p[1]})`; };
-  const scoreColor = (s) => s >= 85 ? "#30A14E" : s >= 70 ? "#F4820F" : "#AEAEB2";
+  const scoreColor = (s) => s >= 85 ? "#10B981" : s >= 70 ? "#F4820F" : "#94A3B8";
   const stageBadge = (status) => {
-    const m = { screening:{bg:"rgba(244,130,15,.13)",c:"#D97706"}, interview:{bg:"rgba(48,161,78,.12)",c:"#16A34A"}, offer:{bg:"rgba(142,68,214,.12)",c:"#7C3AED"}, applied:{bg:"rgba(0,113,227,.10)",c:"#0071E3"}, hired:{bg:"rgba(10,142,130,.10)",c:"#0A8E82"}, rejected:{bg:"rgba(255,59,48,.10)",c:"#DC2626"}, active:{bg:"rgba(0,113,227,.10)",c:"#0071E3"}, our_bench:{bg:"rgba(142,68,214,.10)",c:"#7C3AED"}, on_bench:{bg:"rgba(244,130,15,.10)",c:"#D97706"}, placed:{bg:"rgba(10,142,130,.10)",c:"#0A8E82"}, inactive:{bg:"rgba(0,0,0,.06)",c:"#86868B"}, do_not_contact:{bg:"rgba(255,59,48,.08)",c:"#DC2626"} };
-    return m[status] || {bg:"rgba(0,0,0,.06)",c:"#86868B"};
+    const m = { screening:{bg:"rgba(244,130,15,.13)",c:"#D97706"}, interview:{bg:"rgba(48,161,78,.12)",c:"#16A34A"}, offer:{bg:"rgba(142,68,214,.12)",c:"#7C3AED"}, applied:{bg:"rgba(0,113,227,.10)",c:"#9333EA"}, hired:{bg:"rgba(10,142,130,.10)",c:"#0A8E82"}, rejected:{bg:"rgba(255,59,48,.10)",c:"#DC2626"}, active:{bg:"rgba(0,113,227,.10)",c:"#9333EA"}, our_bench:{bg:"rgba(142,68,214,.10)",c:"#7C3AED"}, on_bench:{bg:"rgba(244,130,15,.10)",c:"#D97706"}, placed:{bg:"rgba(10,142,130,.10)",c:"#0A8E82"}, inactive:{bg:"rgba(0,0,0,.06)",c:"#94A3B8"}, do_not_contact:{bg:"rgba(255,59,48,.08)",c:"#DC2626"} };
+    return m[status] || {bg:"rgba(0,0,0,.06)",c:"#94A3B8"};
   };
   const timeAgo = (d) => { const days = Math.floor((Date.now()-new Date(d))/86400000); return days===0?"Today":days===1?"1d ago":days<7?`${days}d ago`:`${Math.floor(days/7)}w ago`; };
 
   return (
-    <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background:"#F5F5F7", minHeight:"100vh" }}>
+    <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background:"#F8FAFC", minHeight:"100vh" }}>
 
       {/* ── Metrics bar ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:"1px solid #E5E5EA" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:"1px solid #E2E8F0" }}>
         {[
           { label:"Total Active", value: loading?"—":totalActive, sub:"in pipeline" },
-          { label:"New This Week", value: loading?"—":newThisWeek, sub:`+${newThisWeek} vs prior week`, subColor:"#30A14E" },
-          { label:"AI Matched ≥90%", value: loading?"—":aiMatched, sub:"strong fits", valColor:"#0071E3" },
+          { label:"New This Week", value: loading?"—":newThisWeek, sub:`+${newThisWeek} vs prior week`, subColor:"#10B981" },
+          { label:"AI Matched ≥90%", value: loading?"—":aiMatched, sub:"strong fits", valColor:"#9333EA" },
           { label:"Avg Score", value: loading?"—":avgScore, suf:"%", sub:"across cohort" },
         ].map((m,i) => (
-          <div key={i} style={{ padding:"22px 28px", borderRight:i<3?"1px solid #E5E5EA":"none" }}>
-            <div style={{ fontSize:11.5, fontWeight:500, color:"#86868B", marginBottom:5 }}>{m.label}</div>
-            <div style={{ fontSize:42, fontWeight:700, letterSpacing:"-.04em", lineHeight:1, color:m.valColor||"#1D1D1F" }}>
-              {m.value}{m.suf&&<span style={{ fontSize:18, fontWeight:500, color:"#6E6E73" }}>{m.suf}</span>}
+          <div key={i} style={{ padding:"22px 28px", borderRight:i<3?"1px solid #E2E8F0":"none" }}>
+            <div style={{ fontSize:11.5, fontWeight:500, color:"#94A3B8", marginBottom:5 }}>{m.label}</div>
+            <div style={{ fontSize:42, fontWeight:700, letterSpacing:"-.04em", lineHeight:1, color:m.valColor||"#0F172A" }}>
+              {m.value}{m.suf&&<span style={{ fontSize:18, fontWeight:500, color:"#64748B" }}>{m.suf}</span>}
             </div>
-            <div style={{ fontSize:11.5, color:m.subColor||"#86868B", marginTop:6 }}>{m.sub}</div>
+            <div style={{ fontSize:11.5, color:m.subColor||"#94A3B8", marginTop:6 }}>{m.sub}</div>
           </div>
         ))}
       </div>
 
       {/* ── Stage pills + Add button ── */}
-      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 24px", background:"#fff", borderBottom:"1px solid #E5E5EA", flexWrap:"wrap" }}>
-        <span style={{ fontSize:12, fontWeight:600, color:"#86868B", marginRight:4 }}>Stage</span>
+      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 24px", background:"#fff", borderBottom:"1px solid #E2E8F0", flexWrap:"wrap" }}>
+        <span style={{ fontSize:12, fontWeight:600, color:"#94A3B8", marginRight:4 }}>Stage</span>
         {[{k:"all",l:"All"},{k:"active",l:"Applied"},{k:"screening",l:"Screening"},{k:"interview",l:"Interview"},{k:"offer",l:"Offer"}].map(s => (
           <button key={s.k} onClick={() => { setStageFilter(s.k); setCurrentPage(1); }}
-            style={{ padding:"5px 13px", borderRadius:20, fontSize:13, fontWeight:stageFilter===s.k?600:500, border:"none", cursor:"pointer", background:stageFilter===s.k?"#1D1D1F":"#fff", color:stageFilter===s.k?"#fff":"#6E6E73", boxShadow:stageFilter===s.k?"none":"0 1px 4px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)", transition:"all 120ms" }}>
+            style={{ padding:"5px 13px", borderRadius:20, fontSize:13, fontWeight:stageFilter===s.k?600:500, border:"none", cursor:"pointer", background:stageFilter===s.k?"#0F172A":"#fff", color:stageFilter===s.k?"#fff":"#64748B", boxShadow:stageFilter===s.k?"none":"0 1px 4px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)", transition:"all 120ms" }}>
             {s.l}
           </button>
         ))}
         <button onClick={() => { setStageFilter("ai90"); setCurrentPage(1); }}
-          style={{ padding:"5px 13px", borderRadius:20, fontSize:13, fontWeight:600, border:"none", cursor:"pointer", background:stageFilter==="ai90"?"#30A14E":"rgba(48,161,78,.10)", color:stageFilter==="ai90"?"#fff":"#30A14E", boxShadow:"0 1px 4px rgba(0,0,0,.06)" }}>
+          style={{ padding:"5px 13px", borderRadius:20, fontSize:13, fontWeight:600, border:"none", cursor:"pointer", background:stageFilter==="ai90"?"#10B981":"rgba(48,161,78,.10)", color:stageFilter==="ai90"?"#fff":"#10B981", boxShadow:"0 1px 4px rgba(0,0,0,.06)" }}>
           ⚡ AI ≥90%
         </button>
 
         {/* Search */}
         <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(0,0,0,.06)", borderRadius:10, padding:"5px 10px", marginLeft:8 }}>
-          <Search style={{ width:13, height:13, color:"#86868B" }} />
+          <Search style={{ width:13, height:13, color:"#94A3B8" }} />
           <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search…"
-            style={{ border:"none", background:"transparent", outline:"none", fontSize:13, color:"#1D1D1F", width:160 }} />
+            style={{ border:"none", background:"transparent", outline:"none", fontSize:13, color:"#0F172A", width:160 }} />
         </div>
 
         {/* Right actions */}
         <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8 }}>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button style={{ padding:"6px 14px", borderRadius:20, fontSize:13, fontWeight:500, border:"1px solid #E5E5EA", background:"#fff", color:"#6E6E73", cursor:"pointer" }}>More ▾</button>
+              <button style={{ padding:"6px 14px", borderRadius:20, fontSize:13, fontWeight:500, border:"1px solid #E2E8F0", background:"#fff", color:"#64748B", cursor:"pointer" }}>More ▾</button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => loadCandidates(true)}><RefreshCcw className="w-4 h-4 mr-2" />Refresh</DropdownMenuItem>
@@ -533,6 +583,11 @@ export default function Candidates() {
               <DropdownMenuItem onClick={() => setShowBenchScorer(true)}><Briefcase className="w-4 h-4 mr-2" />Bulk Scoring</DropdownMenuItem>
               {selectedIds.size > 0 && <DropdownMenuSeparator />}
               {selectedIds.size > 0 && <DropdownMenuItem onClick={() => setShowBulkUpdate(true)}>Mass Update ({selectedIds.size})</DropdownMenuItem>}
+              {selectedIds.size > 0 && <DropdownMenuItem onClick={() => {
+                const selected = filteredAndSorted.filter(c => selectedIds.has(c.id));
+                exportCandidatesToCSV(selected);
+              }}>Export Selected ({selectedIds.size}) as CSV</DropdownMenuItem>}
+              <DropdownMenuItem onClick={() => exportCandidatesToCSV(filteredAndSorted)}>Export All ({filteredAndSorted.length}) as CSV</DropdownMenuItem>
               {selectedIds.size > 0 && <DropdownMenuItem onClick={() => setShowBulkDelete(true)} className="text-red-600">Delete Selected ({selectedIds.size})</DropdownMenuItem>}
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => { setSelectedViewId(null); setShowViewSettings(true); }}>+ New View</DropdownMenuItem>
@@ -542,7 +597,7 @@ export default function Candidates() {
           </DropdownMenu>
           <PermissionGate entity="Candidate" action="create">
             <button onClick={() => { setShowForm(true); setEditingCandidate(null); setSelectedCandidate(null); setHighlightedCandidate(null); }}
-              style={{ padding:"7px 16px", borderRadius:20, fontSize:13, fontWeight:600, border:"none", background:"#0071E3", color:"#fff", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,113,227,.3)" }}>
+              style={{ padding:"7px 16px", borderRadius:20, fontSize:13, fontWeight:600, border:"none", background:"#9333EA", color:"#fff", cursor:"pointer", boxShadow:"0 2px 8px rgba(0,113,227,.3)" }}>
               + Add Candidate
             </button>
           </PermissionGate>
@@ -553,9 +608,9 @@ export default function Candidates() {
       <div style={{ padding:"20px 24px 40px" }}>
         <div style={{ background:"#fff", borderRadius:16, boxShadow:"0 2px 12px rgba(0,0,0,.07),0 0 0 .5px rgba(0,0,0,.05)", overflow:"hidden" }}>
           {/* Table header */}
-          <div style={{ display:"grid", gridTemplateColumns:"1.8fr 130px 70px 130px 110px 80px 36px", gap:0, padding:"9px 20px", borderBottom:"1px solid #E5E5EA", background:"#FAFAFA" }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1.8fr 130px 70px 130px 110px 80px 36px", gap:0, padding:"9px 20px", borderBottom:"1px solid #E2E8F0", background:"#FAFAFA" }}>
             {["CANDIDATE","COMPANY","SCORE","STAGE","ROLE","ADDED",""].map((h,i) => (
-              <div key={i} style={{ fontSize:11, fontWeight:600, letterSpacing:".04em", color:"#86868B", display:"flex", alignItems:"center", gap:i===0?8:0 }}>
+              <div key={i} style={{ fontSize:11, fontWeight:600, letterSpacing:".04em", color:"#94A3B8", display:"flex", alignItems:"center", gap:i===0?8:0 }}>
                 {i===0 && <Checkbox checked={allVisibleSelected} onCheckedChange={c => toggleSelectAllVisible(!!c)} />}
                 {h}
               </div>
@@ -564,15 +619,15 @@ export default function Candidates() {
 
           {/* Rows */}
           {loading ? (
-            <div style={{ padding:"48px", textAlign:"center", color:"#86868B" }}>
-              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color:"#0071E3" }} />
+            <div style={{ padding:"48px", textAlign:"center", color:"#94A3B8" }}>
+              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color:"#9333EA" }} />
               <div style={{ fontSize:13 }}>Loading candidates…</div>
             </div>
           ) : paginatedStage.length === 0 ? (
             <div style={{ padding:"60px", textAlign:"center" }}>
-              <Users style={{ width:36, height:36, color:"#AEAEB2", margin:"0 auto 12px" }} />
-              <div style={{ fontSize:15, fontWeight:600, color:"#1D1D1F", marginBottom:6 }}>No candidates found</div>
-              <div style={{ fontSize:13, color:"#86868B" }}>{searchTerm ? "Try adjusting your search" : "Add your first candidate to get started"}</div>
+              <Users style={{ width:36, height:36, color:"#94A3B8", margin:"0 auto 12px" }} />
+              <div style={{ fontSize:15, fontWeight:600, color:"#0F172A", marginBottom:6 }}>No candidates found</div>
+              <div style={{ fontSize:13, color:"#94A3B8" }}>{searchTerm ? "Try adjusting your search" : "Add your first candidate to get started"}</div>
             </div>
           ) : paginatedStage.map((candidate, idx) => {
             const score = candidate.bench_match_score || candidate.screening_score;
@@ -592,23 +647,23 @@ export default function Candidates() {
                     {getInitials(candidate)}
                   </div>
                   <div style={{ minWidth:0 }}>
-                    <div style={{ fontSize:13.5, fontWeight:600, color:"#1D1D1F", display:"flex", alignItems:"center", gap:6, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                    <div style={{ fontSize:13.5, fontWeight:600, color:"#0F172A", display:"flex", alignItems:"center", gap:6, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                       <Link to={createPageUrl(`CandidateDetails?id=${candidate.id}`)} onClick={e=>e.stopPropagation()} style={{ color:"inherit", textDecoration:"none" }}>
                         {candidate.first_name} {candidate.last_name}
                       </Link>
-                      {score >= 90 && <span style={{ fontSize:10, fontWeight:700, padding:"2px 6px", borderRadius:6, background:"rgba(0,113,227,.10)", color:"#0071E3" }}>⚡{Math.round(score)}%</span>}
+                      {score >= 90 && <span style={{ fontSize:10, fontWeight:700, padding:"2px 6px", borderRadius:6, background:"rgba(0,113,227,.10)", color:"#9333EA" }}>⚡{Math.round(score)}%</span>}
                     </div>
-                    <div style={{ fontSize:11.5, color:"#86868B", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                    <div style={{ fontSize:11.5, color:"#94A3B8", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                       {[candidate.current_title, candidate.experience_years ? `${candidate.experience_years}yr` : null].filter(Boolean).join(" · ") || "—"}
                     </div>
                   </div>
                 </div>
 
                 {/* Company */}
-                <div style={{ fontSize:12.5, color:"#6E6E73", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{candidate.current_company || "—"}</div>
+                <div style={{ fontSize:12.5, color:"#64748B", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{candidate.current_company || "—"}</div>
 
                 {/* Score */}
-                <div style={{ fontSize:13, fontWeight:700, color:score?scoreColor(score):"#AEAEB2" }}>{score?`${Math.round(score)}%`:"—"}</div>
+                <div style={{ fontSize:13, fontWeight:700, color:score?scoreColor(score):"#94A3B8" }}>{score?`${Math.round(score)}%`:"—"}</div>
 
                 {/* Stage */}
                 <div>
@@ -618,18 +673,18 @@ export default function Candidates() {
                 </div>
 
                 {/* Role */}
-                <div style={{ fontSize:12.5, color:"#6E6E73", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                <div style={{ fontSize:12.5, color:"#64748B", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                   {candidate.current_title ? candidate.current_title.split(" ").slice(0,2).join(" ") : "—"}
                 </div>
 
                 {/* Added */}
-                <div style={{ fontSize:12, color:"#86868B" }}>{candidate.created_date ? timeAgo(candidate.created_date) : "—"}</div>
+                <div style={{ fontSize:12, color:"#94A3B8" }}>{candidate.created_date ? timeAgo(candidate.created_date) : "—"}</div>
 
                 {/* Actions */}
                 <div onClick={e=>e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button style={{ width:28, height:28, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", border:"none", background:"none", cursor:"pointer", color:"#86868B" }} className="hover:bg-black/[.07]">
+                      <button style={{ width:28, height:28, borderRadius:"50%", display:"flex", alignItems:"center", justifyContent:"center", border:"none", background:"none", cursor:"pointer", color:"#94A3B8" }} className="hover:bg-black/[.07]">
                         <MoreHorizontal style={{ width:14, height:14 }} />
                       </button>
                     </DropdownMenuTrigger>
@@ -651,7 +706,7 @@ export default function Candidates() {
         {!loading && stageFilteredCandidates.length > rowsPerPage && currentPage < totalStagePages && (
           <div style={{ display:"flex", justifyContent:"center", marginTop:24, marginBottom:20 }}>
             <button onClick={()=>goToPage(currentPage+1)}
-              style={{ padding:"8px 24px", borderRadius:20, border:"1px solid #E5E5EA", background:"#fff", color:"#0071E3", cursor:"pointer", fontSize:13, fontWeight:600, boxShadow:"0 1px 4px rgba(0,0,0,.08)" }}>
+              style={{ padding:"8px 24px", borderRadius:20, border:"1px solid #E2E8F0", background:"#fff", color:"#9333EA", cursor:"pointer", fontSize:13, fontWeight:600, boxShadow:"0 1px 4px rgba(0,0,0,.08)" }}>
               Load More
             </button>
           </div>
@@ -660,18 +715,18 @@ export default function Candidates() {
 
       {/* ── Quick Edit panel ── */}
       {highlightedCandidate && (
-        <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:"#1D1D1F", borderRadius:16, padding:"16px 20px", boxShadow:"0 8px 32px rgba(0,0,0,.28)", display:"flex", alignItems:"center", gap:12, zIndex:50 }}>
+        <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:"#0F172A", borderRadius:16, padding:"16px 20px", boxShadow:"0 8px 32px rgba(0,0,0,.28)", display:"flex", alignItems:"center", gap:12, zIndex:50 }}>
           <div style={{ color:"#fff", fontSize:13, fontWeight:600 }}>{highlightedCandidate.first_name} {highlightedCandidate.last_name}</div>
           <div style={{ width:1, height:20, background:"rgba(255,255,255,.15)" }} />
           {statusOptions.map(o => (
             <button key={o.value} onClick={()=>updateHighlightedField("status",o.value)}
-              style={{ padding:"4px 10px", borderRadius:20, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:currentHighlightStatus===o.value?"#0071E3":"rgba(255,255,255,.12)", color:"#fff" }}>
+              style={{ padding:"4px 10px", borderRadius:20, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:currentHighlightStatus===o.value?"#9333EA":"rgba(255,255,255,.12)", color:"#fff" }}>
               {o.label}
             </button>
           ))}
           <div style={{ width:1, height:20, background:"rgba(255,255,255,.15)" }} />
           <button onClick={saveHighlightedChanges} disabled={savingHighlighted||Object.keys(highlightedChanges).length===0}
-            style={{ padding:"4px 12px", borderRadius:20, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:"#30A14E", color:"#fff", opacity:Object.keys(highlightedChanges).length===0?.5:1 }}>
+            style={{ padding:"4px 12px", borderRadius:20, fontSize:12, fontWeight:600, border:"none", cursor:"pointer", background:"#10B981", color:"#fff", opacity:Object.keys(highlightedChanges).length===0?.5:1 }}>
             {savingHighlighted ? "Saving…" : "Save"}
           </button>
           <button onClick={closeHighlightPanel} style={{ background:"none", border:"none", color:"rgba(255,255,255,.5)", cursor:"pointer", fontSize:16 }}>✕</button>
@@ -687,7 +742,7 @@ export default function Candidates() {
 
       {/* ── Modals ── */}
       {showForm && <CandidateForm candidate={editingCandidate} onSave={handleAddCandidate} onCancel={()=>{setShowForm(false);setEditingCandidate(null);}} />}
-      {showImport && <ImportModal open={showImport} onClose={()=>setShowImport(false)} entityName="Candidates" entitySdk={base44.entities.Candidate} onImported={()=>{setShowImport(false);loadCandidates(true);emitEntityChanged("Candidate");}} />}
+      {showImport && <ImportModal open={showImport} onClose={()=>setShowImport(false)} entityName="Candidates" entitySdk={Candidate} onImported={()=>{setShowImport(false);loadCandidates(true);emitEntityChanged("Candidate");}} />}
       {showDelete && candidateToDelete && <DeleteConfirmModal open={showDelete} title="Delete Candidate" message={`Delete ${candidateToDelete.first_name} ${candidateToDelete.last_name}?`} confirmLabel="Delete Candidate" onConfirm={deleteCandidate} onCancel={()=>{setShowDelete(false);setCandidateToDelete(null);}} />}
       {showBulkDelete && selectedIds.size>0 && <DeleteConfirmModal open={showBulkDelete} title="Delete Selected" message={`Delete ${selectedIds.size} candidate(s)?`} confirmLabel="Delete" onConfirm={handleBulkDelete} onCancel={()=>setShowBulkDelete(false)} />}
       {showBulkUpdate && selectedIds.size>0 && <CandidatesBulkUpdateModal open={showBulkUpdate} selectedIds={Array.from(selectedIds)} onClose={()=>{setShowBulkUpdate(false);setSelectedIds(new Set());}} onUpdated={()=>{loadCandidates(true);emitEntityChanged("Candidate");setShowBulkUpdate(false);setSelectedIds(new Set());}} />}

@@ -27,7 +27,9 @@
         "client_submission",
         "candidate_outreach",
         "follow_up",
-        "internal_note"
+        "internal_note",
+        "recruiter_clarification",
+        "followup"
       ],
       "description": "Type of email draft"
     },
@@ -63,7 +65,8 @@
         "draft",
         "approved",
         "rejected",
-        "sent"
+        "sent",
+        "send_failed"
       ],
       "default": "draft",
       "description": "Draft status"
@@ -89,6 +92,14 @@
     "model_used": {
       "type": "string",
       "description": "LLM model used for drafting"
+    },
+    "followup_schedule_id": {
+      "type": "string",
+      "description": "References FollowupSchedule when draft_type = followup"
+    },
+    "send_failed_reason": {
+      "type": "string",
+      "description": "Error message if status = send_failed"
     }
   },
   "required": [

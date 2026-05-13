@@ -1,6 +1,7 @@
 #env
 .env
 .env.*
+!.env.example
 
 # Logs
 logs
@@ -28,3 +29,9 @@ dist-ssr
 *.sw?
 
 .env
+
+# Imported customer data (PII — never commit)
+data-import/
+test-results/
+playwright-report/
+tests/.auth/

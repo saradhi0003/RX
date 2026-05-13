@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { base44 } from "@/api/base44Client";
+import { Playbook } from "@/entities/Playbook";
 import { 
   BookOpen, 
   Plus, 
@@ -36,7 +36,7 @@ export default function PlaybooksPage() {
   const loadPlaybooks = async () => {
     setLoading(true);
     try {
-      const data = await base44.entities.Playbook.filter({ is_active: true }, "-updated_date");
+      const data = await Playbook.filter({ is_active: true }, "-updated_date");
       setPlaybooks(data || []);
     } catch (error) {
       console.error("Error loading playbooks:", error);
@@ -48,9 +48,9 @@ export default function PlaybooksPage() {
   const handleSave = async (data) => {
     try {
       if (editingPlaybook) {
-        await base44.entities.Playbook.update(editingPlaybook.id, data);
+        await Playbook.update(editingPlaybook.id, data);
       } else {
-        await base44.entities.Playbook.create(data);
+        await Playbook.create(data);
       }
       await loadPlaybooks();
       setShowForm(false);
@@ -120,8 +120,8 @@ export default function PlaybooksPage() {
   }
 
   return (
-    <div style={{ fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background: "#F5F5F7", minHeight: "100vh" }}>
-      <div style={{ padding: "20px 24px", background: "#fff", borderBottom: "1px solid #E5E5EA" }}>
+    <div style={{ fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
+      <div style={{ padding: "20px 24px", background: "#fff", borderBottom: "1px solid #E2E8F0" }}>
         <Breadcrumbs items={[{ label: "Playbooks" }]} />
 
         <PageHeader
@@ -136,17 +136,17 @@ export default function PlaybooksPage() {
                   borderRadius: 20,
                   fontSize: 13,
                   fontWeight: 500,
-                  border: "1px solid #E5E5EA",
+                  border: "1px solid #E2E8F0",
                   background: "#fff",
-                  color: "#6E6E73",
+                  color: "#64748B",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
                   transition: "all 100ms"
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "#F5F5F7"; e.currentTarget.style.color = "#1D1D1F"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#6E6E73"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.color = "#0F172A"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#64748B"; }}
               >
                 <Search style={{ width: 14, height: 14 }} />
                 Smart Search
@@ -162,7 +162,7 @@ export default function PlaybooksPage() {
                   fontSize: 13,
                   fontWeight: 600,
                   border: "none",
-                  background: "#0071E3",
+                  background: "#9333EA",
                   color: "#fff",
                   cursor: "pointer",
                   display: "flex",
@@ -171,8 +171,8 @@ export default function PlaybooksPage() {
                   boxShadow: "0 2px 8px rgba(0,113,227,.3)",
                   transition: "all 100ms"
                 }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "#0077ED"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "#0071E3"; }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#A855F7"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "#9333EA"; }}
               >
                 <Plus style={{ width: 14, height: 14 }} />
                 New Playbook
@@ -190,8 +190,8 @@ export default function PlaybooksPage() {
         <div style={{ padding: "14px 18px", background: "#fff", borderRadius: 16, marginBottom: 20, boxShadow: "0 1px 4px rgba(0,0,0,.06),0 0 0 .5px rgba(0,0,0,.05)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Filter style={{ width: 14, height: 14, color: "#86868B" }} />
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".01em" }}>Filter:</span>
+              <Filter style={{ width: 14, height: 14, color: "#94A3B8" }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".01em" }}>Filter:</span>
               {categories.map((cat) => (
                 <button
                   key={cat.value}
@@ -202,14 +202,14 @@ export default function PlaybooksPage() {
                     fontSize: 13,
                     fontWeight: filterCategory === cat.value ? 600 : 500,
                     border: "none",
-                    background: filterCategory === cat.value ? "#1D1D1F" : "#fff",
-                    color: filterCategory === cat.value ? "#fff" : "#6E6E73",
+                    background: filterCategory === cat.value ? "#0F172A" : "#fff",
+                    color: filterCategory === cat.value ? "#fff" : "#64748B",
                     cursor: "pointer",
                     boxShadow: filterCategory === cat.value ? "none" : "0 1px 4px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)",
                     transition: "all 100ms"
                   }}
-                  onMouseEnter={(e) => { if (filterCategory !== cat.value) { e.currentTarget.style.background = "#F5F5F7"; e.currentTarget.style.color = "#1D1D1F"; } }}
-                  onMouseLeave={(e) => { if (filterCategory !== cat.value) { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#6E6E73"; } }}
+                  onMouseEnter={(e) => { if (filterCategory !== cat.value) { e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.color = "#0F172A"; } }}
+                  onMouseLeave={(e) => { if (filterCategory !== cat.value) { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#64748B"; } }}
                 >
                   {cat.label}
                 </button>
@@ -217,17 +217,17 @@ export default function PlaybooksPage() {
             </div>
 
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".01em" }}>Sort:</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".01em" }}>Sort:</span>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value)}
                 style={{
                   fontSize: 13,
-                  border: "1px solid #E5E5EA",
+                  border: "1px solid #E2E8F0",
                   borderRadius: 8,
                   padding: "5px 10px",
                   background: "#fff",
-                  color: "#1D1D1F",
+                  color: "#0F172A",
                   cursor: "pointer",
                   fontWeight: 500
                 }}
@@ -249,7 +249,7 @@ export default function PlaybooksPage() {
               style={{
                 background: "#fff",
                 borderRadius: 16,
-                border: "1px solid #E5E5EA",
+                border: "1px solid #E2E8F0",
                 padding: "18px 20px",
                 boxShadow: "0 1px 4px rgba(0,0,0,.06),0 0 0 .5px rgba(0,0,0,.05)",
                 transition: "box-shadow 120ms, border 120ms",
@@ -261,12 +261,12 @@ export default function PlaybooksPage() {
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,.06),0 0 0 .5px rgba(0,0,0,.05)";
-                e.currentTarget.style.borderColor = "#E5E5EA";
+                e.currentTarget.style.borderColor = "#E2E8F0";
               }}
             >
               {/* Header with category and rating */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: "rgba(0,113,227,.10)", color: "#0071E3", textTransform: "uppercase", letterSpacing: ".01em" }}>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: "rgba(0,113,227,.10)", color: "#9333EA", textTransform: "uppercase", letterSpacing: ".01em" }}>
                   {playbook.category.replace(/_/g, " ")}
                 </span>
                 {playbook.effectiveness_rating && (
@@ -282,14 +282,14 @@ export default function PlaybooksPage() {
                 to={createPageUrl(`PlaybookDetails?id=${playbook.id}`)}
                 style={{ textDecoration: "none" }}
               >
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: "#1D1D1F", marginBottom: 8, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", marginBottom: 8, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                   {playbook.title}
                 </h3>
               </Link>
 
               {/* Description */}
               {playbook.description && (
-                <p style={{ fontSize: 13, color: "#6E6E73", marginBottom: 10, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.4 }}>
+                <p style={{ fontSize: 13, color: "#64748B", marginBottom: 10, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.4 }}>
                   {playbook.description}
                 </p>
               )}
@@ -298,12 +298,12 @@ export default function PlaybooksPage() {
               {playbook.tags && playbook.tags.length > 0 && (
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
                   {playbook.tags.slice(0, 3).map((tag, i) => (
-                    <span key={i} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: "#F5F5F7", color: "#86868B", border: "1px solid #E5E5EA" }}>
+                    <span key={i} style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: "#F8FAFC", color: "#94A3B8", border: "1px solid #E2E8F0" }}>
                       {tag}
                     </span>
                   ))}
                   {playbook.tags.length > 3 && (
-                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: "#F5F5F7", color: "#86868B", border: "1px solid #E5E5EA" }}>
+                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: "#F8FAFC", color: "#94A3B8", border: "1px solid #E2E8F0" }}>
                       +{playbook.tags.length - 3}
                     </span>
                   )}
@@ -311,7 +311,7 @@ export default function PlaybooksPage() {
               )}
 
               {/* Meta info */}
-              <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11, color: "#AEAEB2", paddingTop: 10, borderTop: "1px solid #F2F2F7" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 11, color: "#94A3B8", paddingTop: 10, borderTop: "1px solid #F2F2F7" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                   <Eye style={{ width: 13, height: 13 }} />
                   {playbook.usage_count || 0}
@@ -328,8 +328,8 @@ export default function PlaybooksPage() {
               {/* Action buttons */}
               <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                 <Link to={createPageUrl(`PlaybookDetails?id=${playbook.id}`)} style={{ flex: 1, textDecoration: "none" }}>
-                  <button style={{ width: "100%", padding: "6px 12px", borderRadius: 12, border: "1px solid #E5E5EA", background: "#fff", color: "#6E6E73", cursor: "pointer", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 100ms" }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = "#F5F5F7"; e.currentTarget.style.color = "#1D1D1F"; }}>
+                  <button style={{ width: "100%", padding: "6px 12px", borderRadius: 12, border: "1px solid #E2E8F0", background: "#fff", color: "#64748B", cursor: "pointer", fontSize: 13, fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 100ms" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.color = "#0F172A"; }}>
                     <BookOpen style={{ width: 13, height: 13 }} />
                     View
                   </button>
@@ -339,9 +339,9 @@ export default function PlaybooksPage() {
                     setEditingPlaybook(playbook);
                     setShowForm(true);
                   }}
-                  style={{ flex: 1, padding: "6px 12px", borderRadius: 12, border: "1px solid #E5E5EA", background: "#fff", color: "#6E6E73", cursor: "pointer", fontSize: 13, fontWeight: 500, transition: "all 100ms" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "#F5F5F7"; e.currentTarget.style.color = "#1D1D1F"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#6E6E73"; }}
+                  style={{ flex: 1, padding: "6px 12px", borderRadius: 12, border: "1px solid #E2E8F0", background: "#fff", color: "#64748B", cursor: "pointer", fontSize: 13, fontWeight: 500, transition: "all 100ms" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "#F8FAFC"; e.currentTarget.style.color = "#0F172A"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#64748B"; }}
                 >
                   Edit
                 </button>
@@ -353,13 +353,13 @@ export default function PlaybooksPage() {
         {/* Empty State */}
         {sortedPlaybooks.length === 0 && (
           <div style={{ background: "#fff", borderRadius: 16, padding: "48px 24px", textAlign: "center", boxShadow: "0 1px 4px rgba(0,0,0,.06),0 0 0 .5px rgba(0,0,0,.05)" }}>
-            <BookOpen style={{ width: 48, height: 48, color: "#AEAEB2", margin: "0 auto 16px" }} />
-            <h3 style={{ fontSize: 15, fontWeight: 700, color: "#1D1D1F", marginBottom: 6 }}>
+            <BookOpen style={{ width: 48, height: 48, color: "#94A3B8", margin: "0 auto 16px" }} />
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: "#0F172A", marginBottom: 6 }}>
               {filterCategory === "all" 
                 ? "No playbooks yet" 
                 : `No playbooks in ${filterCategory.replace(/_/g, " ")}`}
             </h3>
-            <p style={{ fontSize: 13, color: "#86868B", marginBottom: 20 }}>
+            <p style={{ fontSize: 13, color: "#94A3B8", marginBottom: 20 }}>
               Create your first playbook to document your recruitment processes
             </p>
             <button
@@ -370,7 +370,7 @@ export default function PlaybooksPage() {
                 fontSize: 13,
                 fontWeight: 600,
                 border: "none",
-                background: "#0071E3",
+                background: "#9333EA",
                 color: "#fff",
                 cursor: "pointer",
                 display: "inline-flex",
@@ -378,8 +378,8 @@ export default function PlaybooksPage() {
                 gap: 6,
                 boxShadow: "0 2px 8px rgba(0,113,227,.3)"
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "#0077ED"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "#0071E3"; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#A855F7"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "#9333EA"; }}
             >
               <Plus style={{ width: 14, height: 14 }} />
               Create Playbook

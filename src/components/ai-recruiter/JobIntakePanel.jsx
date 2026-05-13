@@ -1,72 +1,49 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { Job } from "@/entities/Job";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
-export default function JobIntakePanel({ onJobParsed, loading, currentRun }) {
-  const [method, setMethod] = useState("existing"); // existing | paste | file
+/** @param {{ onJobParsed: Function, currentRun: any }} props */
+export default function JobIntakePanel({ onJobParsed, currentRun }) {
+  const [method, setMethod] = useState("existing");
   const [selectedJobId, setSelectedJobId] = useState("");
   const [jobText, setJobText] = useState("");
-  const [jobs, setJobs] = useState([]);
+  const [jobs, setJobs] = useState(/** @type {any[]} */ ([]));
   const [parsing, setParsing] = useState(false);
+  const [parseError, setParseError] = useState("");
 
   useEffect(() => {
-    loadJobs();
+    Job.list("-created_at", 100).then(setJobs).catch(console.error);
   }, []);
 
-  const loadJobs = async () => {
-    try {
-      const data = await base44.entities.Job.list("-created_date", 50);
-      setJobs(data);
-    } catch (error) {
-      console.error("Failed to load jobs:", error);
-    }
-  };
-
   const handleParseJob = async () => {
-    if (method === "existing" && !selectedJobId) {
-      alert("Please select a job");
+    setParseError("");
+
+    if (method === "existing") {
+      if (!selectedJobId) { setParseError("Please select a job"); return; }
+      const job = jobs.find((j) => j.id === selectedJobId);
+      onJobParsed({ id: null, job });
       return;
     }
 
-    if (method !== "existing" && !jobText.trim()) {
-      alert("Please paste a job description");
-      return;
-    }
+    if (!jobText.trim()) { setParseError("Please paste a job description"); return; }
 
     setParsing(true);
     try {
-      // For existing jobs, just use directly without parsing
-      if (method === "existing") {
-        const job = jobs.find(j => j.id === selectedJobId);
-        onJobParsed({
-          success: true,
-          run_id: null,
-          job,
-          parsed: job,
-        });
-        return;
-      }
-
-      // For new jobs, parse with AI
-      const response = await base44.functions.invoke("aiRecruiterParseJob", {
-        source: "manual",
-        raw_text: jobText,
+      const { data, error } = await supabase.functions.invoke("aiRecruiterParseJob", {
+        body: { job_description: jobText, source: "manual" },
       });
+      if (error) throw error;
 
-      if (!response.success) {
-        alert(`Error: ${response.error}`);
-        return;
-      }
-
-      onJobParsed(response);
-    } catch (error) {
-      alert(`Error: ${error.message}`);
-      console.error("Parse error:", error);
+      // Build a synthetic job object from the parsed data for immediate use
+      const syntheticJob = { id: data.job_id, ...data.parsed };
+      onJobParsed({ id: data.run_id, job: syntheticJob });
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : "Parsing failed");
     } finally {
       setParsing(false);
     }
@@ -75,12 +52,12 @@ export default function JobIntakePanel({ onJobParsed, loading, currentRun }) {
   if (currentRun) {
     return (
       <Card className="p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
-            <span className="text-lg font-bold text-blue-600">✓</span>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">
+            ✓
           </div>
           <div>
-            <h3 className="font-semibold">{currentRun.job?.title}</h3>
+            <p className="font-semibold">{currentRun.job?.title}</p>
             <p className="text-sm text-muted-foreground">{currentRun.job?.location}</p>
           </div>
         </div>
@@ -93,64 +70,49 @@ export default function JobIntakePanel({ onJobParsed, loading, currentRun }) {
       <h2 className="text-xl font-bold mb-4">Step 1: Select or Import Job</h2>
 
       <div className="space-y-4">
-        {/* Method selector */}
         <div className="flex gap-2">
-          <Button
-            variant={method === "existing" ? "default" : "outline"}
-            onClick={() => setMethod("existing")}
-            size="sm"
-          >
+          <Button variant={method === "existing" ? "default" : "outline"} size="sm" onClick={() => setMethod("existing")}>
             Existing Job
           </Button>
-          <Button
-            variant={method === "paste" ? "default" : "outline"}
-            onClick={() => setMethod("paste")}
-            size="sm"
-          >
+          <Button variant={method === "paste" ? "default" : "outline"} size="sm" onClick={() => setMethod("paste")}>
             Paste Description
           </Button>
         </div>
 
-        {/* Content */}
         {method === "existing" ? (
-          <div>
-            <label className="block text-sm font-medium mb-2">Select Job</label>
-            <Select value={selectedJobId} onValueChange={setSelectedJobId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a job..." />
-              </SelectTrigger>
-              <SelectContent>
-                {jobs.map((job) => (
-                  <SelectItem key={job.id} value={job.id}>
-                    {job.title} • {job.location || "Remote"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Select value={selectedJobId} onValueChange={setSelectedJobId}>
+            <SelectTrigger><SelectValue placeholder="Choose a job..." /></SelectTrigger>
+            <SelectContent>
+              {jobs.map((job) => (
+                <SelectItem key={job.id} value={job.id}>
+                  {job.title} • {job.location || "Remote"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         ) : (
           <div>
-            <label className="block text-sm font-medium mb-2">Paste Job Description</label>
             <Textarea
-              placeholder="Paste your job description, email, or JD text here..."
+              placeholder="Paste your job description here — AI will extract title, skills, requirements, salary…"
               value={jobText}
               onChange={(e) => setJobText(e.target.value)}
               className="h-40"
             />
-            <p className="text-xs text-muted-foreground mt-2">
-              AI will extract title, skills, requirements, location, rate, and more.
+            <p className="text-xs text-muted-foreground mt-1">
+              AI will structure this into a job record automatically.
             </p>
           </div>
         )}
 
-        {/* Parse button */}
+        {parseError && <p className="text-sm text-red-600">{parseError}</p>}
+
         <Button
           onClick={handleParseJob}
           disabled={parsing || (method === "existing" ? !selectedJobId : !jobText.trim())}
           className="w-full"
         >
-          {parsing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-          {parsing ? "Parsing..." : "Parse Job with AI"}
+          {parsing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          {parsing ? "Parsing…" : method === "existing" ? "Use Selected Job" : "Parse Job with AI"}
         </Button>
       </div>
     </Card>

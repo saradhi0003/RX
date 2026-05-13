@@ -1,6 +1,7 @@
 import React from "react";
 import { Loader2, Briefcase, Building2, MapPin, Calendar, ExternalLink, Edit, ArrowUpRight, DollarSign, Clock, Users } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { Company } from "@/entities/Company";
+import { Job } from "@/entities/Job";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
@@ -40,14 +41,14 @@ export default function JobPreview({ id }) {
     let mounted = true;
     (async () => {
       try {
-        const j = await base44.entities.Job.get(id).catch(() => null);
+        const j = await Job.get(id).catch(() => null);
         if (!mounted) return;
         setJob(j);
         setStatus(j?.status || "draft");
         
         // Fetch company in parallel if job has company_id
         if (j?.company_id) {
-          base44.entities.Company.get(j.company_id)
+          Company.get(j.company_id)
             .then(co => { if (mounted) setCompany(co || null); })
             .catch(() => { if (mounted) setCompany(null); });
         }
@@ -59,13 +60,13 @@ export default function JobPreview({ id }) {
   const updateStatus = async (val) => {
     if (!val || val === status) return;
     setSaving(true);
-    await base44.entities.Job.update(job.id, { status: val }).catch(() => {});
+    await Job.update(job.id, { status: val }).catch(() => {});
     setSaving(false);
     setStatus(val);
   };
 
   if (!job) return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 80, color: "#86868B" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 80, color: "#94A3B8" }}>
       <Loader2 style={{ width: 16, height: 16, marginRight: 6 }} className="animate-spin" /> Loading job…
     </div>
   );
@@ -84,15 +85,15 @@ export default function JobPreview({ id }) {
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, color: "#1D1D1F", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{job.title}</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{job.title}</h2>
               <Link to={createPageUrl(`JobDetails?id=${job.id}`)} title="Open full details">
-                <ArrowUpRight style={{ width: 14, height: 14, color: "#86868B" }} />
+                <ArrowUpRight style={{ width: 14, height: 14, color: "#94A3B8" }} />
               </Link>
             </div>
-            <div style={{ fontSize: 13, color: "#86868B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>—</div>
+            <div style={{ fontSize: 13, color: "#94A3B8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>—</div>
           </div>
           <Link to={createPageUrl(`JobDetails?id=${job.id}&edit=true`)} data-intent="edit"
-            style={{ fontSize: 12, fontWeight: 600, color: "#0071E3", padding: "5px 12px", borderRadius: 20, border: "1px solid #0071E3", textDecoration: "none", flexShrink: 0 }}>
+            style={{ fontSize: 12, fontWeight: 600, color: "#9333EA", padding: "5px 12px", borderRadius: 20, border: "1px solid #9333EA", textDecoration: "none", flexShrink: 0 }}>
             <Edit style={{ width: 12, height: 12, display: "inline", marginRight: 4, verticalAlign: "middle" }} />Edit
           </Link>
         </div>
@@ -103,7 +104,7 @@ export default function JobPreview({ id }) {
             {sb.label}
           </span>
           {job.remote_type && (
-            <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: "rgba(0,113,227,.10)", color: "#0071E3" }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: "rgba(0,113,227,.10)", color: "#9333EA" }}>
               {job.remote_type.charAt(0).toUpperCase() + job.remote_type.slice(1)}
             </span>
           )}
@@ -117,7 +118,7 @@ export default function JobPreview({ id }) {
 
       {/* Quick status update */}
       <div style={{ padding: "14px 20px", borderBottom: "1px solid #F2F2F7" }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Update Status</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Update Status</div>
         <Select value={status || job.status} onValueChange={updateStatus} disabled={saving}>
           <SelectTrigger style={{ fontSize: 13, borderRadius: 10 }}>
             <SelectValue />
@@ -130,35 +131,35 @@ export default function JobPreview({ id }) {
 
       {/* Key details */}
       <div style={{ padding: "14px 20px", borderBottom: "1px solid #F2F2F7" }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 10 }}>Details</div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 10 }}>Details</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {job.location && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-              <MapPin style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0F172A" }}>
+              <MapPin style={{ width: 14, height: 14, color: "#94A3B8", flexShrink: 0 }} />
               {job.location}
             </div>
           )}
           {job.rate && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-              <DollarSign style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0F172A" }}>
+              <DollarSign style={{ width: 14, height: 14, color: "#94A3B8", flexShrink: 0 }} />
               {job.rate}
             </div>
           )}
           {job.experience_required != null && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-              <Clock style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0F172A" }}>
+              <Clock style={{ width: 14, height: 14, color: "#94A3B8", flexShrink: 0 }} />
               {job.experience_required}+ years
             </div>
           )}
           {job.due_date && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-              <Calendar style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0F172A" }}>
+              <Calendar style={{ width: 14, height: 14, color: "#94A3B8", flexShrink: 0 }} />
               {new Date(job.due_date).toLocaleDateString()}
             </div>
           )}
           {job.hiring_manager && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#1D1D1F" }}>
-              <Users style={{ width: 14, height: 14, color: "#86868B", flexShrink: 0 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#0F172A" }}>
+              <Users style={{ width: 14, height: 14, color: "#94A3B8", flexShrink: 0 }} />
               {job.hiring_manager}
             </div>
           )}
@@ -168,12 +169,12 @@ export default function JobPreview({ id }) {
       {/* Required skills */}
       {Array.isArray(job.required_skills) && job.required_skills.length > 0 && (
         <div style={{ padding: "14px 20px", borderBottom: "1px solid #F2F2F7" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Required Skills</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Required Skills</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
             {job.required_skills.slice(0, 15).map((s, i) => (
-              <span key={i} style={{ fontSize: 11.5, padding: "3px 9px", borderRadius: 20, background: "rgba(0,113,227,.08)", color: "#0071E3", fontWeight: 500 }}>{s}</span>
+              <span key={i} style={{ fontSize: 11.5, padding: "3px 9px", borderRadius: 20, background: "rgba(0,113,227,.08)", color: "#9333EA", fontWeight: 500 }}>{s}</span>
             ))}
-            {job.required_skills.length > 15 && <span style={{ fontSize: 11.5, color: "#86868B" }}>+{job.required_skills.length - 15} more</span>}
+            {job.required_skills.length > 15 && <span style={{ fontSize: 11.5, color: "#94A3B8" }}>+{job.required_skills.length - 15} more</span>}
           </div>
         </div>
       )}
@@ -181,10 +182,10 @@ export default function JobPreview({ id }) {
       {/* Preferred skills */}
       {Array.isArray(job.preferred_skills) && job.preferred_skills.length > 0 && (
         <div style={{ padding: "14px 20px", borderBottom: "1px solid #F2F2F7" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Preferred Skills</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Preferred Skills</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
             {job.preferred_skills.slice(0, 10).map((s, i) => (
-              <span key={i} style={{ fontSize: 11.5, padding: "3px 9px", borderRadius: 20, background: "rgba(0,0,0,.05)", color: "#6E6E73", fontWeight: 500 }}>{s}</span>
+              <span key={i} style={{ fontSize: 11.5, padding: "3px 9px", borderRadius: 20, background: "rgba(0,0,0,.05)", color: "#64748B", fontWeight: 500 }}>{s}</span>
             ))}
           </div>
         </div>
@@ -193,7 +194,7 @@ export default function JobPreview({ id }) {
       {/* Description snippet */}
       {job.description && (
         <div style={{ padding: "14px 20px" }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#86868B", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Description</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: ".04em", marginBottom: 8 }}>Description</div>
           <p style={{ fontSize: 13, color: "#3D3D3F", lineHeight: 1.6, margin: 0 }}>{job.description.slice(0, 300)}{job.description.length > 300 ? "…" : ""}</p>
         </div>
       )}

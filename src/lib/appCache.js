@@ -4,11 +4,12 @@
  * Survives React navigation (module-level singleton).
  */
 
-import { base44 } from "@/api/base44Client";
-import { getRolesCached } from "@/components/utils/rolesCache";
+import { supabase } from "@/lib/supabase";
 
 // ─── User + Role cache ─────────────────────────────────────────────────────────
 const USER_TTL = 5 * 60 * 1000; // 5 minutes
+
+/** @type {{ user: any; role: any; ts: number; promise: Promise<any> | null }} */
 let userCache = { user: null, role: null, ts: 0, promise: null };
 
 export async function getUserCached() {
@@ -20,12 +21,23 @@ export async function getUserCached() {
 
   userCache.promise = (async () => {
     try {
-      const user = await base44.auth.me().catch(() => null);
-      let role = null;
-      if (user?.role_id) {
-        const roles = await getRolesCached().catch(() => []);
-        role = roles.find(r => r.id === user.role_id) || null;
-      }
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) { userCache.promise = null; return { user: null, role: null }; }
+
+      // Pull profile + role definitions in parallel.
+      const [profileRes, rolesRes] = await Promise.all([
+        supabase.from("user_profiles").select("*").eq("id", authUser.id).single(),
+        supabase.from("app_settings").select("value").eq("key", "roles_definitions").maybeSingle(),
+      ]);
+      const profile = profileRes.data;
+      const roleDefs = Array.isArray(rolesRes.data?.value) ? rolesRes.data.value : [];
+      const roleName = profile?.role || "recruiter";
+      const matched = roleDefs.find((r) => r?.name === roleName);
+
+      const user = { ...authUser, ...profile, email: authUser.email };
+      const role = profile
+        ? { name: roleName, id: roleName, permissions: matched?.permissions || {} }
+        : null;
       userCache = { user, role, ts: Date.now(), promise: null };
       return { user, role };
     } catch {
@@ -46,14 +58,17 @@ export function getCachedUser() {
 
 // ─── Quick Stats cache ─────────────────────────────────────────────────────────
 const QS_TTL = 3 * 60 * 1000; // 3 minutes
+
+/** @type {{ data: any; ts: number; promise: Promise<any> | null }} */
 let qsCache = { data: null, ts: 0, promise: null };
 
+/** @param {() => Promise<any>} fetcher */
 export async function getQuickStatsCached(fetcher) {
   const now = Date.now();
   if (qsCache.data && now - qsCache.ts < QS_TTL) return qsCache.data;
   if (qsCache.promise) return qsCache.promise;
 
-  qsCache.promise = fetcher().then(data => {
+  qsCache.promise = fetcher().then(/** @param {any} data */ data => {
     qsCache = { data, ts: Date.now(), promise: null };
     return data;
   }).catch(() => {
@@ -71,8 +86,13 @@ export function invalidateQuickStatsCache() {
 const DASH_TTL = 2 * 60 * 1000; // 2 minutes
 let dashCache = {
   ts: 0,
-  candidates: [], jobs: [], companies: [],
-  applications: [], submissions: [], tasks: [], stats: null,
+  candidates: /** @type {any[]} */ ([]),
+  jobs: /** @type {any[]} */ ([]),
+  companies: /** @type {any[]} */ ([]),
+  applications: /** @type {any[]} */ ([]),
+  submissions: /** @type {any[]} */ ([]),
+  tasks: /** @type {any[]} */ ([]),
+  stats: /** @type {any} */ (null),
 };
 
 export function getDashboardCache() {
@@ -80,6 +100,7 @@ export function getDashboardCache() {
   return null;
 }
 
+/** @param {any} data */
 export function setDashboardCache(data) {
   dashCache = { ...data, ts: Date.now() };
 }

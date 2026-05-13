@@ -43,7 +43,11 @@ import {
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { Candidate } from "@/entities/Candidate";
+import { Company } from "@/entities/Company";
+import { Job } from "@/entities/Job";
+import { Submission } from "@/entities/Submission";
+import { SubmissionView } from "@/entities/SubmissionView";
 import SubmissionForm from "@/components/submissions/SubmissionForm";
 import KanbanBoard from "@/components/submissions/KanbanBoard";
 import ViewSettingsModal from "@/components/submissions/ViewSettingsModal";
@@ -91,11 +95,11 @@ function SubmissionsPageContent() {
     setLoading(true);
     try {
       const [submissionsData, candidatesData, jobsData, companiesData, viewsData] = await Promise.all([
-        base44.entities.Submission.list("-submitted_date", 200),
-        base44.entities.Candidate.list("-updated_date", 200),
-        base44.entities.Job.list("-updated_date", 100),
-        base44.entities.Company.list("-updated_date", 100),
-        base44.entities.SubmissionView.list().catch(() => [])
+        Submission.list("-submitted_date", 200),
+        Candidate.list("-updated_date", 200),
+        Job.list("-updated_date", 100),
+        Company.list("-updated_date", 100),
+        SubmissionView.list().catch(() => [])
       ]);
       
       // Filter submissions to only show past 1 month
@@ -180,7 +184,7 @@ function SubmissionsPageContent() {
       // Store old data for automation comparison
       const oldData = { ...highlightedSubmission };
       
-      await base44.entities.Submission.update(highlightedSubmission.id, highlightedChanges);
+      await Submission.update(highlightedSubmission.id, highlightedChanges);
       
       // Execute automation rules if status changed
       if (highlightedChanges.status) {
@@ -239,7 +243,7 @@ function SubmissionsPageContent() {
   const handleDeleteSubmission = async (id) => {
     if (!confirm("Are you sure you want to delete this submission?")) return;
     try {
-      await base44.entities.Submission.delete(id);
+      await Submission.delete(id);
       addNotification({ type: "success", title: "Deleted", message: "Application deleted successfully" });
       loadSubmissions();
     } catch (error) {
@@ -364,61 +368,61 @@ function SubmissionsPageContent() {
   })();
 
   return (
-    <div style={{ fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background: "#F5F5F7", minHeight: "100vh" }}>
+    <div style={{ fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
 
       {/* ── Metrics bar ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", background: "#fff", borderBottom: "1px solid #E5E5EA" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", background: "#fff", borderBottom: "1px solid #E2E8F0" }}>
         {[
-          { label: "Open Roles",        value: loading ? "—" : openRoles,      sub: "actively hiring",    valColor: "#1D1D1F" },
-          { label: "Filled This Month", value: loading ? "—" : filledThisMonth, sub: `+${filledThisMonth} vs last`, subColor: "#30A14E", valColor: "#30A14E" },
-          { label: "Avg Time to Fill",  value: loading ? "—" : (avgFillDays != null ? avgFillDays + "d" : "—"), sub: "days", valColor: "#1D1D1F" },
-          { label: "Pipeline Depth",    value: loading ? "—" : pipelineDepth,  sub: "active candidates",  valColor: "#0071E3" },
+          { label: "Open Roles",        value: loading ? "—" : openRoles,      sub: "actively hiring",    valColor: "#0F172A" },
+          { label: "Filled This Month", value: loading ? "—" : filledThisMonth, sub: `+${filledThisMonth} vs last`, subColor: "#10B981", valColor: "#10B981" },
+          { label: "Avg Time to Fill",  value: loading ? "—" : (avgFillDays != null ? avgFillDays + "d" : "—"), sub: "days", valColor: "#0F172A" },
+          { label: "Pipeline Depth",    value: loading ? "—" : pipelineDepth,  sub: "active candidates",  valColor: "#9333EA" },
         ].map((m, i) => (
-          <div key={i} style={{ padding: "22px 28px", borderRight: i < 3 ? "1px solid #E5E5EA" : "none" }}>
-            <div style={{ fontSize: 11.5, fontWeight: 500, color: "#86868B", marginBottom: 5 }}>{m.label}</div>
-            <div style={{ fontSize: 42, fontWeight: 700, letterSpacing: "-.04em", lineHeight: 1, color: m.valColor || "#1D1D1F" }}>{m.value}</div>
-            <div style={{ fontSize: 11.5, color: m.subColor || "#86868B", marginTop: 6 }}>{m.sub}</div>
+          <div key={i} style={{ padding: "22px 28px", borderRight: i < 3 ? "1px solid #E2E8F0" : "none" }}>
+            <div style={{ fontSize: 11.5, fontWeight: 500, color: "#94A3B8", marginBottom: 5 }}>{m.label}</div>
+            <div style={{ fontSize: 42, fontWeight: 700, letterSpacing: "-.04em", lineHeight: 1, color: m.valColor || "#0F172A" }}>{m.value}</div>
+            <div style={{ fontSize: 11.5, color: m.subColor || "#94A3B8", marginTop: 6 }}>{m.sub}</div>
           </div>
         ))}
       </div>
 
       {/* ── Toolbar ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 24px", background: "#fff", borderBottom: "1px solid #E5E5EA", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 24px", background: "#fff", borderBottom: "1px solid #E2E8F0", flexWrap: "wrap" }}>
         {/* View toggle */}
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#86868B", marginRight: 2 }}>View</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#94A3B8", marginRight: 2 }}>View</span>
         {["kanban","list"].map(v => (
           <button key={v} onClick={() => setViewType(v)}
-            style={{ padding: "5px 14px", borderRadius: 20, fontSize: 13, fontWeight: viewType === v ? 600 : 500, border: "none", cursor: "pointer", background: viewType === v ? "#1D1D1F" : "#fff", color: viewType === v ? "#fff" : "#6E6E73", boxShadow: viewType === v ? "none" : "0 1px 4px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)", textTransform: "capitalize" }}>
+            style={{ padding: "5px 14px", borderRadius: 20, fontSize: 13, fontWeight: viewType === v ? 600 : 500, border: "none", cursor: "pointer", background: viewType === v ? "#0F172A" : "#fff", color: viewType === v ? "#fff" : "#64748B", boxShadow: viewType === v ? "none" : "0 1px 4px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)", textTransform: "capitalize" }}>
             {v === "kanban" ? "Kanban" : "List"}
           </button>
         ))}
 
-        <div style={{ width: 1, height: 20, background: "#E5E5EA", margin: "0 4px" }} />
+        <div style={{ width: 1, height: 20, background: "#E2E8F0", margin: "0 4px" }} />
 
         {/* Status filter pills */}
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#86868B", marginRight: 2 }}>Status</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#94A3B8", marginRight: 2 }}>Status</span>
         {[{k:"all",l:"All"},{k:"submitted",l:"Submitted"},{k:"under_review",l:"Screening"},{k:"interviewing",l:"Interviewing"},{k:"offered",l:"Offer"},{k:"hired",l:"Hired"},{k:"rejected",l:"Rejected"}].map(s => (
           <button key={s.k} onClick={() => { setStatusFilter(s.k); setCurrentPage(1); }}
-            style={{ padding: "5px 13px", borderRadius: 20, fontSize: 13, fontWeight: statusFilter === s.k ? 600 : 500, border: "none", cursor: "pointer", background: statusFilter === s.k ? "#1D1D1F" : "#fff", color: statusFilter === s.k ? "#fff" : "#6E6E73", boxShadow: statusFilter === s.k ? "none" : "0 1px 4px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)", transition: "all 120ms" }}>
+            style={{ padding: "5px 13px", borderRadius: 20, fontSize: 13, fontWeight: statusFilter === s.k ? 600 : 500, border: "none", cursor: "pointer", background: statusFilter === s.k ? "#0F172A" : "#fff", color: statusFilter === s.k ? "#fff" : "#64748B", boxShadow: statusFilter === s.k ? "none" : "0 1px 4px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)", transition: "all 120ms" }}>
             {s.l}
           </button>
         ))}
 
         {/* Search */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(0,0,0,.06)", borderRadius: 10, padding: "5px 10px", marginLeft: 8 }}>
-          <Search style={{ width: 13, height: 13, color: "#86868B" }} />
+          <Search style={{ width: 13, height: 13, color: "#94A3B8" }} />
           <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search applications…"
-            style={{ border: "none", background: "transparent", outline: "none", fontSize: 13, color: "#1D1D1F", width: 160 }} />
+            style={{ border: "none", background: "transparent", outline: "none", fontSize: 13, color: "#0F172A", width: 160 }} />
         </div>
 
         {/* Right actions */}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-          <button onClick={() => loadSubmissions()} style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 500, border: "1px solid #E5E5EA", background: "#fff", color: "#6E6E73", cursor: "pointer" }}>
+          <button onClick={() => loadSubmissions()} style={{ padding: "6px 14px", borderRadius: 20, fontSize: 13, fontWeight: 500, border: "1px solid #E2E8F0", background: "#fff", color: "#64748B", cursor: "pointer" }}>
             Refresh
           </button>
           <PermissionGate entity="Submission" action="create">
             <button onClick={() => { setShowForm(true); setFormSubmission(null); setSelectedSubmission(null); setHighlightedSubmission(null); }}
-              style={{ padding: "7px 18px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "none", background: "#0071E3", color: "#fff", cursor: "pointer", boxShadow: "0 2px 8px rgba(0,113,227,.3)" }}>
+              style={{ padding: "7px 18px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "none", background: "#9333EA", color: "#fff", cursor: "pointer", boxShadow: "0 2px 8px rgba(0,113,227,.3)" }}>
               + Post Role
             </button>
           </PermissionGate>
@@ -427,19 +431,19 @@ function SubmissionsPageContent() {
 
       {/* ── Quick edit floating bar ── */}
       {highlightedSubmission && (
-        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#1D1D1F", borderRadius: 16, padding: "14px 20px", boxShadow: "0 8px 32px rgba(0,0,0,.28)", display: "flex", alignItems: "center", gap: 10, zIndex: 50, flexWrap: "wrap" }}>
+        <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", background: "#0F172A", borderRadius: 16, padding: "14px 20px", boxShadow: "0 8px 32px rgba(0,0,0,.28)", display: "flex", alignItems: "center", gap: 10, zIndex: 50, flexWrap: "wrap" }}>
           <div style={{ color: "#fff", fontSize: 13, fontWeight: 600 }}>{getHighlightedCandidateName()}</div>
           <div style={{ color: "rgba(255,255,255,.4)", fontSize: 12 }}>→ {getHighlightedJobTitle()}</div>
           <div style={{ width: 1, height: 18, background: "rgba(255,255,255,.15)" }} />
           {statusOptions.map(o => (
             <button key={o.value} onClick={() => updateHighlightedField("status", o.value)}
-              style={{ padding: "4px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: currentStatus === o.value ? "#0071E3" : "rgba(255,255,255,.12)", color: "#fff" }}>
+              style={{ padding: "4px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: currentStatus === o.value ? "#9333EA" : "rgba(255,255,255,.12)", color: "#fff" }}>
               {o.label}
             </button>
           ))}
           <div style={{ width: 1, height: 18, background: "rgba(255,255,255,.15)" }} />
           <button onClick={saveHighlightedChanges} disabled={savingHighlighted || Object.keys(highlightedChanges).length === 0}
-            style={{ padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: "#30A14E", color: "#fff", opacity: Object.keys(highlightedChanges).length === 0 ? .5 : 1 }}>
+            style={{ padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600, border: "none", cursor: "pointer", background: "#10B981", color: "#fff", opacity: Object.keys(highlightedChanges).length === 0 ? .5 : 1 }}>
             {savingHighlighted ? "Saving…" : "Save"}
           </button>
           <button onClick={closeHighlightPanel} style={{ background: "none", border: "none", color: "rgba(255,255,255,.5)", cursor: "pointer", fontSize: 16 }}>✕</button>
@@ -460,17 +464,17 @@ function SubmissionsPageContent() {
           onAddNew={() => { setShowForm(true); setFormSubmission(null); }}
         />
       ) : viewType === "list" && loading ? (
-        <div style={{ padding: 48, textAlign: "center", color: "#86868B" }}>
-          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color: "#0071E3" }} />
+        <div style={{ padding: 48, textAlign: "center", color: "#94A3B8" }}>
+          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color: "#9333EA" }} />
           <div style={{ fontSize: 13 }}>Loading applications…</div>
         </div>
       ) : viewType === "list" && paginatedSubmissions.length > 0 ? (
         <>
           <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,.07),0 0 0 .5px rgba(0,0,0,.05)", overflow: "hidden" }}>
             {/* Table header */}
-            <div style={{ display: "grid", gridTemplateColumns: "40px 1.8fr 1.4fr 120px 120px 120px 36px", padding: "9px 20px", borderBottom: "1px solid #E5E5EA", background: "#FAFAFA" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "40px 1.8fr 1.4fr 120px 120px 120px 36px", padding: "9px 20px", borderBottom: "1px solid #E2E8F0", background: "#FAFAFA" }}>
               {["", "CANDIDATE", "JOB", "STATUS", "SUBMITTED", "MATCH", ""].map((h, i) => (
-                <div key={i} style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".04em", color: "#86868B", display: "flex", alignItems: "center", gap: i === 0 ? 0 : 0 }}>
+                <div key={i} style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".04em", color: "#94A3B8", display: "flex", alignItems: "center", gap: i === 0 ? 0 : 0 }}>
                   {i === 0 ? <Checkbox checked={allVisibleSelected} onCheckedChange={c => toggleSelectAllVisible(!!c)} /> : h}
                 </div>
               ))}
@@ -481,7 +485,7 @@ function SubmissionsPageContent() {
               const job = jobs.find(j => j.id === submission.job_id);
               const company = companies.find(c => c.id === job?.company_id);
               const candName = candidate ? `${candidate.first_name} ${candidate.last_name}` : "Unknown";
-              const sb = { submitted:{bg:"rgba(59,130,246,.12)",c:"#2563EB"}, under_review:{bg:"rgba(245,158,11,.12)",c:"#D97706"}, interviewing:{bg:"rgba(139,92,246,.12)",c:"#7C3AED"}, offered:{bg:"rgba(16,185,129,.12)",c:"#059669"}, hired:{bg:"rgba(48,161,78,.12)",c:"#16A34A"}, rejected:{bg:"rgba(239,68,68,.12)",c:"#DC2626"}, withdrawn:{bg:"rgba(107,114,128,.12)",c:"#6B7280"} }[submission.status] || {bg:"rgba(0,0,0,.06)",c:"#86868B"};
+              const sb = { submitted:{bg:"rgba(59,130,246,.12)",c:"#2563EB"}, under_review:{bg:"rgba(245,158,11,.12)",c:"#D97706"}, interviewing:{bg:"rgba(139,92,246,.12)",c:"#7C3AED"}, offered:{bg:"rgba(16,185,129,.12)",c:"#059669"}, hired:{bg:"rgba(48,161,78,.12)",c:"#16A34A"}, rejected:{bg:"rgba(239,68,68,.12)",c:"#DC2626"}, withdrawn:{bg:"rgba(107,114,128,.12)",c:"#6B7280"} }[submission.status] || {bg:"rgba(0,0,0,.06)",c:"#94A3B8"};
               const avatarPalette = ["#3B82F6,#6366F1","#F59E0B,#EA580C","#8B5CF6,#7C3AED","#10B981,#059669","#EF4444,#DC2626"];
               const p = avatarPalette[(candName?.charCodeAt(0)||0) % avatarPalette.length].split(",");
               const grad = `linear-gradient(135deg,${p[0]},${p[1]})`;
@@ -498,21 +502,21 @@ function SubmissionsPageContent() {
                   <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                     <div style={{ width: 32, height: 32, borderRadius: "50%", background: grad, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{ini}</div>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13.5, fontWeight: 600, color: "#1D1D1F", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{candName}</div>
-                      <div style={{ fontSize: 11.5, color: "#86868B" }}>{candidate?.current_title || candidate?.email || "—"}</div>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: "#0F172A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{candName}</div>
+                      <div style={{ fontSize: 11.5, color: "#94A3B8" }}>{candidate?.current_title || candidate?.email || "—"}</div>
                     </div>
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: "#1D1D1F", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{job?.title || "—"}</div>
-                    <div style={{ fontSize: 11.5, color: "#86868B" }}>{company?.name || job?.hiring_manager || "—"}</div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{job?.title || "—"}</div>
+                    <div style={{ fontSize: 11.5, color: "#94A3B8" }}>{company?.name || job?.hiring_manager || "—"}</div>
                   </div>
                   <div><span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: sb.bg, color: sb.c }}>{(submission.status||"").replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase())}</span></div>
-                  <div style={{ fontSize: 12, color: "#86868B" }}>{submission.submitted_date ? new Date(submission.submitted_date).toLocaleDateString() : "—"}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: submission.match_score != null ? "#0071E3" : "#AEAEB2" }}>{submission.match_score != null ? submission.match_score : "—"}</div>
+                  <div style={{ fontSize: 12, color: "#94A3B8" }}>{submission.submitted_date ? new Date(submission.submitted_date).toLocaleDateString() : "—"}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: submission.match_score != null ? "#9333EA" : "#94A3B8" }}>{submission.match_score != null ? submission.match_score : "—"}</div>
                   <div onClick={e => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <button style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "none", cursor: "pointer", color: "#86868B" }} className="hover:bg-black/[.07]">
+                        <button style={{ width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "none", cursor: "pointer", color: "#94A3B8" }} className="hover:bg-black/[.07]">
                           <MoreVertical style={{ width: 14, height: 14 }} />
                         </button>
                       </DropdownMenuTrigger>
@@ -531,25 +535,25 @@ function SubmissionsPageContent() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, fontSize: 13, color: "#86868B" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, fontSize: 13, color: "#94A3B8" }}>
               <span>Showing {startIndex + 1}–{Math.min(startIndex + rowsPerPage, filteredAndSortedSubmissions.length)} of {filteredAndSortedSubmissions.length}</span>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <button onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1}
-                  style={{ padding: "5px 12px", borderRadius: 20, border: "1px solid #E5E5EA", background: "#fff", color: currentPage === 1 ? "#AEAEB2" : "#1D1D1F", cursor: currentPage === 1 ? "default" : "pointer", fontSize: 13 }}>← Prev</button>
+                  style={{ padding: "5px 12px", borderRadius: 20, border: "1px solid #E2E8F0", background: "#fff", color: currentPage === 1 ? "#94A3B8" : "#0F172A", cursor: currentPage === 1 ? "default" : "pointer", fontSize: 13 }}>← Prev</button>
                 <span style={{ fontSize: 12 }}>Page {currentPage} of {totalPages}</span>
                 <button onClick={() => goToPage(currentPage + 1)} disabled={currentPage >= totalPages}
-                  style={{ padding: "5px 12px", borderRadius: 20, border: "1px solid #E5E5EA", background: "#fff", color: currentPage >= totalPages ? "#AEAEB2" : "#1D1D1F", cursor: currentPage >= totalPages ? "default" : "pointer", fontSize: 13 }}>Next →</button>
+                  style={{ padding: "5px 12px", borderRadius: 20, border: "1px solid #E2E8F0", background: "#fff", color: currentPage >= totalPages ? "#94A3B8" : "#0F172A", cursor: currentPage >= totalPages ? "default" : "pointer", fontSize: 13 }}>Next →</button>
               </div>
             </div>
           )}
         </>
       ) : (
         <div style={{ padding: 60, textAlign: "center" }}>
-          <Send style={{ width: 36, height: 36, color: "#AEAEB2", margin: "0 auto 12px" }} />
-          <div style={{ fontSize: 15, fontWeight: 600, color: "#1D1D1F", marginBottom: 6 }}>No applications found</div>
-          <div style={{ fontSize: 13, color: "#86868B", marginBottom: 16 }}>{searchTerm || statusFilter !== "all" ? "Try adjusting your search or filters" : "No submissions in the past month"}</div>
+          <Send style={{ width: 36, height: 36, color: "#94A3B8", margin: "0 auto 12px" }} />
+          <div style={{ fontSize: 15, fontWeight: 600, color: "#0F172A", marginBottom: 6 }}>No applications found</div>
+          <div style={{ fontSize: 13, color: "#94A3B8", marginBottom: 16 }}>{searchTerm || statusFilter !== "all" ? "Try adjusting your search or filters" : "No submissions in the past month"}</div>
           <PermissionGate entity="Submission" action="create">
-            <button onClick={() => { setShowForm(true); setFormSubmission(null); }} style={{ padding: "8px 20px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "none", background: "#0071E3", color: "#fff", cursor: "pointer" }}>
+            <button onClick={() => { setShowForm(true); setFormSubmission(null); }} style={{ padding: "8px 20px", borderRadius: 20, fontSize: 13, fontWeight: 600, border: "none", background: "#9333EA", color: "#fff", cursor: "pointer" }}>
               + New Application
             </button>
           </PermissionGate>
@@ -594,9 +598,9 @@ function SubmissionsPageContent() {
           onSave={async (viewData) => {
             try {
               if (viewData.id) {
-                await base44.entities.SubmissionView.update(viewData.id, viewData);
+                await SubmissionView.update(viewData.id, viewData);
               } else {
-                await base44.entities.SubmissionView.create(viewData);
+                await SubmissionView.create(viewData);
               }
               loadSubmissions();
               setShowViewSettings(false);

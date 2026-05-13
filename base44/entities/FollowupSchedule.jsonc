@@ -1,0 +1,77 @@
+{
+  "name": "FollowupSchedule",
+  "type": "object",
+  "properties": {
+    "submission_id": {
+      "type": "string",
+      "description": "References the Submission this follow-up is for"
+    },
+    "recipient_email": {
+      "type": "string",
+      "description": "Email address to follow up with"
+    },
+    "thread_message_id": {
+      "type": "string",
+      "description": "RFC822 Message-ID of the original outbound email for threading"
+    },
+    "next_followup_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date when next follow-up should be sent"
+    },
+    "followup_count": {
+      "type": "number",
+      "default": 0,
+      "description": "How many follow-ups have been sent so far"
+    },
+    "last_inbound_reply_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the last inbound reply was received; if set and after last_outbound_at, stop following up"
+    },
+    "last_outbound_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the last outbound email was sent"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["scheduled", "drafted", "sent", "completed", "stopped"],
+      "default": "scheduled",
+      "description": "Current status of the follow-up schedule"
+    },
+    "cadence_days": {
+      "type": "number",
+      "default": 3,
+      "description": "Days between follow-ups"
+    },
+    "max_followups": {
+      "type": "number",
+      "default": 3,
+      "description": "Maximum number of follow-ups to send"
+    },
+    "draft_id": {
+      "type": "string",
+      "description": "Current pending EmailDraft ID when status = drafted"
+    },
+    "stop_reason": {
+      "type": "string",
+      "description": "Why the schedule was stopped (candidate_replied, manual, max_reached, etc.)"
+    }
+  },
+  "required": ["submission_id", "recipient_email"],
+  "rls": {
+    "read": {
+      "$or": [
+        { "created_by": "{{user.email}}" },
+        { "user_condition": { "role": "admin" } }
+      ]
+    },
+    "write": {
+      "$or": [
+        { "created_by": "{{user.email}}" },
+        { "user_condition": { "role": "admin" } }
+      ]
+    }
+  }
+}

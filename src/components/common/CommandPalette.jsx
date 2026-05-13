@@ -17,8 +17,9 @@ import {
   Receipt,
   Wallet
 } from "lucide-react";
-import { base44 } from "@/api/base44Client";
-
+import { Candidate } from "@/entities/Candidate";
+import { Company } from "@/entities/Company";
+import { Job } from "@/entities/Job";
 const NAVIGATION_ITEMS = [
   { title: "Dashboard", url: "Dashboard", icon: BarChart3, keywords: ["home", "overview"] },
   { title: "Candidates", url: "Candidates", icon: Users, keywords: ["talent", "people"] },
@@ -86,9 +87,9 @@ export default function CommandPalette({ open, onClose }) {
     try {
       // Search candidates, jobs, companies
       const [candidates, jobs, companies] = await Promise.all([
-        base44.entities.Candidate.list("-updated_date", 10),
-        base44.entities.Job.list("-updated_date", 10),
-        base44.entities.Company.list("-updated_date", 10)
+        Candidate.list("-updated_date", 10),
+        Job.list("-updated_date", 10),
+        Company.list("-updated_date", 10)
       ]);
 
       const candidateResults = candidates

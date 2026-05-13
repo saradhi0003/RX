@@ -4,12 +4,15 @@ import __Layout from './Layout.jsx';
 // Lazy-load all pages for code splitting
 export const PAGES = {
     "AIAgents": lazy(() => import('./pages/AIAgents')),
+    "AIRecruiter": lazy(() => import('./pages/AIRecruiter')),
     "AccessControl": lazy(() => import('./pages/AccessControl')),
+    "ApprovalQueue": lazy(() => import('./pages/ApprovalQueue')),
     "Approvals": lazy(() => import('./pages/Approvals')),
     "AutomationRules": lazy(() => import('./pages/AutomationRules')),
     "BRD": lazy(() => import('./pages/BRD')),
     "Blog": lazy(() => import('./pages/Blog')),
     "CandidateDetails": lazy(() => import('./pages/CandidateDetails')),
+    "ChannelInbox": lazy(() => import('./pages/ChannelInbox')),
     "Candidates": lazy(() => import('./pages/Candidates')),
     "Careers": lazy(() => import('./pages/Careers')),
     "Companies": lazy(() => import('./pages/Companies')),
@@ -43,8 +46,10 @@ export const PAGES = {
     "Services": lazy(() => import('./pages/Services')),
     "SkillMatrix": lazy(() => import('./pages/SkillMatrix')),
     "Submissions": lazy(() => import('./pages/Submissions')),
+    "SystemHealth": lazy(() => import('./pages/SystemHealth')),
     "TaskDetails": lazy(() => import('./pages/TaskDetails')),
     "Tasks": lazy(() => import('./pages/Tasks')),
+    "WhatsappSetup": lazy(() => import('./pages/WhatsappSetup')),
 }
 
 export const pagesConfig = {

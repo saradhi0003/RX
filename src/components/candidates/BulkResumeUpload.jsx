@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { X, Upload, CheckCircle, AlertCircle, Loader2, FileText } from "lucide-react";
-import { base44 } from "@/api/base44Client";
+import { Candidate } from "@/entities/Candidate";
+import * as Core from "@/integrations/Core";
 import { addNotification } from "@/components/notifications/NotificationToast";
 
 // Candidate schema for AI extraction
@@ -59,7 +60,7 @@ export default function BulkResumeUpload({ open, onClose, onComplete }) {
   const checkDuplicate = async (email) => {
     if (!email) return null;
     try {
-      const existing = await base44.entities.Candidate.filter({ email });
+      const existing = await Candidate.filter({ email });
       return existing && existing.length > 0 ? existing[0] : null;
     } catch (e) {
       return null;
@@ -93,7 +94,7 @@ export default function BulkResumeUpload({ open, onClose, onComplete }) {
 
         try {
           // Upload file first
-          const { file_url } = await base44.integrations.Core.UploadFile({ file });
+          const { file_url } = await Core.UploadFile({ file });
           fileResult.resumeUrl = file_url;
 
           // CRITICAL: Only PDFs support AI extraction via ExtractDataFromUploadedFile
@@ -109,7 +110,7 @@ export default function BulkResumeUpload({ open, onClose, onComplete }) {
           let extractionFailed = false;
           
           try {
-            const extractionPromise = base44.integrations.Core.ExtractDataFromUploadedFile({
+            const extractionPromise = Core.ExtractDataFromUploadedFile({
               file_url,
               json_schema: CANDIDATE_SCHEMA
             });
@@ -161,7 +162,7 @@ export default function BulkResumeUpload({ open, onClose, onComplete }) {
             source: 'bulk_upload'
           };
 
-          const newCandidate = await base44.entities.Candidate.create(candidateData);
+          const newCandidate = await Candidate.create(candidateData);
 
           fileResult.status = 'success';
           fileResult.message = `Created: ${newCandidate.first_name} ${newCandidate.last_name}`;

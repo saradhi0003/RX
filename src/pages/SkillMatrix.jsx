@@ -4,7 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { base44 } from "@/api/base44Client";
+import { Candidate } from "@/entities/Candidate";
+import { Job } from "@/entities/Job";
+import * as Core from "@/integrations/Core";
 import PageHeader from "@/components/common/PageHeader";
 import Breadcrumbs from "@/components/common/Breadcrumbs";
 import {
@@ -42,8 +44,8 @@ export default function SkillMatrix() {
     setLoading(true);
     try {
       const [jobsData, candidatesData] = await Promise.all([
-        base44.entities.Job.filter({ status: "open" }, "-created_date", 100),
-        base44.entities.Candidate.filter({ status: "active" }, "-updated_date", 300)
+        Job.filter({ status: "open" }, "-created_date", 100),
+        Candidate.filter({ status: "active" }, "-updated_date", 300)
       ]);
       setJobs(jobsData || []);
       setCandidates(candidatesData || []);
@@ -164,7 +166,7 @@ ${candidatesContext}
   }
 }`;
 
-      const response = await base44.integrations.Core.InvokeLLM({
+      const response = await Core.InvokeLLM({
         prompt,
         response_json_schema: {
           type: "object",

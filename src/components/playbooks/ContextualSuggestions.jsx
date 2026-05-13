@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { base44 } from "@/api/base44Client";
+import { Playbook } from "@/entities/Playbook";
+import * as Core from "@/integrations/Core";
 import { Sparkles, Loader2, BookOpen, ExternalLink, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -22,7 +23,7 @@ export default function ContextualSuggestions({ context, autoLoad = true }) {
 
     setLoading(true);
     try {
-      const playbooks = await base44.entities.Playbook.filter({ is_active: true });
+      const playbooks = await Playbook.filter({ is_active: true });
 
       const prompt = `You are an expert recruitment process advisor. Analyze the given context and suggest the most relevant playbooks.
 
@@ -91,7 +92,7 @@ Based on the context provided, suggest 3-5 most relevant playbooks that would he
 
 Return 3-5 suggestions, prioritized by relevance.`;
 
-      const response = await base44.integrations.Core.InvokeLLM({
+      const response = await Core.InvokeLLM({
         prompt,
         response_json_schema: {
           type: "object",
@@ -147,7 +148,7 @@ Return 3-5 suggestions, prioritized by relevance.`;
 
   const handlePlaybookClick = async (playbook) => {
     try {
-      await base44.entities.Playbook.update(playbook.id, {
+      await Playbook.update(playbook.id, {
         usage_count: (playbook.usage_count || 0) + 1,
         last_used: new Date().toISOString()
       });

@@ -15,7 +15,12 @@ import CandidateForm from "@/components/candidates/CandidateForm";
 import CandidateScreening from "@/components/ai/CandidateScreening";
 import CandidateOutreach from "@/components/ai/CandidateOutreach";
 import InterviewAssistant from "@/components/ai/InterviewAssistant";
-import { base44 } from "@/api/base44Client";
+import { Application } from "@/entities/Application";
+import { Candidate } from "@/entities/Candidate";
+import { Job } from "@/entities/Job";
+import { Resume } from "@/entities/Resume";
+import { Submission } from "@/entities/Submission";
+import { Task } from "@/entities/Task";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import ContextualSuggestions from "@/components/playbooks/ContextualSuggestions";
 
@@ -51,7 +56,7 @@ export default function CandidateDetails() {
     setError(null);
 
     try {
-      const rec = await base44.entities.Candidate.get(id);
+      const rec = await Candidate.get(id);
       
       if (!rec) {
         setError("Candidate not found");
@@ -62,11 +67,11 @@ export default function CandidateDetails() {
       setRecord(rec);
       
       const [a, s, t, r, j] = await Promise.all([
-        base44.entities.Application.filter({ candidate_id: id }, "-created_date"),
-        base44.entities.Submission.filter({ candidate_id: id }, "-created_date"),
-        base44.entities.Task.filter({ related_entity: "candidate", related_id: id }, "-created_date"),
-        base44.entities.Resume.filter({ candidate_id: id }, "-created_date"),
-        base44.entities.Job.list("-created_date", 50)
+        Application.filter({ candidate_id: id }, "-created_date"),
+        Submission.filter({ candidate_id: id }, "-created_date"),
+        Task.filter({ related_entity: "candidate", related_id: id }, "-created_date"),
+        Resume.filter({ candidate_id: id }, "-created_date"),
+        Job.list("-created_date", 50)
       ]);
       
       setApps(a || []);
@@ -94,7 +99,7 @@ export default function CandidateDetails() {
     if (!record) return;
     setSaving(true);
     try {
-      await base44.entities.Candidate.update(record.id, { 
+      await Candidate.update(record.id, { 
         status: record.status, 
         notes: record.notes 
       });
@@ -119,7 +124,7 @@ export default function CandidateDetails() {
     if (!record || record.status === val) return;
     setStatusUpdating(true);
     try {
-      await base44.entities.Candidate.update(record.id, { status: val });
+      await Candidate.update(record.id, { status: val });
       await load();
     } catch (err) {
       console.error("Error updating status:", err);
@@ -452,7 +457,7 @@ export default function CandidateDetails() {
       {showEdit && (
         <CandidateForm
           candidate={record}
-          onSave={async (data) => { await base44.entities.Candidate.update(record.id, data); setShowEdit(false); await load(); }}
+          onSave={async (data) => { await Candidate.update(record.id, data); setShowEdit(false); await load(); }}
           onCancel={() => setShowEdit(false)}
         />
       )}

@@ -78,42 +78,51 @@ button:focus-visible {
 
 @layer base {
   :root {
-    --background: 0 0% 96.1%;
-    --foreground: 0 0% 11.4%;
+    /* TalentStack brand palette */
+    --background: 0 0% 100%;            /* #FFFFFF */
+    --foreground: 222 47% 11%;          /* #0F172A slate-900 */
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --primary: 221 83% 53%;
+    --primary: 271 81% 56%;             /* #9333EA purple-600 */
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
+    --secondary: 221 83% 53%;           /* #2563EB blue-600 */
+    --secondary-foreground: 0 0% 100%;
+    --muted: 210 20% 98%;               /* #F9FAFB gray-50 */
+    --muted-foreground: 215 16% 47%;    /* #64748B slate-500 */
+    --accent: 210 40% 98%;              /* #F8FAFC slate-50 */
     --accent-foreground: 222 47% 11%;
-    --destructive: 0 72% 51%;
+    --destructive: 0 84% 60%;           /* #EF4444 red-500 */
     --destructive-foreground: 0 0% 100%;
-    --border: 214 32% 91%;
+    --border: 214 32% 91%;              /* #E2E8F0 slate-200 */
     --input: 214 32% 91%;
-    --ring: 221 83% 53%;
-    --chart-1: 221 83% 53%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 142 71% 45%;
-    --chart-4: 32 95% 44%;
-    --chart-5: 0 72% 51%;
+    --ring: 271 81% 56%;                /* purple-600 */
+    --chart-1: 271 81% 56%;             /* purple-600 */
+    --chart-2: 221 83% 53%;             /* blue-600 */
+    --chart-3: 187 81% 53%;             /* cyan-400 */
+    --chart-4: 161 84% 39%;             /* emerald-500 */
+    --chart-5: 322 81% 60%;             /* fuchsia-500 */
     --radius: 0.5rem;
     --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
     --font-ui: 'IBM Plex Sans', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono', 'Courier New', monospace;
-    --sidebar-background: 222 47% 11%;
-    --sidebar-foreground: 213 31% 91%;
-    --sidebar-primary: 221 83% 53%;
+    /* Brand tokens (raw hex for direct use in inline styles / gradients) */
+    --brand-primary: #9333EA;
+    --brand-secondary: #2563EB;
+    --brand-cyan: #22D3EE;
+    --brand-blue-deep: #1D4ED8;
+    --brand-violet: #7C3AED;
+    --brand-gradient: linear-gradient(135deg, #9333EA 0%, #2563EB 100%);
+    --brand-gradient-soft: linear-gradient(135deg, rgba(147,51,234,.08) 0%, rgba(37,99,235,.08) 100%);
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222 47% 11%;
+    --sidebar-primary: 271 81% 56%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 217 33% 20%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 215 25% 18%;
-    --sidebar-ring: 221 83% 53%;
+    --sidebar-accent: 210 20% 98%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 271 81% 56%;
   }
   .dark {
     --background: 0 0% 3.9%;
@@ -163,4 +172,30 @@ button:focus-visible {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+}
+
+/* ── TalentStack brand utilities ────────────────────────────────── */
+.gradient-bg {
+  background: var(--brand-gradient);
+}
+.gradient-text {
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.gradient-border {
+  position: relative;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    var(--brand-gradient) border-box;
+  border: 1px solid transparent;
+}
+.brand-shadow {
+  box-shadow: 0 6px 22px -8px rgba(147, 51, 234, 0.35);
+}
+.brand-ring:focus-visible {
+  outline: 2px solid #9333EA;
+  outline-offset: 2px;
 }

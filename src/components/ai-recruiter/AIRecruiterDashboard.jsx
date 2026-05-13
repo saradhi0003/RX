@@ -1,118 +1,109 @@
-import React, { useState, useEffect } from "react";
-import { base44 } from "@/api/base44Client";
+import { useState } from "react";
+import { supabase } from "@/lib/supabase";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, AlertCircle, CheckCircle, Clock } from "lucide-react";
+import { Loader2, AlertCircle, CheckCircle } from "lucide-react";
 import JobIntakePanel from "./JobIntakePanel";
 import CandidateMatchQueue from "./CandidateMatchQueue";
 import EmailDraftReview from "./EmailDraftReview";
 import RecruiterActivityTimeline from "./RecruiterActivityTimeline";
 
-export default function AIRecruiterDashboard({ user }) {
-  const [currentRun, setCurrentRun] = useState(null);
-  const [step, setStep] = useState("job"); // job | match | draft | review
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [selectedJob, setSelectedJob] = useState(null);
-  const [matches, setMatches] = useState([]);
-  const [selectedMatches, setSelectedMatches] = useState(new Set());
-  const [draft, setDraft] = useState(null);
+/**
+ * Invoke a Supabase Edge Function and return its JSON response.
+ * Using a typed helper avoids TS excess-property-check errors on FunctionInvokeOptions.
+ * @param {string} name
+ * @param {Record<string, any>} payload
+ * @returns {Promise<any>}
+ */
+async function callFn(name, payload) {
+  const { data, error } = await supabase.functions.invoke(name, { body: payload });
+  if (error) throw error;
+  return data;
+}
 
-  // Handle job parsing
-  const handleJobParsed = async (run) => {
+/** @param {{ user: any }} props */
+export default function AIRecruiterDashboard({ user }) {
+  const [currentRun, setCurrentRun]       = useState(/** @type {any}    */ (null));
+  const [step, setStep]                   = useState("job");
+  const [loading, setLoading]             = useState(false);
+  const [error, setError]                 = useState(/** @type {string|null} */ (null));
+  const [selectedJob, setSelectedJob]     = useState(/** @type {any}    */ (null));
+  const [matches, setMatches]             = useState(/** @type {any[]}  */ ([]));
+  const [selectedMatches, setSelectedMatches] = useState(new Set());
+  const [draft, setDraft]                 = useState(/** @type {any}    */ (null));
+
+  /** @param {any} run */
+  const handleJobParsed = (run) => {
     setCurrentRun(run);
     setSelectedJob(run.job);
     setStep("match");
     setError(null);
   };
 
-  // Handle matching
+  /** @param {any} job */
   const handleMatchCandidates = async (job) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await base44.functions.invoke("aiRecruiterMatchCandidates", {
+      const data = await callFn("aiRecruiterMatchCandidates", {
         job_id: job.id,
-        run_id: currentRun?.id,
+        run_id: currentRun?.id ?? null,
         max_candidates: 50,
       });
-
-      if (!response.success) {
-        setError(response.error || "Failed to match candidates");
-        return;
-      }
-
-      setMatches(response.matches || []);
+      setMatches(data.matches || []);
       setSelectedMatches(new Set());
       setStep("draft");
     } catch (err) {
-      setError(err.message);
-      console.error("Matching error:", err);
+      setError(err instanceof Error ? err.message : "Failed to match candidates");
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle draft email
+  /**
+   * @param {string} draftType
+   * @param {string} [tone]
+   */
   const handleGenerateDraft = async (draftType, tone) => {
-    if (selectedMatches.size === 0) {
-      setError("Select at least one candidate");
-      return;
-    }
-
+    if (selectedMatches.size === 0) { setError("Select at least one candidate"); return; }
     setLoading(true);
     setError(null);
     try {
-      const selectedIds = Array.from(selectedMatches);
-      const response = await base44.functions.invoke("aiRecruiterDraftEmail", {
-        run_id: currentRun?.id,
+      const data = await callFn("aiRecruiterDraftEmail", {
+        run_id: currentRun?.id ?? null,
         job_id: selectedJob.id,
-        candidate_ids: selectedIds,
+        candidate_ids: Array.from(selectedMatches),
         draft_type: draftType,
-        tone,
-        channel: "app",
+        tone: tone ?? "professional",
       });
-
-      if (!response.success) {
-        setError(response.error || "Failed to generate draft");
-        return;
-      }
-
-      setDraft(response.draft);
+      setDraft({ id: data.draft_ids?.[0], status: "draft", count: data.count });
       setStep("review");
     } catch (err) {
-      setError(err.message);
-      console.error("Draft error:", err);
+      setError(err instanceof Error ? err.message : "Failed to generate draft");
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle draft approval
+  /** @param {"approve"|"reject"} action */
   const handleApproveDraft = async (action) => {
     if (!draft) return;
-
     setLoading(true);
     setError(null);
     try {
-      const response = await base44.functions.invoke("aiRecruiterApproveDraft", {
-        draft_id: draft.id,
-        action,
-      });
-
-      if (!response.success) {
-        setError(response.error || "Failed to approve draft");
-        return;
-      }
-
-      setDraft({ ...draft, status: response.status });
-      if (action === "approve") {
-        setError(null); // Clear error on success
+      if (action === "reject") {
+        await supabase.from("email_drafts").update({ status: "rejected" }).eq("id", draft.id);
+        setDraft({ ...draft, status: "rejected" });
+      } else {
+        const data = await callFn("aiRecruiterApproveDraft", {
+          draft_id: draft.id,
+          approved_by: user?.email || "recruiter",
+        });
+        setDraft({ ...draft, status: data.sent ? "sent" : "approved" });
       }
     } catch (err) {
-      setError(err.message);
-      console.error("Approval error:", err);
+      setError(err instanceof Error ? err.message : "Failed to update draft");
     } finally {
       setLoading(false);
     }
@@ -131,45 +122,34 @@ export default function AIRecruiterDashboard({ user }) {
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-foreground mb-2">AI Recruiter Copilot</h1>
-          <p className="text-muted-foreground">Find and engage top candidates with AI assistance</p>
+          <h1 className="text-3xl font-bold text-foreground mb-1">AI Recruiter Copilot</h1>
+          <p className="text-muted-foreground text-sm">Find and engage top candidates with AI assistance</p>
         </div>
 
-        {/* Error Message */}
         {error && (
           <Card className="mb-6 bg-red-50 border-red-200 p-4">
             <div className="flex gap-3">
               <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="font-medium text-red-900">Error</h3>
+                <p className="font-medium text-red-900 text-sm">Error</p>
                 <p className="text-sm text-red-800">{error}</p>
               </div>
             </div>
           </Card>
         )}
 
-        {/* Workflow Steps */}
         <Tabs value={step} className="w-full">
           <TabsList className="grid w-full grid-cols-4 mb-6">
-            <TabsTrigger value="job" disabled={loading} className="flex items-center gap-2">
-              <span className={step === "job" ? "font-bold" : ""}>1. Job</span>
-            </TabsTrigger>
-            <TabsTrigger value="match" disabled={!selectedJob || loading} className="flex items-center gap-2">
-              <span className={step === "match" ? "font-bold" : ""}>2. Match</span>
-            </TabsTrigger>
-            <TabsTrigger value="draft" disabled={matches.length === 0 || loading} className="flex items-center gap-2">
-              <span className={step === "draft" ? "font-bold" : ""}>3. Draft</span>
-            </TabsTrigger>
-            <TabsTrigger value="review" disabled={!draft || loading} className="flex items-center gap-2">
-              <span className={step === "review" ? "font-bold" : ""}>4. Review</span>
-            </TabsTrigger>
+            <TabsTrigger value="job" disabled={loading}>1. Job</TabsTrigger>
+            <TabsTrigger value="match" disabled={!selectedJob || loading}>2. Match</TabsTrigger>
+            <TabsTrigger value="draft" disabled={matches.length === 0 || loading}>3. Draft</TabsTrigger>
+            <TabsTrigger value="review" disabled={!draft || loading}>4. Review</TabsTrigger>
           </TabsList>
 
           <TabsContent value="job" className="space-y-6">
-            <JobIntakePanel onJobParsed={handleJobParsed} loading={loading} currentRun={currentRun} />
-            {currentRun && <RecruiterActivityTimeline runId={currentRun.id} />}
+            <JobIntakePanel onJobParsed={handleJobParsed} currentRun={currentRun} />
+            {currentRun?.id && <RecruiterActivityTimeline runId={currentRun.id} />}
           </TabsContent>
 
           <TabsContent value="match" className="space-y-6">
@@ -178,11 +158,13 @@ export default function AIRecruiterDashboard({ user }) {
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-2xl font-bold">{selectedJob.title}</h2>
-                    <p className="text-muted-foreground">{selectedJob.location} • {selectedJob.employment_type}</p>
+                    <p className="text-muted-foreground text-sm">
+                      {selectedJob.location} • {selectedJob.job_type}
+                    </p>
                   </div>
                   {matches.length === 0 && (
                     <Button onClick={() => handleMatchCandidates(selectedJob)} disabled={loading}>
-                      {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                      {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                       Find Candidates
                     </Button>
                   )}
@@ -222,12 +204,17 @@ export default function AIRecruiterDashboard({ user }) {
                 />
                 {draft && (
                   <div className="flex gap-3">
-                    <Button onClick={() => handleApproveDraft("approve")} disabled={loading}>
-                      {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
-                      Approve Draft
+                    <Button
+                      onClick={() => handleApproveDraft("approve")}
+                      disabled={loading || draft.status === "approved" || draft.status === "sent"}
+                    >
+                      {loading
+                        ? <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        : <CheckCircle className="w-4 h-4 mr-2" />}
+                      Approve & Send
                     </Button>
                     <Button variant="outline" onClick={() => handleApproveDraft("reject")} disabled={loading}>
-                      Reject Draft
+                      Reject
                     </Button>
                   </div>
                 )}
@@ -236,28 +223,27 @@ export default function AIRecruiterDashboard({ user }) {
           </TabsContent>
 
           <TabsContent value="review">
-            {draft && draft.status === "approved" && (
-              <Card className="bg-green-50 border-green-200 p-6">
+            {draft && (draft.status === "approved" || draft.status === "sent") && (
+              <Card className="bg-green-50 border-green-200 p-6 mb-6">
                 <div className="flex gap-3">
                   <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0" />
                   <div>
-                    <h3 className="font-bold text-green-900">Draft Approved</h3>
-                    <p className="text-sm text-green-800 mt-1">Your email draft is ready. You can now:</p>
-                    <ul className="text-sm text-green-800 mt-2 space-y-1 ml-4 list-disc">
-                      <li>Copy and send via your preferred email client</li>
-                      <li>Create submissions for selected candidates</li>
-                      <li>Generate follow-up tasks</li>
-                      <li>View activity timeline below</li>
-                    </ul>
+                    <p className="font-bold text-green-900">
+                      {draft.status === "sent" ? "Email Sent" : "Draft Approved"}
+                    </p>
+                    <p className="text-sm text-green-800 mt-1">
+                      {(draft.count ?? 1) > 1
+                        ? `${draft.count} outreach emails have been processed.`
+                        : "Your outreach email has been processed."}
+                    </p>
                   </div>
                 </div>
               </Card>
             )}
-            {currentRun && <RecruiterActivityTimeline runId={currentRun.id} />}
+            {currentRun?.id && <RecruiterActivityTimeline runId={currentRun.id} />}
           </TabsContent>
         </Tabs>
 
-        {/* Reset Button */}
         {currentRun && (
           <div className="mt-8 pt-6 border-t flex justify-end">
             <Button variant="outline" onClick={handleReset}>
