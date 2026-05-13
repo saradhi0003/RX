@@ -304,7 +304,7 @@ export default function AIQuickActions({ open, onClose }) {
           }
           break;
 
-        case "create_candidate":
+        case "create_candidate": {
           // Check for duplicate by email before creating
           if (data.email) {
             const existing = await Candidate.filter({ 
@@ -332,8 +332,9 @@ export default function AIQuickActions({ open, onClose }) {
           window.dispatchEvent(new CustomEvent("entity:Candidate:changed"));
           setShowQuickActions(true);
           break;
+        }
 
-        case "create_job":
+        case "create_job": {
           const job = await Job.create(data);
           addNotification({
             type: "success",
@@ -343,8 +344,9 @@ export default function AIQuickActions({ open, onClose }) {
           window.dispatchEvent(new CustomEvent("entity:Job:changed"));
           setShowQuickActions(true);
           break;
+        }
 
-        case "create_company":
+        case "create_company": {
           const company = await Company.create(data);
           addNotification({
             type: "success",
@@ -354,8 +356,9 @@ export default function AIQuickActions({ open, onClose }) {
           window.dispatchEvent(new CustomEvent("entity:Company:changed"));
           setShowQuickActions(true);
           break;
+        }
 
-        case "create_task":
+        case "create_task": {
           const task = await Task.create(data);
           addNotification({
             type: "success",
@@ -365,8 +368,9 @@ export default function AIQuickActions({ open, onClose }) {
           window.dispatchEvent(new CustomEvent("entity:Task:changed"));
           setShowQuickActions(true);
           break;
+        }
 
-        case "create_timesheet":
+        case "create_timesheet": {
           const timesheet = await Timesheet.create(data);
           addNotification({
             type: "success",
@@ -376,8 +380,9 @@ export default function AIQuickActions({ open, onClose }) {
           window.dispatchEvent(new CustomEvent("entity:Timesheet:changed"));
           setShowQuickActions(true);
           break;
+        }
 
-        case "create_leave_request":
+        case "create_leave_request": {
           const leave = await LeaveRequest.create(data);
           addNotification({
             type: "success",
@@ -387,6 +392,7 @@ export default function AIQuickActions({ open, onClose }) {
           window.dispatchEvent(new CustomEvent("entity:LeaveRequest:changed"));
           setShowQuickActions(true);
           break;
+        }
 
         case "search":
           onClose();

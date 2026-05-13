@@ -124,7 +124,7 @@ export default function CandidateDetails({ candidate, onBack, onUpdate }) {
         }
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [jobOptions.length]); // Depend on jobOptions.length to trigger only if no jobs are present initially or after first load
 
   const loadAssociatedData = useCallback(async () => {

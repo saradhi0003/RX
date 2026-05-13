@@ -336,7 +336,7 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
     };
     const toNum = (v) => {
       if (v === null || v === undefined || String(v).trim() === "") return undefined;
-      const n = Number(String(v).replace(/[^0-9.\-]/g, ""));
+      const n = Number(String(v).replace(/[^0-9.-]/g, ""));
       return Number.isFinite(n) ? n : undefined;
     };
     const toArr = (v) => {

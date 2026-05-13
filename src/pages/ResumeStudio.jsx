@@ -77,7 +77,9 @@ function ScoreTab() {
       });
       const str = typeof text === "string" ? text : JSON.stringify(text);
       if (target === "jd") setJdText(str); else setResumeText(str);
-    } catch {}
+    } catch {
+      /* Preserve the original file when text extraction fails */
+    }
     setUploading(u => ({ ...u, [target]: false }));
   };
 
@@ -310,7 +312,9 @@ function SkillsLabTab() {
         temperature: 0.1, max_tokens: 300,
       });
       if (Array.isArray(skills)) setRequiredSkills(skills.slice(0, 8));
-    } catch {}
+    } catch {
+      /* Resume library refresh is best-effort */
+    }
   };
 
   const addSkill = () => {
@@ -536,7 +540,7 @@ export default function ResumeStudio() {
 
   const handleSave = async () => {
     setSaving(true);
-    try { await Resume.create({ ...data, parsed_data: data }); } catch {}
+    try { await Resume.create({ ...data, parsed_data: data }); } catch { /* Resume persistence is best-effort */ }
     setSaving(false);
   };
 

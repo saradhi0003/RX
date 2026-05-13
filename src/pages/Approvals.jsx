@@ -94,7 +94,9 @@ export default function Approvals() {
         subject: `Your leave request was ${status.replace("_"," ")}`,
         body: `Hello,\n\nYour leave request (${lr.type}) from ${lr.start_date} to ${lr.end_date} was ${status.replace("_"," ")}.\n\nRegards,\nAdmin`
       });
-    } catch (_) {}
+    } catch (_) {
+      /* email notification failures should not block approval */
+    }
     addNotification({ type: "success", title: "Updated", message: `Leave request ${status.replace("_"," ")}` });
     load();
   };
@@ -107,7 +109,9 @@ export default function Approvals() {
         subject: `Your weekly timesheet was ${status.replace("_"," ")}`,
         body: `Hello,\n\nYour timesheet for week starting ${group.week} (total ${group.hours} hours) was ${status.replace("_"," ")}.\n\nRegards,\nAdmin`
       });
-    } catch (_) {}
+    } catch (_) {
+      /* email notification failures should not block approval */
+    }
     addNotification({ type: "success", title: "Updated", message: `Timesheet ${status.replace("_"," ")}` });
     load();
   };

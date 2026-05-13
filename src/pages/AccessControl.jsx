@@ -111,7 +111,7 @@ export default function AccessControl() {
     setUsers(next);
     // Invalidate roles cache and notify other tabs/sessions
     invalidateRolesCache();
-    try { localStorage.setItem("roles_cache_bust", String(Date.now())); } catch (_) {}
+    try { localStorage.setItem("roles_cache_bust", String(Date.now())); } catch (_) { /* localStorage may be unavailable */ }
   };
 
   const handleUpdateStatus = async (u, newStatus) => {
@@ -156,7 +156,7 @@ export default function AccessControl() {
     }
     // Invalidate cache and broadcast so PermissionsContext updates immediately app-wide
     invalidateRolesCache();
-    try { localStorage.setItem("roles_cache_bust", String(Date.now())); } catch (_) {}
+    try { localStorage.setItem("roles_cache_bust", String(Date.now())); } catch (_) { /* localStorage may be unavailable */ }
   };
 
   // New handler for successful user invitation

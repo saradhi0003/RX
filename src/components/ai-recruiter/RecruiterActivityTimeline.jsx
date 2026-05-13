@@ -49,7 +49,7 @@ export default function RecruiterActivityTimeline({ runId }) {
     load();
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [runId]);
 
   if (loading) {

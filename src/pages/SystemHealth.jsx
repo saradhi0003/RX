@@ -64,7 +64,9 @@ export default function SystemHealth() {
       setDrafts(dfs.status === "fulfilled" ? dfs.value : []);
       const auditList = auditData.status === "fulfilled" ? auditData.value : [];
       setErrors(auditList.filter(a => a.action?.includes("failed") || a.action?.includes("error")));
-    } catch {}
+    } catch {
+      /* Keep partial health data visible if one source fails */
+    }
     setDataLoading(false);
   };
 

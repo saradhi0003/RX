@@ -87,7 +87,7 @@ ${JSON.stringify(ctx, null, 2)}
   useEffect(() => {
     // Auto-generate on first mount
     if (!summary) generate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   return (

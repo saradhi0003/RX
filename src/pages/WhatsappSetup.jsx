@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,8 +8,10 @@ import { InvokeFunction } from "@/integrations/Core";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import { ChannelConnection } from "@/entities/ChannelConnection";
 import { formatDistanceToNow } from "date-fns";
+import { usePermissions } from "@/components/common/PermissionsContext";
 
 export default function WhatsappSetup() {
+  const { isAdmin } = usePermissions();
   const [generating, setGenerating] = useState(false);
   const [currentCode, setCurrentCode] = useState(null);
   const [connections, setConnections] = useState([]);
@@ -18,7 +20,7 @@ export default function WhatsappSetup() {
 
   const whatsappNumber = import.meta.env.VITE_WHATSAPP_NUMBER || "+1 415 523 8886 (sandbox)";
 
-  const loadConnections = async () => {
+  const loadConnections = useCallback(async () => {
     setConnectionsLoading(true);
     try {
       const data = await ChannelConnection.filter({ channel_type: "whatsapp" }, "-created_date", 50);
@@ -27,9 +29,12 @@ export default function WhatsappSetup() {
       // no connections yet
     }
     setConnectionsLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { loadConnections(); }, []);
+  useEffect(() => {
+    if (!isAdmin) return;
+    loadConnections();
+  }, [isAdmin, loadConnections]);
 
   const generateCode = async () => {
     setGenerating(true);
@@ -71,6 +76,14 @@ export default function WhatsappSetup() {
   };
 
   const registerMessage = currentCode ? `REGISTER ${currentCode.code}` : "";
+
+  if (!isAdmin) {
+    return (
+      <div className="p-6">
+        <Card><CardContent className="p-6 text-slate-600">Admin access required.</CardContent></Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-2xl">

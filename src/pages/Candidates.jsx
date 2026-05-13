@@ -304,7 +304,7 @@ export default function Candidates() {
     try {
       if (editingCandidate) {
         await Candidate.update(editingCandidate.id, candidateData);
-        try { localStorage.setItem("candidate_cache_bust", String(Date.now())); } catch (_) {}
+        try { localStorage.setItem("candidate_cache_bust", String(Date.now())); } catch (_) { /* localStorage may be unavailable */ }
         window.dispatchEvent(new Event("candidate_cache_bust"));
         window.dispatchEvent(new CustomEvent("entity:Candidate:changed"));
         setEditingCandidate(null);
@@ -314,7 +314,7 @@ export default function Candidates() {
         return;
       }
       await Candidate.create(candidateData);
-      try { localStorage.setItem("candidate_cache_bust", String(Date.now())); } catch (_) {}
+      try { localStorage.setItem("candidate_cache_bust", String(Date.now())); } catch (_) { /* localStorage may be unavailable */ }
       window.dispatchEvent(new Event("candidate_cache_bust"));
       window.dispatchEvent(new CustomEvent("entity:Candidate:changed"));
       setShowForm(false);

@@ -67,7 +67,9 @@ export default function CommandPalette({ open, onClose }) {
       const filtered = recent.filter(r => r.id !== item.id);
       filtered.unshift(item);
       localStorage.setItem("recent_searches", JSON.stringify(filtered.slice(0, 10)));
-    } catch (e) {}
+    } catch (e) {
+      /* localStorage may be unavailable */
+    }
   };
 
   const searchAll = useCallback(async (query) => {

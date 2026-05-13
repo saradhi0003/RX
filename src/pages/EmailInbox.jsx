@@ -49,8 +49,8 @@ function detectContractType(s = "") {
 
 function extractJobIdFromSubject(subject = "") {
   const patterns = [
-    /job\s*id\s*[:\-]?\s*([a-z0-9\-_]+)/i,
-    /job[:\-]?\s*([a-z0-9\-_]+)/i,
+    /job\s*id\s*[:-]?\s*([a-z0-9\-_]+)/i,
+    /job[:-]?\s*([a-z0-9\-_]+)/i,
     /#([a-z0-9\-_]+)/i,
     /\[([a-z0-9\-_]+)\]/i
   ];

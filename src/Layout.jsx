@@ -151,8 +151,8 @@ const navGroups = [
     icon: Inbox,
     items: [
       { title: "Email Inbox", url: createPageUrl("EmailInbox"), icon: Mail },
-      { title: "Channel Inbox", url: createPageUrl("ChannelInbox"), icon: Inbox },
-      { title: "WhatsApp Setup", url: createPageUrl("WhatsappSetup"), icon: MessageCircle },
+      { title: "Channel Inbox", url: createPageUrl("ChannelInbox"), icon: Inbox, gate: "admin" },
+      { title: "WhatsApp Setup", url: createPageUrl("WhatsappSetup"), icon: MessageCircle, gate: "admin" },
       { title: "Email Settings", url: createPageUrl("EmailSettings"), icon: Mail },
     ],
   },
@@ -198,6 +198,7 @@ function visibleItems(group, { isAdmin, can }) {
   if (group.gate === "admin" && !isAdmin) return [];
   return group.items.filter(it => {
     if (!it.gate) return true;
+    if (it.gate === "admin") return isAdmin;
     return can(it.gate, "view");
   });
 }
@@ -482,7 +483,7 @@ export default function Layout({ children, currentPageName }) {
     setSidebarCollapsed(prev => {
       const next = !prev;
       if (sidebarPinned) {
-        try { localStorage.setItem("sidebar_collapsed", JSON.stringify(next)); } catch {}
+        try { localStorage.setItem("sidebar_collapsed", JSON.stringify(next)); } catch { /* localStorage may be unavailable */ }
       }
       return next;
     });
@@ -491,7 +492,7 @@ export default function Layout({ children, currentPageName }) {
   const togglePin = React.useCallback(() => {
     setSidebarPinned(prev => {
       const next = !prev;
-      try { localStorage.setItem("sidebar_pinned", JSON.stringify(next)); } catch {}
+      try { localStorage.setItem("sidebar_pinned", JSON.stringify(next)); } catch { /* localStorage may be unavailable */ }
       return next;
     });
   }, []);
@@ -774,7 +775,7 @@ export default function Layout({ children, currentPageName }) {
         };
         await Role.update(rec.id, { permissions: perms });
         invalidateRolesCache();
-        try { localStorage.setItem("roles_cache_bust", String(Date.now())); } catch {}
+        try { localStorage.setItem("roles_cache_bust", String(Date.now())); } catch { /* localStorage may be unavailable */ }
       } catch (e) {
         console.warn("Recruiter permission patch failed:", e);
       }

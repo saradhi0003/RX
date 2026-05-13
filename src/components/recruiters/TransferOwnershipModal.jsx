@@ -54,7 +54,7 @@ export default function TransferOwnershipModal({
       setLoadingCounts(false);
     };
     load();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [open, recruiter?.id]);
 
   useEffect(() => {

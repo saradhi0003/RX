@@ -252,7 +252,7 @@ ${JSON.stringify(summaryContext, null, 2)}
 
   useEffect(() => {
     generateAISummary();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const saveSubmission = async () => {

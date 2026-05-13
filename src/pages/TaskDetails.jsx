@@ -33,7 +33,9 @@ export default function TaskDetails() {
         if (t.related_entity === "candidate") rel = await Candidate.get(t.related_id);
         else if (t.related_entity === "job") rel = await Job.get(t.related_id);
         else if (t.related_entity === "company") rel = await Company.get(t.related_id);
-      } catch (_) {}
+      } catch (_) {
+        /* Related record lookup is best-effort */
+      }
     }
     setRelatedRec(rel);
     setLoading(false);

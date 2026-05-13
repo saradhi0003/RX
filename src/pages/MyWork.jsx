@@ -72,7 +72,9 @@ export default function MyWork() {
     if (!adminEmails.length) return;
     try {
       await sendAppEmail({ to: adminEmails[0], subject, body });
-    } catch (_) {}
+    } catch (_) {
+      /* Optional recruiter data should not block the page */
+    }
   };
 
   const submitLeave = async (payload) => {

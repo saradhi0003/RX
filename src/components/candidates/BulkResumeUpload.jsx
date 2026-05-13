@@ -220,7 +220,7 @@ export default function BulkResumeUpload({ open, onClose, onComplete }) {
       });
     }
 
-    try { localStorage.setItem("candidate_cache_bust", String(Date.now())); } catch (_) {}
+    try { localStorage.setItem("candidate_cache_bust", String(Date.now())); } catch (_) { /* localStorage may be unavailable */ }
     window.dispatchEvent(new Event("candidate_cache_bust"));
     window.dispatchEvent(new CustomEvent("entity:Candidate:changed"));
 

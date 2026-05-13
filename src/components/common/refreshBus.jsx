@@ -4,14 +4,18 @@ export function emitEntityChanged(entity) {
   try {
     window.dispatchEvent(new CustomEvent("entity:changed", { detail: { entity } }));
     window.dispatchEvent(new CustomEvent(`entity:${entity}:changed`));
-  } catch {}
+  } catch {
+    /* CustomEvent may be unavailable in non-browser contexts */
+  }
 }
 
 export function requestEntityRefresh(entity) {
   try {
     window.dispatchEvent(new CustomEvent("entity:refresh", { detail: { entity } }));
     window.dispatchEvent(new CustomEvent(`entity:${entity}:refresh`));
-  } catch {}
+  } catch {
+    /* CustomEvent may be unavailable in non-browser contexts */
+  }
 }
 
 export function useEntityAutoRefresh(entity, reloadFn) {

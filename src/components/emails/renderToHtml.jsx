@@ -13,9 +13,10 @@ const renderBlock = (block) => {
       return `<div style="${blockStyles.text}">${block.content.replace(/\n/g, '<br/>')}</div>`;
     case 'image':
       return `<div style="${blockStyles.image}"><img src="${block.src}" alt="${block.alt || 'Email Image'}" style="max-width: 100%; height: auto; border-radius: 8px;" /></div>`;
-    case 'button':
+    case 'button': {
       const buttonStyle = `display: inline-block; padding: 12px 24px; font-family: Arial, sans-serif; font-size: 16px; color: #fff; background-color: ${block.color || '#007bff'}; text-decoration: none; border-radius: 5px;`;
       return `<div style="${blockStyles.button}"><a href="${block.url}" style="${buttonStyle}">${block.text}</a></div>`;
+    }
     case 'spacer':
       return `<div style="${blockStyles.spacer} height: ${block.height || 20}px;"></div>`;
     case 'header':

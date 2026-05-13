@@ -9,11 +9,14 @@ import MessageList from "@/components/channel-inbox/MessageList";
 import MessageDetail from "@/components/channel-inbox/MessageDetail";
 import ChannelConnectionsModal from "@/components/channel-inbox/ChannelConnectionsModal";
 import { InvokeFunction } from "@/integrations/Core";
+import { usePermissions } from "@/components/common/PermissionsContext";
+import { Card, CardContent } from "@/components/ui/card";
 
 const PAGE_SIZE = 50;
 const POLL_INTERVAL_MS = 30000;
 
 export default function ChannelInbox() {
+  const { isAdmin } = usePermissions();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -35,10 +38,19 @@ export default function ChannelInbox() {
   }, []);
 
   useEffect(() => {
+    if (!isAdmin) return;
     loadMessages();
     pollRef.current = setInterval(() => loadMessages(true), POLL_INTERVAL_MS);
     return () => clearInterval(pollRef.current);
-  }, [loadMessages]);
+  }, [isAdmin, loadMessages]);
+
+  if (!isAdmin) {
+    return (
+      <div className="p-6">
+        <Card><CardContent className="p-6 text-slate-600">Admin access required.</CardContent></Card>
+      </div>
+    );
+  }
 
   const filtered = messages.filter(msg => {
     if (channelFilter !== "all" && msg.channel_type !== channelFilter) return false;
