@@ -23,22 +23,15 @@ export default function Register() {
     setError("");
     if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
     setLoading(true);
-    const { data, error: err } = await supabase.auth.signUp({
+    const { error: err } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: fullName } },
     });
     if (err) { setError(err.message); setLoading(false); return; }
 
-    // Create user_profiles row (admin = first user)
-    if (data?.user) {
-      await supabase.from("user_profiles").upsert({
-        id: data.user.id,
-        email,
-        full_name: fullName,
-        role: "admin",
-      });
-    }
+    // The user_profiles row is created in step 1 — it requires a workspace_id
+    // (NOT NULL since migration 012), and the workspace name is collected next.
     setLoading(false);
     setStep(1);
   };
@@ -47,14 +40,36 @@ export default function Register() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    // Store workspace name in app_settings
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      await supabase.from("app_settings").upsert({ key: "workspace_name", value: workspace });
-      await supabase.from("user_profiles").update({ workspace_id: workspace }).eq("id", user.id);
+      // 1. Create the workspace. Use a client-side id so we never have to read
+      //    the row back through RLS (the profile doesn't exist yet, so
+      //    auth_workspace_id() is still null and would hide an insert-returning).
+      const workspaceId = crypto.randomUUID();
+      const { error: wsErr } = await supabase
+        .from("workspaces")
+        .insert({ id: workspaceId, name: workspace || "My Workspace" });
+      if (wsErr) { setError(wsErr.message); setLoading(false); return; }
+
+      // 2. Create the user's profile in that workspace (admin = first user).
+      const { error: pErr } = await supabase.from("user_profiles").upsert({
+        id: user.id,
+        email: user.email,
+        full_name: fullName,
+        role: "admin",
+        workspace_id: workspaceId,
+      });
+      if (pErr) { setError(pErr.message); setLoading(false); return; }
+
+      // 3. Store the workspace name as a workspace-scoped setting
+      //    (the BEFORE INSERT trigger stamps workspace_id automatically).
+      await supabase
+        .from("app_settings")
+        .upsert({ key: "workspace_name", value: workspace }, { onConflict: "workspace_id,key" });
+
+      // 4. Seed a default AI recruiter settings row.
+      await supabase.from("ai_recruiter_settings").upsert({ id: crypto.randomUUID() }).select();
     }
-    // Seed default AI recruiter settings row
-    await supabase.from("ai_recruiter_settings").upsert({ id: crypto.randomUUID() }).select();
     setLoading(false);
     setDone(true);
     setStep(2);
