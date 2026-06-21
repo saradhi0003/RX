@@ -33,12 +33,13 @@
 21. [Enterprise Features (v2.1)](#21-enterprise-features-v21)
 22. [Production Deployment Checklist](#22-production-deployment-checklist)
 23. [Base44 → Supabase Migration Status](#23-base44--supabase-migration-status)
-24. [Vercel Deployment Plan](#24-vercel-deployment-plan)
+24. [Vercel Deployment (LIVE)](#24-vercel-deployment-live)
 25. [Browser Extension (Planned)](#25-browser-extension-planned)
 26. [Brand System (TalentStack)](#26-brand-system-talentstack)
 27. [Video Calls — LiveKit + Recording + Whisper](#27-video-calls--livekit--recording--whisper)
 28. [Bookings — Scheduling + Auto-Generated Rooms](#28-bookings--scheduling--auto-generated-rooms)
 29. [Phase 1 Cleanup (2026-05-13)](#29-phase-1-cleanup-2026-05-13)
+30. [Configuration & Core Files Reference](#30-configuration--core-files-reference)
 
 ---
 
@@ -1743,7 +1744,13 @@ It also remaps foreign keys: `companies.id (old) → uuid (new)`, then resolves 
 
 ---
 
-## 24. Vercel Deployment Plan
+## 24. Vercel Deployment (LIVE)
+
+> **Status (2026-06-21): deployed and live at `https://rx-self.vercel.app`.**
+> Repo `github.com/saradhi0003/RX` → Vercel project `rx` (account `saradhi0003`,
+> Hobby plan). Production environment tracks the `main` branch; every push to
+> `main` auto-triggers a build. The sections below reflect the *actual* shipped
+> configuration, followed by the troubleshooting log from first launch.
 
 ### Stack split
 
@@ -1752,57 +1759,112 @@ It also remaps foreign keys: `companies.id (old) → uuid (new)`, then resolves 
 - **Bot services** (Telegram, Slack, WhatsApp) → stays on Railway
 - **Scheduled cron** → Vercel Cron triggers `scheduledFollowupRun` Edge Function
 
-### `vercel.json` (to be created)
+### `vercel.json` (shipped)
+
+The actual deployed config — note it differs from the original plan: **no `crons`
+block** (the daily follow-up still runs as a Supabase-side cron, not Vercel), a
+**tightened SPA rewrite** that excludes real asset paths, and a **security-headers
+block** that the plan didn't have.
 
 ```jsonc
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "installCommand": "npm install",
+  "framework": "vite",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    // SPA fallback, but DON'T rewrite /api/*, /assets/*, favicon, or any path
+    // containing a file extension (.js/.css/.png…) — those must serve the real file.
+    { "source": "/((?!api/|assets/|favicon|.*\\..*).*)", "destination": "/index.html" }
   ],
-  "crons": [
-    {
-      "path": "/api/cron/scheduled-followup",
-      "schedule": "0 9 * * *"
-    }
+  "headers": [
+    // Immutable 1-year cache for content-hashed build assets.
+    { "source": "/assets/(.*)", "headers": [
+      { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" } ] },
+    // Baseline security headers on every response.
+    { "source": "/(.*)", "headers": [
+      { "key": "X-Frame-Options",        "value": "DENY" },
+      { "key": "X-Content-Type-Options", "value": "nosniff" },
+      { "key": "Referrer-Policy",        "value": "strict-origin-when-cross-origin" },
+      { "key": "Permissions-Policy",     "value": "camera=(self), microphone=(self), display-capture=(self), geolocation=()" } ] }
   ]
 }
 ```
 
-SPA rewrite is required because react-router uses BrowserRouter; any deep link (`/Candidates?q=foo`) must serve `index.html`. The cron entry is a thin Vercel serverless function that POSTs to the Supabase Edge Function with `CRON_SECRET`.
+The SPA rewrite regex `/((?!api/|assets/|favicon|.*\..*).*)` is required because
+react-router uses `BrowserRouter`; any deep link (`/candidates?q=foo`) must serve
+`index.html`, while real files must not be swallowed by the fallback.
 
-### Environment variables to set in Vercel
+> ✅ **P0-2 (2026-06-21):** `Permissions-Policy` now grants `camera=(self)`,
+> `microphone=(self)`, and `display-capture=(self)` so the **VideoCall** page
+> (and its screen-recording toolbar) work on the live domain. `geolocation=()`
+> stays disabled.
 
-| Variable | Source |
-|----------|--------|
-| `VITE_SUPABASE_URL` | Supabase Settings → API |
-| `VITE_SUPABASE_ANON_KEY` | Supabase Settings → API |
-| `VITE_LLM_PROVIDER` | `openai` or `anthropic` |
-| `VITE_OPENAI_API_KEY` | OpenAI dashboard *(scope: read-only project key)* |
-| `VITE_ANTHROPIC_API_KEY` | Anthropic console |
-| `VITE_OLLAMA_BASE_URL` | omit in prod (browser → localhost won't work) |
-| `VITE_APP_NAME` | `Recruiter X` |
-| `VITE_APP_URL` | The Vercel deployment URL |
-| `VITE_WHATSAPP_NUMBER` | Twilio number |
-| `CRON_SECRET` | random 32-byte hex — also set in Supabase Edge Function secrets |
+### Environment variables actually set in Vercel (Production)
 
-### Custom domain
+Only the two Supabase vars are required for the app to connect; the rest are
+optional / for features wired later.
 
-After deploy, point `app.talentstack.org` (or chosen subdomain) at Vercel via CNAME. Update `VITE_APP_URL` and Supabase Auth → URL Configuration → Site URL.
+| Variable | Value / Source | Required? |
+|----------|----------------|-----------|
+| `VITE_SUPABASE_URL` | `https://bwjfglerixssibenkjse.supabase.co` | ✅ yes |
+| `VITE_SUPABASE_ANON_KEY` | `sb_publishable_…` (new-format key, **not** a legacy `eyJ…` JWT) | ✅ yes |
+| `VITE_LIVEKIT_URL` | `wss://<project>.livekit.cloud` | for video |
+| `VITE_LLM_PROVIDER` | `openai` or `anthropic` | optional |
+| `VITE_APP_URL` | `https://rx-self.vercel.app` | optional |
 
-### Deploy steps (user runs these)
+> **Key-format gotcha:** this Supabase project issues the **new publishable key
+> format** (`sb_publishable_…`, ~46 chars), not the legacy `eyJ…` JWT. The in-app
+> "Supabase not connected" hint text says `eyJ…` — that is generic placeholder
+> copy, ignore it. Paste the `sb_publishable_…` value verbatim (no quotes/spaces).
+> Vite **inlines** these at *build* time, so changing an env var requires a
+> **redeploy** (Deployments → ⋯ → Redeploy) — it does not hot-apply.
 
-1. Push the repo to GitHub
-2. Connect repo to Vercel via dashboard → Import Project
-3. Vercel auto-detects Vite; verify framework + build command
-4. Paste env vars from the table above into Vercel → Project → Settings → Environment Variables
-5. Deploy → verify the build, then check `/Login` works against Supabase
-6. Add custom domain → wait for TLS cert
-7. Smoke test: log in, navigate, open a Candidate detail, verify right panel renders
+### How the deploy actually went (2026-06-21)
+
+1. **Pushed local work to GitHub.** ~110 uncommitted files (video, bookings,
+   migrations 010/011, livekit functions, Phase-1 cleanup) were committed and
+   pushed to `main` — the repo had been stuck on the May 13 commit.
+2. **First Vercel build failed:** `Rollup failed to resolve import
+   "@livekit/components-styles" from src/pages/VideoCall.jsx`. Cause: the LiveKit
+   packages were declared only in the **root** `RX2/package.json`; Vercel builds
+   from the `recruiter-x1` repo alone (no parent `node_modules` to hoist from).
+   **Fix:** added `@livekit/components-react`, `@livekit/components-styles`, and
+   `livekit-client` to `recruiter-x1/package.json` + lockfile, verified
+   `npm run build` locally, pushed. Build went green.
+3. **Supabase env vars** added in Vercel → Settings → Environments → Production.
+   Verified by `curl`-ing the live bundle and grepping the baked-in values —
+   `https://bwjfglerixssibenkjse.supabase.co` and the `sb_publishable_…` key were
+   present, confirming the build picked them up.
+
+### Troubleshooting log — "empty rows" on `/candidates`
+
+Symptom: data shows on localhost, but `/candidates` is empty in production even
+though the build is correct. Root-caused via the data path:
+
+- The entity layer ([src/lib/entityFactory.js](src/lib/entityFactory.js)) does a
+  plain `supabase.from("candidates").select("*")` — **no app-level org/user
+  filter.** Visibility is 100% governed by RLS.
+- The candidates RLS policy is `authenticated_all` =
+  `USING (auth.uid() IS NOT NULL)` ([002_rls_policies.sql](supabase/migrations/002_rls_policies.sql)).
+  A logged-**out** request therefore returns **HTTP 200 with `[]`** — empty, *not*
+  an error. Confirmed by `curl`-ing the REST endpoint with the anon key (no user
+  JWT): `GET /rest/v1/candidates → 200 []`.
+- **Conclusion:** sessions are stored per-origin in the browser. The valid session
+  exists for `localhost:5173`; `rx-self.vercel.app` is a different origin with no
+  session → treated as logged-out → empty list. **Fix: actually log in on the
+  production domain** (same email/password, or a demo account — the policy isn't
+  org-scoped, so any authenticated user sees all rows).
+- **Secondary risk:** free-tier Supabase projects **auto-pause after ~7 days idle**.
+  A paused DB makes every page empty/erroring regardless of auth. Restore via
+  Supabase Dashboard → project → "Restore project" (data is preserved; no redeploy
+  needed). _As of 2026-06-21 a restore request was open with Supabase support._
+
+### Custom domain (planned)
+
+Point `app.talentstack.org` at Vercel via CNAME. Update `VITE_APP_URL` and
+**Supabase Auth → URL Configuration → Site URL + Redirect URLs** to include the
+live origin (otherwise magic-link / OAuth session redirects break on the domain).
 
 ---
 
@@ -2136,4 +2198,74 @@ Code-quality sweep alongside the Phase 1 features:
 
 ---
 
-*Architecture document — Recruiter X v2.3 (Video + Bookings Edition) — Supabase backend · Tri-provider LLM with fallback + streaming + cost tracking · LLM keys server-side via llmProxy Edge Function · LiveKit video calls + screen recording + Whisper transcripts + GPT-4o-mini post-call summaries · React Big Calendar scheduling with auto-generated rooms · HubSpot-style rail + flyout nav · TalentStack brand · 52 pages · 46 entities · 6,920 records migrated · Vercel deploy + MV3 browser extension planned*
+## 30. Configuration & Core Files Reference
+
+A file-by-file explanation of every `.json` and the load-bearing `.js`/`.jsx`
+files outside of the page/component trees. (UI primitives under
+`src/components/ui/` are vendored shadcn and not listed individually.)
+
+### 30.1 Root `.json` files
+
+| File | What it does |
+|---|---|
+| **`package.json`** | npm manifest. `"type": "module"` (ESM). Scripts: `dev` (vite), `build` (`vite build`), `lint`, `typecheck` (`tsc -p ./jsconfig.json`), `preview`, `import:data[:dry]` (CSV importer), `audit:features`, `test:smoke[:headed]` (Playwright). Deps include React 18, react-router 7, @supabase/supabase-js, @tanstack/react-query, Radix UI set, framer-motion, recharts, react-big-calendar, the **@livekit/** trio (added 2026-06-21 so Vercel resolves the video imports), `@anthropic-ai/sdk` + `openai` (dev/direct LLM mode). |
+| **`package-lock.json`** | npm lockfile — exact resolved dependency tree. Committed so Vercel/CI install reproducibly. Regenerated by `npm install`. |
+| **`vercel.json`** | Vercel build + routing + headers. See §24 for the full annotated copy: Vite framework, `dist` output, SPA rewrite that excludes asset paths, immutable cache for `/assets/*`, and baseline security headers. |
+| **`jsconfig.json`** | JS/TS language-service + `tsc` typecheck config. `baseUrl: "."` with path alias `@/* → ./src/*`. `checkJs: true` enables type-checking of plain JS via JSDoc. `include` is narrow (components/pages/Layout); `exclude` skips `ui`, `api`, `lib` to keep the typecheck signal clean. |
+| **`components.json`** | shadcn/ui generator config. `style: "new-york"`, `tsx: false` (this project is JSX-not-TSX), Tailwind config + `src/index.css`, `baseColor: neutral`, CSS-variable theming on, lucide icon library, and the `@/` import aliases the CLI uses when it scaffolds a component. |
+
+> `.env.local` (gitignored) holds the real secrets; `.env.example` is the
+> committed template. See §24 for the production env-var table.
+
+### 30.2 Root `.js` config files (build/tooling)
+
+| File | What it does |
+|---|---|
+| **`vite.config.js`** | Vite config. Registers `@vitejs/plugin-react` (Fast Refresh + JSX transform) and the single resolve alias `@ → ./src`. Deliberately minimal — no custom `build.rollupOptions`, so dependency resolution must come from `package.json` (this is why the missing LiveKit dep broke the build; see §24). |
+| **`tailwind.config.js`** | Tailwind v3 config (CommonJS `module.exports`). `darkMode: ["class"]`, content globs over `index.html` + `src/**`. Theme extends fonts (`display`/`ui`/`mono` CSS vars), radii, and the full **HSL-variable color system** (background, primary, secondary, muted, accent, destructive, chart-1..5, sidebar-*) wired to CSS custom properties — this is the mechanism behind the TalentStack brand theming (§9.1, §26). Accordion keyframes + `tailwindcss-animate` plugin. |
+| **`postcss.config.js`** | PostCSS pipeline: `tailwindcss` then `autoprefixer`. Standard, no custom plugins. |
+| **`eslint.config.js`** | ESLint flat config. Lints only `src/components`, `src/pages`, `src/Layout.jsx` (browser globals). Extends JS + React recommended, React-Hooks rules. Notably **`no-unused-vars: off`** and **`react/prop-types: off`** (intentional for this codebase), `react/react-in-jsx-scope: off` (React 18 transform), and a `no-unknown-property` allowlist for `cmdk`/`toast` custom attrs. |
+| **`playwright.config.js`** | Smoke-test runner. `testDir: ./tests/smoke`, `globalSetup` does auth, **serial** (`fullyParallel:false`, 1 worker — dev server is single-tenant), 60 s timeout (pages make AI calls), baseURL `RX_TEST_URL` or `http://localhost:5175`, chromium only, `webServer: undefined` (assumes a dev server is already running). |
+
+### 30.3 App entry & routing (`src/`)
+
+| File | What it does |
+|---|---|
+| **`src/main.jsx`** | ReactDOM entry. Mounts `<App/>` into `#root`, imports `index.css`. StrictMode is commented out. Includes a Vite HMR bridge that `postMessage`s `sandbox:before/afterUpdate` to a parent frame (preview/sandbox host integration). |
+| **`src/App.jsx`** | Root component. Wraps the tree in `AuthProvider → QueryClientProvider → BrowserRouter`. Defines `PrivateRoute` (redirect to `/Login` if unauthenticated) and `PublicRoute` (redirect authed users to `/Dashboard`). Auth pages (`/Login`, `/Register`, `/Onboarding`) render outside the Layout; all other pages from `pages.config` render lazily inside `<Layout>` under a `<Suspense>` loader. Also mounts `NavigationTracker`, `Toaster`, `VisualEditAgent`. |
+| **`src/Layout.jsx`** | The app shell — HubSpot-style icon rail + flyout nav, top bar, command palette, keyboard shortcuts. Full treatment in §9.2. |
+| **`src/pages.config.js`** | The page registry. `PAGES` maps route name → `lazy(() => import('./pages/X'))` for **every** page (code-splitting; see §9.7, §10). Consumed by `App.jsx` to generate routes and by the nav to know what exists. Adding a page = add one line here. |
+
+### 30.4 Data & integration layer (`src/lib/`, `src/api/`, `src/entities/`)
+
+| File | What it does |
+|---|---|
+| **`src/lib/supabase.js`** | Creates and exports the singleton Supabase client from `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`. Exports `isSupabaseConfigured` (the flag behind the "not connected" banner) and a placeholder fallback so the app still mounts without env. `persistSession + autoRefreshToken + detectSessionInUrl` all on. |
+| **`src/lib/entityFactory.js`** | `createEntity(tableName)` → `{ list, filter, get, create, update, delete }`. A Base44-SDK-compatible shim over Supabase: translates Base44 `-field` sort + `{$gt,$in,$like,$or}` filter objects into Supabase query calls, and aliases `created_at → created_date` so legacy JSX keeps working. **No org/user filtering — visibility is pure RLS** (see §24 troubleshooting). Every entity is one line on top of this. |
+| **`src/lib/llm.js`** | Provider-agnostic LLM abstraction (`invokeLLM`, `invokeLLMJson`, `invokeLLMStream`). Defaults to routing through the Supabase `llmProxy` Edge Function so keys stay server-side; `VITE_LLM_DIRECT=true` enables dev-only direct browser calls. Adds fallback chain, streaming, and `llm_usage` cost logging. Full detail in §6. |
+| **`src/lib/query-client.js`** | The shared `@tanstack/react-query` `QueryClient` singleton. Tuned defaults: `refetchOnWindowFocus: false`, `retry: 1`. |
+| **`src/lib/appCache.js`** | Module-level singleton in-memory cache — the single source of truth for current user, roles, quick stats, dashboard data. Survives React navigation (not a hook/context). |
+| **`src/lib/userCache.js`** | Thin backwards-compat re-export of the user helpers (`getUserCached`, `invalidateUserCache`, `getCachedUser`) from `appCache.js`. |
+| **`src/lib/dashboardCache.js`** | Thin backwards-compat re-export of the dashboard helpers from `appCache.js`. |
+| **`src/lib/app-params.js`** | localStorage-backed app parameter/preference store with snake_case key normalization; Node-safe (falls back to a Map when `window` is undefined, e.g. during scripts/tests). |
+| **`src/lib/utils.js`** | The ubiquitous `cn(...)` helper — `clsx` + `tailwind-merge` for conditional/merged class names. Imported by virtually every component. |
+| **`src/api/entities.js`** | Backwards-compat barrel: `export * from "@/entities/all"` plus `User`. Lets older imports (`@/api/entities`) keep resolving after the entity refactor. |
+| **`src/api/integrations.js`** | Backwards-compat barrel re-exporting the Base44-style integration surface (`Core, InvokeLLM, SendEmail, SendSMS, UploadFile, GenerateImage, ExtractDataFromUploadedFile`) from `@/integrations/Core`. |
+| **`src/entities/*.js`** | One-liners: `export const X = createEntity("table")`. New this phase: **`Booking.js`** → `bookings` table (§28). `src/entities/all.js` re-exports them; `User.js` is special-cased (auth-bound). |
+
+### 30.5 Build/maintenance scripts (`scripts/`)
+
+All are Node ESM, run ad-hoc (not part of the build).
+
+| File | What it does |
+|---|---|
+| **`scripts/import-csv-data.js`** | The production data importer (`npm run import:data`, `:dry` for a no-write dry run). Reads CSVs from `data-import/` and upserts into Supabase. Backs the 6,920-record migration (§23). |
+| **`scripts/feature-audit.js`** | `npm run audit:features` — static inventory/sanity sweep of pages/entities/features for the readiness docs. |
+| **`scripts/drop-unused-react-imports.js`** | One-off codemod (Phase-1 cleanup, §29) that stripped the now-unnecessary `React` default import from 86 `.jsx` files. Only rewrites files with zero `React.`/bare-`React` references. |
+| **`scripts/dedupe-entity-imports.js`** | Codemod that de-duplicated entity import statements during the entity refactor. |
+| **`scripts/disconnect-base44.js`** | Migration helper for the planned Base44 → Supabase cutover (§23) — finds/cleans remaining Base44 SDK references. |
+| **`scripts/deploy-livekit.sh`** | Convenience shell script to deploy the LiveKit Edge Functions + set the required Supabase secrets (§27.5). |
+
+---
+
+*Architecture document — Recruiter X v2.3 (Video + Bookings Edition) — Supabase backend · Tri-provider LLM with fallback + streaming + cost tracking · LLM keys server-side via llmProxy Edge Function · LiveKit video calls + screen recording + Whisper transcripts + GPT-4o-mini post-call summaries · React Big Calendar scheduling with auto-generated rooms · HubSpot-style rail + flyout nav · TalentStack brand · 52 pages · 46 entities · 6,920 records migrated · **LIVE on Vercel at rx-self.vercel.app** · MV3 browser extension planned · last updated 2026-06-21*
