@@ -1,10 +1,10 @@
 # Recruiter X — Complete Application Architecture
 
-> Updated: 2026-05-12  
-> Version: 2.2 — TalentStack Edition  
-> Stack: Supabase · React 18 · Vite 6 · Tailwind CSS · shadcn/ui · OpenAI · Anthropic Claude · Ollama  
+> Updated: 2026-05-13  
+> Version: 2.3 — Video + Bookings Edition  
+> Stack: Supabase · React 18 · Vite 6 · Tailwind CSS · shadcn/ui · OpenAI · Anthropic Claude · Ollama · LiveKit · React Big Calendar  
 > Brand: TalentStack (talentstack.org) — purple `#9333EA` primary, blue `#2563EB` secondary  
-> Status: Production-ready frontend · Supabase migration ~90% complete (49 Base44 call sites pending) · Vercel deployment planned · MV3 browser extension planned
+> Status: Base44 fully disconnected · LLM keys server-side via `llmProxy` Edge Function · Video calls (LiveKit) + post-call Whisper transcripts + GPT-4o-mini summaries shipping · Scheduling (React Big Calendar) ships · Vercel deployment planned · MV3 browser extension planned
 
 ---
 
@@ -36,6 +36,9 @@
 24. [Vercel Deployment Plan](#24-vercel-deployment-plan)
 25. [Browser Extension (Planned)](#25-browser-extension-planned)
 26. [Brand System (TalentStack)](#26-brand-system-talentstack)
+27. [Video Calls — LiveKit + Recording + Whisper](#27-video-calls--livekit--recording--whisper)
+28. [Bookings — Scheduling + Auto-Generated Rooms](#28-bookings--scheduling--auto-generated-rooms)
+29. [Phase 1 Cleanup (2026-05-13)](#29-phase-1-cleanup-2026-05-13)
 
 ---
 
@@ -1971,4 +1974,166 @@ Plus CSS variables in `src/index.css` (`--primary`, `--secondary`, `--ring`, `--
 
 ---
 
-*Architecture document — Recruiter X v2.2 (TalentStack Edition) — Supabase backend · Tri-provider LLM with fallback + streaming + cost tracking · HubSpot-style rail + flyout nav · TalentStack brand · 51 pages (49 live + 2 planned) · 45 entities · 6,920 records migrated · Vercel deploy + MV3 browser extension planned*
+## 27. Video Calls — LiveKit + Recording + Whisper
+
+Added 2026-05-13. Provides a full meeting room inside Recruiter X for screens,
+interviews, and team huddles. Replaces the previous Zoom/Meet link copy-paste
+workflow with an in-app room that captures audio + screen + transcript.
+
+### 27.1 Components
+
+| Layer | Where | Purpose |
+|---|---|---|
+| Lobby | [src/pages/VideoCall.jsx](src/pages/VideoCall.jsx) | Room name + display name input. `?room=<name>` deep-links from invites. |
+| PreJoin | LiveKit `<PreJoin>` | Camera/mic device test + permission grant before joining the room. **Defaults video OFF** — opt-in via the toggle. `persistUserChoices=false` to avoid stale device-id cache. |
+| In-call | LiveKit `<LiveKitRoom>` + `<VideoConference>` | Multi-participant grid + controls (mute, camera, screenshare, chat). |
+| Toolbar overlay | [src/components/video/MeetingToolbar.jsx](src/components/video/MeetingToolbar.jsx) | Floating top-right buttons: Screenshot · Record · Stop. |
+| Token mint | [supabase/functions/livekitToken/index.ts](supabase/functions/livekitToken/index.ts) | Server-side JWT signing (livekit-server-sdk on Deno). Verify-JWT OFF. |
+| Whisper transcription | [supabase/functions/transcribeRecording/index.ts](supabase/functions/transcribeRecording/index.ts) | Downloads `.webm` from Storage → OpenAI Whisper → writes `transcript_text` + `transcript_json` + (if linked) booking summary + action items. |
+
+### 27.2 Recording flow (client-side)
+
+`MeetingToolbar` uses `navigator.mediaDevices.getDisplayMedia()` so the user
+picks what's captured (tab / window / screen) plus the mic. MediaRecorder
+emits chunked WebM, blobs accumulate in a ref, and on Stop:
+
+1. Concatenate blobs into one `video/webm` File.
+2. Upload to Storage bucket `meeting-recordings/<room>/<ISO timestamp>.webm`.
+3. INSERT into `video_call_recordings` with `status='uploaded'`.
+4. Fire-and-forget `supabase.functions.invoke("transcribeRecording", { body: { recording_id } })`.
+5. Edge Function flips status `transcribing` → `done` (or `failed` with `error`).
+
+Trade-offs:
+- **Captures only what you screen-share**, not the LiveKit composite. Multi-participant composite recording requires LiveKit Egress (server-side, planned).
+- **Whisper 25 MB hard limit.** ~10 min at our 2.5 Mbps bitrate. Function returns `failed` with a clear error past that. Fix: chunked transcription via Egress + multi-part Whisper.
+- **All authenticated users** can read every recording (RLS = `auth.uid() IS NOT NULL`). Tighten with a per-row owner policy when commercializing.
+
+### 27.3 Post-call AI summary
+
+After Whisper success and IF the recording row has a `booking_id`, the function
+makes a second OpenAI call (`gpt-4o-mini`, JSON response format) that returns
+`{ summary, action_items: [{ task, owner, due_date_hint }] }` and writes them
+onto the linked `bookings` row. The Bookings detail panel renders them under
+"Post-call notes". Failure is non-fatal — transcript is still saved.
+
+### 27.4 Schema (migration 010)
+
+```
+storage.buckets:  meeting-recordings (private)
+video_call_recordings:
+  id, room, owner_email, file_path, duration_seconds,
+  size_bytes, mime_type, status,
+  transcript_text, transcript_json, error,
+  booking_id (added by 011), created_at, updated_at
+```
+
+### 27.5 Required Supabase setup
+
+| What | Where |
+|---|---|
+| Migration 010 | SQL Editor |
+| Migration 011 | SQL Editor (must run after 010) |
+| Secret `LIVEKIT_URL` | Edge Function Secrets |
+| Secret `LIVEKIT_API_KEY` | Edge Function Secrets |
+| Secret `LIVEKIT_API_SECRET` | Edge Function Secrets |
+| Secret `OPENAI_API_KEY` | Edge Function Secrets (for Whisper + GPT-4o-mini) |
+| Function `livekitToken` | Deploy via Editor, **Verify JWT OFF** |
+| Function `transcribeRecording` | Deploy via Editor, Verify JWT ON |
+
+Client-side `.env.local` only needs `VITE_LIVEKIT_URL` so the browser knows
+which WSS to dial after it has the token.
+
+---
+
+## 28. Bookings — Scheduling + Auto-Generated Rooms
+
+Added 2026-05-13. Replaces external Calendly/Cal.com for the recruiter-led
+flow. Public self-serve booking is intentionally out of scope for v1.
+
+### 28.1 Architecture
+
+```
+User opens /Bookings
+  └─ React Big Calendar shows month/week/day grid of bookings rows
+       Click empty slot → BookingForm (create) with start/end pre-filled
+       Click event       → detail panel + Edit button
+  └─ On INSERT, Postgres trigger generates room_name = "meet-<id6>-<unix>"
+       Booking.create returns the row with room_name set
+  └─ Detail panel "Join call" → /VideoCall?room=<room_name>
+       (uses existing LiveKit token + recording + transcript flow)
+  └─ After call, transcribeRecording writes summary + action_items
+       onto the booking row → detail panel renders them
+```
+
+### 28.2 Components
+
+| File | Role |
+|---|---|
+| [src/pages/Bookings.jsx](src/pages/Bookings.jsx) | Calendar grid + detail right-panel. RBC localizer via date-fns. |
+| [src/components/bookings/BookingForm.jsx](src/components/bookings/BookingForm.jsx) | Create/edit modal. Linked candidate auto-fills guest name+email. Shows meeting link in edit mode. |
+| [src/entities/Booking.js](src/entities/Booking.js) | Wrapper around `bookings` table via `createEntity` factory. |
+
+### 28.3 Schema (migration 011)
+
+```
+bookings:
+  id, title, description,
+  host_email, host_name, guest_email, guest_name,
+  start_at, end_at (CHECK end > start), timezone,
+  status (scheduled | confirmed | in_progress | completed | cancelled | no_show),
+  room_name (UNIQUE, auto-generated by trigger),
+  candidate_id → candidates(id),
+  job_id       → jobs(id),
+  recording_id → video_call_recordings(id),    [reverse link of vcr.booking_id]
+  summary, action_items (jsonb),
+  notes, created_by, created_at, updated_at
+
+triggers:
+  bookings_default_room      BEFORE INSERT — sets room_name if NULL
+  bookings_updated_at        BEFORE UPDATE
+```
+
+The `meet-<id6>-<unix>` room name is opaque (not guessable) and stable for
+the booking's lifetime. Sharing the booking's deep-link `/VideoCall?room=...`
+is equivalent to sharing the meeting.
+
+### 28.4 Post-call link-back
+
+`video_call_recordings.booking_id` is the FK that lets the transcribe Edge
+Function find the right booking to update. The Booking detail panel, when
+it renders, fetches the linked recording row to show duration, file size,
+status, and an expandable full transcript.
+
+---
+
+## 29. Phase 1 Cleanup (2026-05-13)
+
+Code-quality sweep alongside the Phase 1 features:
+
+- **Removed unused `React` default import from 86 .jsx files** via
+  [scripts/drop-unused-react-imports.js](scripts/drop-unused-react-imports.js).
+  Safe rewrite — only files where `React` had zero non-import references were
+  touched (React 18 JSX transform makes the default unnecessary unless you
+  call `React.foo` directly).
+- **Companies.jsx** had local `console.log` placeholder stubs for
+  `addNotification` and `emitEntityChanged`; replaced with the real imports
+  from `@/components/notifications/NotificationToast` and
+  `@/components/common/refreshBus`.
+- **InviteUserModal.jsx** rewrote the entire "invite via Base44" 8-step
+  walkthrough to the actual Supabase Auth invite flow. Removed the
+  external link to base44.app/dashboard and the unused `ExternalLink`
+  import. Now reflects the real architecture.
+- **executeAutomation.jsx** converted dead `console.log("not yet
+  implemented")` to `console.warn` with the rule id (semantically correct,
+  shows up cleanly in production logs).
+- **Edge Function files** got `// @ts-nocheck` headers — Deno globals and
+  esm.sh URL imports aren't visible to node-tsc, so the IDE was crying
+  about non-issues. Standard pattern across `livekitToken`, `llmProxy`,
+  `transcribeRecording`.
+- **Tests:** Auth smoke now asserts the "Supabase not connected" banner
+  has zero occurrences when env is set. Bookings + VideoCall added to the
+  page-walk smoke; full suite is **24 tests passing**.
+
+---
+
+*Architecture document — Recruiter X v2.3 (Video + Bookings Edition) — Supabase backend · Tri-provider LLM with fallback + streaming + cost tracking · LLM keys server-side via llmProxy Edge Function · LiveKit video calls + screen recording + Whisper transcripts + GPT-4o-mini post-call summaries · React Big Calendar scheduling with auto-generated rooms · HubSpot-style rail + flyout nav · TalentStack brand · 52 pages · 46 entities · 6,920 records migrated · Vercel deploy + MV3 browser extension planned*

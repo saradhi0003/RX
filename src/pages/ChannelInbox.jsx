@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { RefreshCcw, Settings2, Inbox } from "lucide-react";
 import PageHeader from "@/components/common/PageHeader";

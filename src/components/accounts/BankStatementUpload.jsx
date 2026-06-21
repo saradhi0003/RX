@@ -9,7 +9,7 @@
  *     anything they don't want, then clicks "Save N Expenses" which bulk-
  *     inserts via Expense.create().
  */
-import React, { useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { User } from "@/entities/User";
-import { Loader2, UserPlus, AlertCircle, CheckCircle, Mail, Shield, ExternalLink, Copy } from "lucide-react";
+import { Loader2, UserPlus, AlertCircle, CheckCircle, Mail, Shield, Copy } from "lucide-react";
 import { addNotification } from "@/components/notifications/NotificationToast";
 
 export default function InviteUserModal({ open, onClose, roles, onSuccess }) {
@@ -50,12 +50,12 @@ export default function InviteUserModal({ open, onClose, roles, onSuccess }) {
         onSuccess && onSuccess(userExists);
         handleClose();
       } else {
-        // User doesn't exist yet - show invitation instructions
+        // User doesn't exist yet — show how to invite via Supabase Auth.
         setShowInstructions(true);
         addNotification({
           type: "info",
-          title: "User Must Be Invited via Base44",
-          message: "Follow the instructions to invite this user through Base44 platform"
+          title: "Send the user an invite link",
+          message: "Follow the instructions to invite this user."
         });
       }
 
@@ -121,11 +121,11 @@ export default function InviteUserModal({ open, onClose, roles, onSuccess }) {
                 <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <h4 className="text-sm font-semibold text-blue-900 mb-1">
-                    Base44 Platform Required
+                    Send the user an invite link
                   </h4>
                   <p className="text-xs text-blue-800">
-                    Users must be invited through the Base44 platform first. If the user doesn't exist yet, 
-                    we'll show you how to invite them.
+                    Enter the user's email and role. If they don't exist yet, we'll show you the
+                    Supabase Auth invite steps.
                   </p>
                 </div>
               </div>
@@ -226,7 +226,8 @@ export default function InviteUserModal({ open, onClose, roles, onSuccess }) {
                     Role Configuration Saved
                   </h4>
                   <p className="text-xs text-green-800">
-                    The role and seat have been saved. Now invite the user through Base44 platform.
+                    Their role and seat are queued. Now send them an invite from the
+                    Supabase Auth dashboard so they can sign in.
                   </p>
                 </div>
               </div>
@@ -253,97 +254,55 @@ export default function InviteUserModal({ open, onClose, roles, onSuccess }) {
 
             {/* Instructions */}
             <div className="space-y-4">
-              <h4 className="font-semibold text-slate-900">How to Invite User via Base44:</h4>
-              
+              <h4 className="font-semibold text-slate-900">Invite via Supabase Auth</h4>
+
               <div className="space-y-3">
                 <div className="flex gap-3">
-                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                    1
-                  </div>
+                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0">1</div>
                   <div className="flex-1">
-                    <p className="text-sm text-slate-700">
-                      Go to your <strong>Base44 Dashboard</strong>
-                    </p>
-                    <a 
-                      href="https://base44.app/dashboard" 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1"
-                    >
-                      Open Base44 Dashboard <ExternalLink className="w-3 h-3" />
-                    </a>
+                    <p className="text-sm text-slate-700">Open the Supabase dashboard for this project.</p>
                   </div>
                 </div>
 
                 <div className="flex gap-3">
-                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                    2
+                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0">2</div>
+                  <div className="flex-1">
+                    <p className="text-sm text-slate-700">Go to <strong>Authentication → Users → Invite user</strong>.</p>
                   </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0">3</div>
                   <div className="flex-1">
                     <p className="text-sm text-slate-700">
-                      Navigate to your <strong>Recruiter X app settings</strong>
+                      Paste email: <code className="bg-slate-100 px-2 py-0.5 rounded text-xs">{email}</code> and send.
                     </p>
                   </div>
                 </div>
 
                 <div className="flex gap-3">
-                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                    3
-                  </div>
+                  <div className="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-sm font-bold flex-shrink-0">✓</div>
                   <div className="flex-1">
                     <p className="text-sm text-slate-700">
-                      Go to <strong>Team → Invite Members</strong>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                    4
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-slate-700">
-                      Enter email: <code className="bg-slate-100 px-2 py-0.5 rounded text-xs">{email}</code>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                    5
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-slate-700">
-                      Click <strong>"Send Invitation"</strong>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <div className="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                    ✓
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-slate-700">
-                      Once they accept and login, their access will be automatically configured with the role you selected
+                      On first sign-in their <code>user_profile</code> row is created with the role
+                      <strong> {roles.find(r => r.id === roleId)?.name || ""}</strong>.
                     </p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* What Happens Next */}
+            {/* What happens next */}
             <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
               <h5 className="text-sm font-semibold text-purple-900 mb-2">What happens next?</h5>
               <ul className="text-xs text-purple-800 space-y-1 ml-4 list-disc">
-                <li>User receives invitation email from Base44</li>
-                <li>User creates account and logs in</li>
-                <li>User's role is automatically set to: <strong>{roles.find(r => r.id === roleId)?.name}</strong></li>
-                <li>User can immediately start using the app</li>
+                <li>Supabase emails the user a magic invite link.</li>
+                <li>They click it, set a password, and land in Recruiter X.</li>
+                <li>Their role is set to <strong>{roles.find(r => r.id === roleId)?.name}</strong>.</li>
               </ul>
             </div>
 
-            {/* Action Buttons */}
+            {/* Action button */}
             <div className="flex items-center gap-3 pt-4 border-t">
               <Button
                 variant="outline"
@@ -351,13 +310,6 @@ export default function InviteUserModal({ open, onClose, roles, onSuccess }) {
                 className="flex-1"
               >
                 Close
-              </Button>
-              <Button
-                onClick={() => window.open('https://base44.app/dashboard', '_blank')}
-                className="flex-1 gap-2 bg-blue-600 hover:bg-blue-700"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Open Base44 Dashboard
               </Button>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Candidate } from "@/entities/Candidate";
 import CandidatePreview from "@/components/candidates/CandidatePreview";
 import { Loader2, AlertCircle } from "lucide-react";

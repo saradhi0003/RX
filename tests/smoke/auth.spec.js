@@ -12,6 +12,8 @@ test.describe("Auth", () => {
     await expect(page.getByRole("button", { name: /admin/i }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /recruiter/i }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /accounts/i }).first()).toBeVisible();
+    // "Supabase not connected" banner must NOT be present when env is set.
+    await expect(page.getByText(/Supabase not connected/i)).toHaveCount(0);
 
     // Allow benign warnings (eg. baseline-browser-mapping) but no hard errors.
     const hard = errors.filter((e) => !/baseline-browser|browserslist/i.test(e));

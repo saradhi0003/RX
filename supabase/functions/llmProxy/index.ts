@@ -1,3 +1,4 @@
+// @ts-nocheck   — Deno-runtime file; node-tsc can't see Deno globals or esm.sh URL imports.
 /**
  * llmProxy — Server-side LLM gateway.
  *

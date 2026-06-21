@@ -11,6 +11,7 @@ export const PAGES = {
     "AutomationRules": lazy(() => import('./pages/AutomationRules')),
     "BRD": lazy(() => import('./pages/BRD')),
     "Blog": lazy(() => import('./pages/Blog')),
+    "Bookings": lazy(() => import('./pages/Bookings')),
     "CandidateDetails": lazy(() => import('./pages/CandidateDetails')),
     "ChannelInbox": lazy(() => import('./pages/ChannelInbox')),
     "Candidates": lazy(() => import('./pages/Candidates')),
@@ -49,6 +50,7 @@ export const PAGES = {
     "SystemHealth": lazy(() => import('./pages/SystemHealth')),
     "TaskDetails": lazy(() => import('./pages/TaskDetails')),
     "Tasks": lazy(() => import('./pages/Tasks')),
+    "VideoCall": lazy(() => import('./pages/VideoCall')),
     "WhatsappSetup": lazy(() => import('./pages/WhatsappSetup')),
 }
 

@@ -13,6 +13,8 @@ const PAGES = [
   "/Jobs",
   "/Companies",
   "/Submissions",
+  "/Bookings",
+  "/VideoCall",
   "/Tasks",
   "/Consultants",
   "/Playbooks",
@@ -38,7 +40,9 @@ test.describe.serial("Pages render without errors (admin)", () => {
 
   for (const p of PAGES) {
     test(`page ${p} loads`, async ({ page }, testInfo) => {
+      /** @type {string[]} */
       const errors = [];
+      /** @type {string[]} */
       const failedRequests = [];
       page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
       page.on("console", (m) => {

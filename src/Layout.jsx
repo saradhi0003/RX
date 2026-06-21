@@ -6,7 +6,7 @@ import {
   Search, Bell, Send, CheckSquare, BookOpen, BrainCircuit, FileText,
   Mail, Clock, CheckCircle, Wallet, Receipt, Zap, AlertTriangle,
   Loader2, Brain, MailPlus, MoreHorizontal, Inbox, Activity, MailCheck, MessageCircle,
-  Sparkles, Home, ChevronRight,
+  Sparkles, Home, ChevronRight, Video, Calendar as CalendarIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -121,6 +121,8 @@ const navGroups = [
       { title: "Jobs", url: createPageUrl("Jobs"), icon: Briefcase },
       { title: "Connections", url: createPageUrl("Companies"), icon: Building2 },
       { title: "Applications", url: createPageUrl("Submissions"), icon: Send },
+      { title: "Bookings", url: createPageUrl("Bookings"), icon: CalendarIcon, badge: "New", badgeColor: "blue" },
+      { title: "Video Call", url: createPageUrl("VideoCall"), icon: Video },
       { title: "Tasks", url: createPageUrl("Tasks"), icon: CheckSquare },
       { title: "Duplicates", url: createPageUrl("DuplicateManager"), icon: AlertTriangle },
     ],

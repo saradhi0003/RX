@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, Loader2, Zap, Users, AlertTriangle } from "lucide-react";
-// Zap is still used for the magic-link success state below.
 
 const DEMO_USERS = [
   {

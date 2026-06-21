@@ -76,8 +76,7 @@ async function executeRuleAction(rule, entityName, entityId, entityData) {
   } else if (rule.action_type === "create_task") {
     await createAutomatedTask(rule, entityName, entityId, entityData);
   } else if (rule.action_type === "send_notification") {
-    // Placeholder for notifications
-    console.log("Notification action not yet implemented");
+    console.warn(`[automation] send_notification action_type not implemented (rule ${rule.id})`);
   }
 }
 

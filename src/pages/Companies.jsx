@@ -62,18 +62,8 @@ import { CompanyView } from "@/entities/CompanyView";
 import BulkUpdateModal from "@/components/companies/BulkUpdateModal";
 import { Checkbox } from "@/components/ui/checkbox";
 import useDebouncedValue from "@/components/common/useDebouncedValue";
-
-// Placeholder for a notification system
-const addNotification = ({ type, title, message }) => {
-  console.log(`Notification (${type}): ${title} - ${message}`);
-  // In a real app, you'd integrate with a toast library (e.g., react-hot-toast)
-};
-
-// Placeholder for an entity change event bus
-const emitEntityChanged = (entityType) => {
-  console.log(`Entity changed: ${entityType}`);
-  // In a real app, this would trigger re-fetching or cache invalidation mechanisms
-};
+import { addNotification } from "@/components/notifications/NotificationToast";
+import { emitEntityChanged } from "@/components/common/refreshBus";
 
 export default function CompaniesPage() { // Renamed component
   const [companies, setCompanies] = useState([]);
