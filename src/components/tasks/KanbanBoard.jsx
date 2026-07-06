@@ -29,7 +29,9 @@ export default function KanbanBoard({ columns = [], tasks = [], onDragEnd, onCar
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
-      <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 16, alignItems: "flex-start" }}>
+      {/* No overflowX: nested scroll parents kill @hello-pangea/dnd lifting
+          (Layout main already scrolls). Same fix as submissions board. */}
+      <div style={{ display: "flex", gap: 14, paddingBottom: 16, alignItems: "flex-start", width: "max-content", minWidth: "100%" }}>
         {columns.map((colId) => {
           const col = COL_COLORS[colId] || COL_COLORS.pending;
           return (
@@ -69,6 +71,8 @@ export default function KanbanBoard({ columns = [], tasks = [], onDragEnd, onCar
                           {...drag.dragHandleProps}
                           style={{
                             marginBottom: 10,
+                            // must be last — carries the drag transform
+                            ...drag.draggableProps.style,
                           }}
                         >
                           <TaskKanbanCard task={t} onClick={() => onCardClick?.(t)} />

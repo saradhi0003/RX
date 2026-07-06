@@ -60,8 +60,11 @@ function KanbanCard({ submission, candidate, job, company, onClick, drag }) {
         marginBottom: 10,
         cursor: "pointer",
         boxShadow: "0 1px 4px rgba(0,0,0,.06)",
-        transition: "box-shadow 120ms",
         userSelect: "none",
+        // MUST come last: hello-pangea injects the drag transform via
+        // draggableProps.style — declaring style after the spread was
+        // clobbering it, so cards never visually moved.
+        ...drag.draggableProps.style,
       }}
       onMouseEnter={e => e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,.10)"}
       onMouseLeave={e => e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,.06)"}
@@ -140,7 +143,10 @@ export default function KanbanBoard({ submissions = [], candidates = [], jobs = 
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
-      <div style={{ display: "flex", gap: 14, overflowX: "auto", paddingBottom: 16, alignItems: "flex-start" }}>
+      {/* No overflowX here: Layout's main area already scrolls, and
+          @hello-pangea/dnd refuses to lift inside NESTED scroll parents
+          ("unsupported nested scroll container") — drag was dead. */}
+      <div style={{ display: "flex", gap: 14, paddingBottom: 16, alignItems: "flex-start", width: "max-content", minWidth: "100%" }}>
         {COLUMNS.map(col => (
           <Droppable droppableId={col.id} key={col.id}>
             {(provided, snapshot) => (
