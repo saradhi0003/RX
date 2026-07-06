@@ -6,7 +6,7 @@ import {
   Search, Bell, Send, CheckSquare, BookOpen, BrainCircuit, FileText,
   Mail, Clock, CheckCircle, Wallet, Receipt, Zap, AlertTriangle,
   Loader2, Brain, MailPlus, MoreHorizontal, Inbox, Activity, MailCheck, MessageCircle,
-  Sparkles, Home, ChevronRight, Video, Calendar as CalendarIcon,
+  Sparkles, Home, ChevronRight, Video, Calendar as CalendarIcon, ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -930,6 +930,7 @@ export default function Layout({ children, currentPageName }) {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
                   <DropdownMenuItem><User className="w-4 h-4 mr-2" />Profile Settings</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate(createPageUrl("Security"))}><ShieldCheck className="w-4 h-4 mr-2" />Security &amp; 2FA</DropdownMenuItem>
                   <DropdownMenuItem><Settings className="w-4 h-4 mr-2" />Company Settings</DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem className="text-red-600" onClick={async () => { try { await UserEntity.logout(); } finally { window.localStorage.clear(); navigate("/login"); } }}><LogOut className="w-4 h-4 mr-2" />Sign Out</DropdownMenuItem>

@@ -17,6 +17,7 @@ export default function Register() {
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState("");
   const [done, setDone]           = useState(false);
+  const [verifyPending, setVerifyPending] = useState(false); // email confirmation required
 
   const handleStep0 = async (e) => {
     e.preventDefault();
@@ -26,11 +27,24 @@ export default function Register() {
     const { data, error: err } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: {
+        data: { full_name: fullName },
+        emailRedirectTo: `${window.location.origin}/Login`,
+      },
     });
     if (err) { setError(err.message); setLoading(false); return; }
 
-    // Create user_profiles row (admin = first user)
+    // When "Confirm email" is ON in Supabase, signUp returns a user but NO
+    // session. We can't write profile/workspace rows yet (no auth) — the user
+    // must click the verification link first. Show the "check your inbox" state
+    // and stop; onboarding continues after their first verified sign-in.
+    if (data?.user && !data.session) {
+      setVerifyPending(true);
+      setLoading(false);
+      return;
+    }
+
+    // Confirmation OFF → we have a session; create the profile now (admin = first user).
     if (data?.user) {
       await supabase.from("user_profiles").upsert({
         id: data.user.id,
@@ -95,7 +109,19 @@ export default function Register() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] p-8">
-          {step === 0 && (
+          {verifyPending && (
+            <div className="text-center py-4 space-y-4">
+              <div className="w-14 h-14 rounded-full bg-[#EDE9FE] flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-7 h-7 text-[#9333EA]" />
+              </div>
+              <h2 className="font-semibold text-[#0F172A]">Verify your email</h2>
+              <p className="text-sm text-[#64748B]">
+                We sent a confirmation link to <strong>{email}</strong>. Click it to
+                activate your account, then sign in to finish setting up your workspace.
+              </p>
+            </div>
+          )}
+          {!verifyPending && step === 0 && (
             <form onSubmit={handleStep0} className="space-y-4">
               <h2 className="font-semibold text-[#0F172A] mb-4">Your account</h2>
               <div className="space-y-1.5">

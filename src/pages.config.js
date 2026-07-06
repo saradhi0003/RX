@@ -45,6 +45,7 @@ export const PAGES = {
     "ResumeBuilder": lazy(() => import('./pages/ResumeBuilder')),
     "ResumeStudio": lazy(() => import('./pages/ResumeStudio')),
     "Services": lazy(() => import('./pages/Services')),
+    "Security": lazy(() => import('./pages/Security')),
     "SkillMatrix": lazy(() => import('./pages/SkillMatrix')),
     "Submissions": lazy(() => import('./pages/Submissions')),
     "SystemHealth": lazy(() => import('./pages/SystemHealth')),

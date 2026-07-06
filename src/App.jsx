@@ -29,19 +29,23 @@ const LayoutWrapper = ({ children, currentPageName }) =>
     ? <Layout currentPageName={currentPageName}>{children}</Layout>
     : <>{children}</>;
 
-// Redirects unauthenticated users to /Login
+// Redirects unauthenticated users to /Login. Also enforces MFA step-up: an
+// authenticated session that is still aal1 but has a verified 2nd factor is
+// sent back to /Login to complete the TOTP challenge (protected login).
 const PrivateRoute = ({ children }) => {
-  const { isLoadingAuth, isAuthenticated } = useAuth();
+  const { isLoadingAuth, isAuthenticated, mfaChallengeRequired } = useAuth();
   if (isLoadingAuth) return <PageLoader />;
   if (!isAuthenticated) return <Navigate to="/Login" replace />;
+  if (mfaChallengeRequired) return <Navigate to="/Login" replace />;
   return children;
 };
 
-// Redirects already-authenticated users away from auth pages
+// Redirects already-authenticated users away from auth pages — UNLESS they still
+// owe an MFA challenge, in which case they must stay on /Login to complete it.
 const PublicRoute = ({ children }) => {
-  const { isLoadingAuth, isAuthenticated } = useAuth();
+  const { isLoadingAuth, isAuthenticated, mfaChallengeRequired } = useAuth();
   if (isLoadingAuth) return <PageLoader />;
-  if (isAuthenticated) return <Navigate to="/Dashboard" replace />;
+  if (isAuthenticated && !mfaChallengeRequired) return <Navigate to="/Dashboard" replace />;
   return children;
 };
 
