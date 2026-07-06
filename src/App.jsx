@@ -9,6 +9,7 @@ import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import Onboarding from '@/pages/Onboarding';
@@ -63,7 +64,10 @@ const AppRoutes = () => (
           element={
             <PrivateRoute>
               <LayoutWrapper currentPageName={name}>
-                <Page />
+                {/* Per-page boundary: a page crash keeps the nav shell alive */}
+                <ErrorBoundary>
+                  <Page />
+                </ErrorBoundary>
               </LayoutWrapper>
             </PrivateRoute>
           }
@@ -77,16 +81,18 @@ const AppRoutes = () => (
 
 function App() {
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClientInstance}>
-        <Router>
-          <NavigationTracker />
-          <AppRoutes />
-        </Router>
-        <Toaster />
-        <VisualEditAgent />
-      </QueryClientProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <QueryClientProvider client={queryClientInstance}>
+          <Router>
+            <NavigationTracker />
+            <AppRoutes />
+          </Router>
+          <Toaster />
+          <VisualEditAgent />
+        </QueryClientProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -1,11 +1,17 @@
 /**
  * scheduledFollowupRun
- * POST {} (no body required — invoked by pg_cron or Supabase scheduled trigger)
+ * POST {} — invoked by pg_cron / Supabase scheduled trigger.
  * Finds all follow-up schedules due today and sends them via Postmark.
+ *
+ * Auth: requires `x-cron-secret` header matching the CRON_SECRET Edge secret.
+ * Without the gate, anyone with the URL could trigger outbound email sends.
+ * If CRON_SECRET is unset (local dev), the gate is disabled with a console
+ * warning — REQUIRED in production (StockAnalysis pattern).
  */
 import { supabase, getSetting, getAISettings } from "../_shared/supabaseClient.ts";
 import { invokeLLM } from "../_shared/llm.ts";
-import { withErrorHandling, okResponse } from "../_shared/errorHandler.ts";
+import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
+import { hasCronSecret, getCronSecret } from "../_shared/env.ts";
 
 const FOLLOWUP_SYSTEM = `You are a recruiter writing a brief, friendly follow-up email.
 The recipient has not responded to a previous outreach. Keep it short (60-80 words), polite, and add value.
@@ -14,7 +20,16 @@ SUBJECT: Re: <original subject or new short subject>
 ---
 <email body>`;
 
-Deno.serve(withErrorHandling(async (_req) => {
+Deno.serve(withErrorHandling(async (req) => {
+  // ── Cron gate ──
+  if (hasCronSecret()) {
+    if (req.headers.get("x-cron-secret") !== getCronSecret()) {
+      return errResponse("Unauthorized: bad or missing x-cron-secret", 401);
+    }
+  } else {
+    console.warn("CRON_SECRET not set — cron gate disabled (dev only; set it in production)");
+  }
+
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
   // Find due follow-ups

@@ -49,7 +49,7 @@ export default function MeetingToolbar({ room, identity }) {
 
   useEffect(() => () => {
     // On unmount, ensure we tear down the recorder + stream
-    try { recorderRef.current?.state === "recording" && recorderRef.current.stop(); } catch {}
+    try { recorderRef.current?.state === "recording" && recorderRef.current.stop(); } catch { /* already stopped */ }
     streamRef.current?.getTracks().forEach((t) => t.stop());
     if (timerRef.current) window.clearInterval(timerRef.current);
   }, []);
