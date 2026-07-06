@@ -932,7 +932,7 @@ export default function Layout({ children, currentPageName }) {
                   <DropdownMenuItem><User className="w-4 h-4 mr-2" />Profile Settings</DropdownMenuItem>
                   <DropdownMenuItem><Settings className="w-4 h-4 mr-2" />Company Settings</DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-red-600"><LogOut className="w-4 h-4 mr-2" />Sign Out</DropdownMenuItem>
+                  <DropdownMenuItem className="text-red-600" onClick={async () => { try { await UserEntity.logout(); } finally { window.localStorage.clear(); navigate("/login"); } }}><LogOut className="w-4 h-4 mr-2" />Sign Out</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
