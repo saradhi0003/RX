@@ -142,7 +142,7 @@ Supabase unconfigured.
 - No rate-limit/captcha on the form (Supabase has server-side limits) (P3)
 
 ### 19. MFA Authentication
-**State:** **Built** on branch `feat/auth-mfa-email` — TOTP enroll (QR) /
+**State:** **DONE — merged + e2e-verified with real TOTP (2026-07-06)**; was built on branch `feat/auth-mfa-email` — TOTP enroll (QR) /
 challenge / route-guard enforcement + Security page + 6 unit tests.
 **Gaps:**
 - Needs preview verification + merge + the AUTH_SETUP.md dashboard steps (**P0-user**)

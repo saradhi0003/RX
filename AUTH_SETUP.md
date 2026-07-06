@@ -1,5 +1,13 @@
 # Auth Setup — MFA, Email Verification, Custom Domain
 
+> **STATUS 2026-07-06: DONE and verified.** MFA branch merged to main; Supabase
+> auth config applied via Management API (confirm-email ON, site_url +
+> redirect allow-list, password min 10 with mixed classes, HIBP leaked-password
+> protection ON); all 3 demo users pre-confirmed; MFA proven e2e with a real
+> TOTP flow (enroll → challenge → wrong-code reject → access). Remaining:
+> custom SMTP (Resend/Postmark) for production-scale verification emails —
+> built-in Supabase SMTP is ~2 emails/hour.
+
 App-side code for all three is implemented (branch `feat/auth-mfa-email`). This
 file lists the **dashboard steps** that must be done alongside it — code alone
 isn't enough.
