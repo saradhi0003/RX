@@ -1,6 +1,7 @@
 import OpenAI from "npm:openai@^4";
 import Anthropic from "npm:@anthropic-ai/sdk@^0.39";
 import { getSetting } from "./supabaseClient.ts";
+import { hasOpenAI, getOpenAIKey, hasAnthropic, getAnthropicKey, getOllamaBaseUrl } from "./env.ts";
 
 export interface LLMMessage {
   role: "system" | "user" | "assistant";
@@ -44,7 +45,7 @@ function detectProvider(model: string): "openai" | "anthropic" | "ollama" {
 }
 
 async function callOpenAI(system: string, user: string, model: string): Promise<string> {
-  const apiKey = Deno.env.get("OPENAI_API_KEY") || (await getSetting("openai_key"));
+  const apiKey = hasOpenAI() ? getOpenAIKey() : await getSetting("openai_key");
   if (!apiKey) throw new Error("OpenAI API key not configured");
 
   const client = new OpenAI({ apiKey });
@@ -60,7 +61,7 @@ async function callOpenAI(system: string, user: string, model: string): Promise<
 }
 
 async function callAnthropic(system: string, user: string, model: string): Promise<string> {
-  const apiKey = Deno.env.get("ANTHROPIC_API_KEY") || (await getSetting("anthropic_key"));
+  const apiKey = hasAnthropic() ? getAnthropicKey() : await getSetting("anthropic_key");
   if (!apiKey) throw new Error("Anthropic API key not configured");
 
   const client = new Anthropic({ apiKey });
@@ -75,7 +76,7 @@ async function callAnthropic(system: string, user: string, model: string): Promi
 }
 
 async function callOllama(system: string, user: string, model: string): Promise<string> {
-  const base = Deno.env.get("OLLAMA_BASE_URL") || "http://host.docker.internal:11434";
+  const base = getOllamaBaseUrl();
   const res = await fetch(`${base}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

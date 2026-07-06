@@ -1820,6 +1820,26 @@ optional / for features wired later.
 > Vite **inlines** these at *build* time, so changing an env var requires a
 > **redeploy** (Deployments → ⋯ → Redeploy) — it does not hot-apply.
 
+### Env split — where every key lives (StockAnalysis pattern, 2026-07-05)
+
+Two destinations, one rule: **Vercel gets only public `VITE_*` values; every
+secret lives in Supabase Edge Function secrets** (`supabase secrets set`).
+Recruiter X is a Vite SPA — there is no server on Vercel, and any `VITE_*` var
+is baked into the public bundle, so secrets must never carry that prefix.
+
+| Where | What | Read by |
+|-------|------|---------|
+| **Vercel env** | `VITE_SUPABASE_URL/ANON_KEY`, `VITE_LIVEKIT_URL`, `VITE_APP_URL/NAME` | browser via [src/lib/env.js](src/lib/env.js) (`missingClientEnv()`, `clientEnvPresence()`) |
+| **Supabase secrets** | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `LIVEKIT_URL/API_KEY/API_SECRET`, `POSTMARK_SERVER_TOKEN`/`RESEND_API_KEY`, `CRON_SECRET`, service-role | Edge Functions via [supabase/functions/_shared/env.ts](supabase/functions/_shared/env.ts) (`hasX()`/`getX()`) |
+
+**Verification (layer 20 — "all API keys return results"):** the upgraded
+`healthCheck` Edge Function live-probes each configured provider (OpenAI +
+Anthropic model lists, LiveKit token mint, Postmark/Resend account, DB,
+storage bucket) and returns `{ ok, message, latency_ms }` per service plus an
+env-presence map (names + booleans only — never values). The **/SystemHealth**
+page renders it, alongside a Client Environment card for the `VITE_*` side.
+See `.env.example` for the annotated split.
+
 ### How the deploy actually went (2026-06-21)
 
 1. **Pushed local work to GitHub.** ~110 uncommitted files (video, bookings,
