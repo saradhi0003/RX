@@ -1,9 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@^2";
+import { getSupabaseUrl, getSupabaseServiceRoleKey } from "./env.ts";
 
 // Service-role client — bypasses RLS for server-side operations
 export const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  getSupabaseUrl(),
+  getSupabaseServiceRoleKey(),
   { auth: { persistSession: false } }
 );
 

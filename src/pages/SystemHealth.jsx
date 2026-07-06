@@ -10,6 +10,7 @@ import { AuditLog } from "@/entities/AuditLog";
 import { InvokeFunction } from "@/integrations/Core";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import { usePermissions } from "@/components/common/PermissionsContext";
+import { clientEnvPresence } from "@/lib/env";
 
 function StatusDot({ ok }) {
   return ok
@@ -115,7 +116,13 @@ export default function SystemHealth() {
             Service Health
             {healthLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-[#94A3B8]" />}
             {health && (
-              <Badge className={health.status === "healthy" ? "bg-green-100 text-green-700 border-0 ml-auto" : "bg-yellow-100 text-yellow-700 border-0 ml-auto"}>
+              <Badge className={
+                (health.status === "ok" || health.status === "healthy")
+                  ? "bg-green-100 text-green-700 border-0 ml-auto"
+                  : health.status === "degraded"
+                    ? "bg-yellow-100 text-yellow-700 border-0 ml-auto"
+                    : "bg-red-100 text-red-700 border-0 ml-auto"
+              }>
                 {health.status}
               </Badge>
             )}
@@ -124,17 +131,61 @@ export default function SystemHealth() {
         <CardContent>
           {health ? (
             <div className="space-y-3">
-              {Object.entries(health.checks || {}).map(([service, check]) => (
-                <div key={service} className="flex items-center gap-3">
-                  <StatusDot ok={check.ok} />
-                  <span className="text-sm font-semibold capitalize text-[#0F172A] w-28">{service}</span>
-                  <span className="text-sm text-[#64748B]">{check.message}</span>
+              {Object.entries(health.checks || {}).map(([service, check]) => {
+                // v1 returned plain booleans; v2 returns {ok,message,latency_ms}
+                const isObj = check !== null && typeof check === "object";
+                const ok = isObj ? check.ok : !!check;
+                const message = isObj ? check.message : (check ? "ok" : "failed");
+                return (
+                  <div key={service} className="flex items-center gap-3">
+                    <StatusDot ok={ok} />
+                    <span className="text-sm font-semibold capitalize text-[#0F172A] w-28">{service}</span>
+                    <span className={`text-sm ${ok ? "text-[#64748B]" : isObj && check.optional ? "text-amber-600" : "text-red-500"}`}>{message}</span>
+                    {isObj && Number.isFinite(check.latency_ms) && check.latency_ms > 0 && (
+                      <span className="ml-auto text-xs text-[#94A3B8] tabular-nums">{check.latency_ms} ms</span>
+                    )}
+                  </div>
+                );
+              })}
+              {health.env && (
+                <div className="pt-3 mt-1 border-t border-[#E2E8F0]">
+                  <p className="text-xs font-semibold text-[#64748B] mb-2">Server secrets (presence only)</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(health.env).map(([name, present]) => (
+                      <Badge key={name} className={`border-0 text-[10px] font-mono ${present ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-400"}`}>
+                        {name}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
-              ))}
+              )}
             </div>
           ) : (
             <div className="text-sm text-[#94A3B8]">Running health checks…</div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Client (browser) env — VITE_* vars baked into this build */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Cpu className="w-4 h-4" />
+            Client Environment
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(clientEnvPresence()).map(([name, present]) => (
+              <Badge key={name} className={`border-0 text-[10px] font-mono ${present ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-400"}`}>
+                {name}
+              </Badge>
+            ))}
+          </div>
+          <p className="text-xs text-[#94A3B8] mt-2">
+            Public VITE_* values only — set in Vercel → Settings → Environments, applied on the next build.
+            Secrets live in Supabase Edge Function secrets (checked above).
+          </p>
         </CardContent>
       </Card>
 
