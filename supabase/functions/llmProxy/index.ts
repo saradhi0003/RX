@@ -16,7 +16,7 @@
  *   Supabase's default function auth enforces this when verify_jwt is true
  *   (the default in config.toml).
  */
-import { invokeLLM, invokeLLMJson } from "../_shared/llm.ts";
+import { invokeLLM, invokeLLMJson, checkDailyCeiling } from "../_shared/llm.ts";
 import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
 
 interface ProxyRequest {
@@ -32,6 +32,16 @@ Deno.serve(withErrorHandling(async (req: Request) => {
 
   const body = (await req.json().catch(() => null)) as ProxyRequest | null;
   if (!body?.prompt) return errResponse("Missing 'prompt' in request body", 400);
+
+  // Enforce the daily cost ceiling before spending more (429 when exceeded).
+  const ceiling = await checkDailyCeiling();
+  if (!ceiling.ok) {
+    return errResponse(
+      `LLM daily cost ceiling reached ($${ceiling.spent.toFixed(2)} of $${ceiling.ceiling}). ` +
+      "Raise LLM_DAILY_COST_CEILING_USD or wait until tomorrow (UTC).",
+      429,
+    );
+  }
 
   const t0 = Date.now();
   let text: string;

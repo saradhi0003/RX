@@ -110,7 +110,7 @@ BEGIN
       coalesce(v_user_email, 'system'),
       'delete',
       TG_TABLE_NAME,
-      OLD.id::TEXT,
+      OLD.id,
       row_to_json(OLD),
       NULL
     );
@@ -121,7 +121,7 @@ BEGIN
       coalesce(v_user_email, 'system'),
       'update',
       TG_TABLE_NAME,
-      NEW.id::TEXT,
+      NEW.id,
       row_to_json(OLD),
       row_to_json(NEW)
     );
@@ -132,7 +132,7 @@ BEGIN
       coalesce(v_user_email, 'system'),
       'create',
       TG_TABLE_NAME,
-      NEW.id::TEXT,
+      NEW.id,
       NULL,
       row_to_json(NEW)
     );

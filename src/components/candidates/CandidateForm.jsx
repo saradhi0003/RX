@@ -32,7 +32,7 @@ export default function CandidateForm({ candidate, onSave, onCancel }) {
     tags: [],
     notes: "",
     source: "",
-    addedExperience: "" // NEW FIELD
+    added_experience: "" // NEW FIELD
   });
 
   const [newSkill, setNewSkill] = useState("");
@@ -293,6 +293,8 @@ export default function CandidateForm({ candidate, onSave, onCancel }) {
         ...formData,
         experience_years: formData.experience_years ? Number(formData.experience_years) : undefined,
         salary_expectation: formData.salary_expectation ? Number(formData.salary_expectation) : undefined,
+        // Empty string violates the candidates_source_check CHECK; NULL passes.
+        source: formData.source || undefined,
         email: formData.email.trim().toLowerCase() // Ensure email is lowercased on creation
       };
       
@@ -595,22 +597,31 @@ export default function CandidateForm({ candidate, onSave, onCancel }) {
                 {/* NEW: Added Experience + Source */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <Label htmlFor="addedExperience">Added Experience</Label>
+                    <Label htmlFor="added_experience">Added Experience</Label>
                     <Input
-                      id="addedExperience"
-                      value={formData.addedExperience || ""}
-                      onChange={(e) => handleInputChange("addedExperience", e.target.value)}
+                      id="added_experience"
+                      value={formData.added_experience || ""}
+                      onChange={(e) => handleInputChange("added_experience", e.target.value)}
                       placeholder="e.g., Additional relevant experience summary"
                     />
                   </div>
                   <div>
                     <Label htmlFor="source">Source</Label>
-                    <Input
-                      id="source"
-                      value={formData.source || ""}
-                      onChange={(e) => handleInputChange("source", e.target.value)}
-                      placeholder="e.g., LinkedIn, Referral, Job Board"
-                    />
+                    {/* DB CHECK allows only these values — free text broke saves */}
+                    <Select value={formData.source || ""} onValueChange={(value) => handleInputChange("source", value)}>
+                      <SelectTrigger id="source">
+                        <SelectValue placeholder="Select source" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="manual">Manual</SelectItem>
+                        <SelectItem value="linkedin">LinkedIn</SelectItem>
+                        <SelectItem value="referral">Referral</SelectItem>
+                        <SelectItem value="job_board">Job Board</SelectItem>
+                        <SelectItem value="channel">Channel</SelectItem>
+                        <SelectItem value="email">Email</SelectItem>
+                        <SelectItem value="imported">Imported</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 

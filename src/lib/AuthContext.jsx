@@ -34,11 +34,24 @@ export const AuthProvider = ({ children }) => {
 
   const loadUserWithProfile = async (authUser) => {
     try {
-      const { data: profile } = await supabase
+      const { data: profile, error } = await supabase
         .from("user_profiles")
         .select("*")
         .eq("id", authUser.id)
         .single();
+
+      // Auto-heal zombie sessions: a locally-cached session whose JWT the
+      // backend rejects (e.g. minted before a signing-key rotation) makes the
+      // UI look logged-in while every query returns nothing. Detect the JWT
+      // rejection here and force a clean re-login instead of a broken app.
+      // (PGRST116 = "0 rows" — a missing profile row — is NOT a JWT failure.)
+      if (error && error.code !== "PGRST116" && /jwt|token|expired|invalid/i.test(error.message || "")) {
+        console.warn("Stale/invalid session detected — clearing and returning to login.", error.message);
+        try { await supabase.auth.signOut(); } catch { /* session already dead */ }
+        window.localStorage.clear();
+        window.location.href = "/login";
+        return;
+      }
 
       setUser({ ...authUser, ...profile, email: authUser.email });
       setIsAuthenticated(true);

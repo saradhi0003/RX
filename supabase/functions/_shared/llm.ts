@@ -8,6 +8,28 @@ export interface LLMMessage {
   content: string;
 }
 
+// ── Daily cost ceiling (StockAnalysis *_COST_CEILING pattern) ───────────────
+// One cheap llm_usage sum per function invocation — call at entry points
+// (llmProxy, aiRecruiter* sweeps), not per LLM call. Fail-open on read error.
+const DAILY_CEILING_USD = Number(Deno.env.get("LLM_DAILY_COST_CEILING_USD") || "10");
+
+export async function checkDailyCeiling(): Promise<{ ok: boolean; spent: number; ceiling: number }> {
+  try {
+    const { supabase } = await import("./supabaseClient.ts");
+    const midnight = new Date();
+    midnight.setUTCHours(0, 0, 0, 0);
+    const { data, error } = await supabase
+      .from("llm_usage")
+      .select("cost_usd")
+      .gte("created_at", midnight.toISOString());
+    if (error) return { ok: true, spent: 0, ceiling: DAILY_CEILING_USD };
+    const spent = (data ?? []).reduce((s: number, r: { cost_usd: number }) => s + Number(r.cost_usd || 0), 0);
+    return { ok: spent < DAILY_CEILING_USD, spent, ceiling: DAILY_CEILING_USD };
+  } catch {
+    return { ok: true, spent: 0, ceiling: DAILY_CEILING_USD };
+  }
+}
+
 /** Route to the correct LLM provider based on model name or explicit provider override */
 export async function invokeLLM(
   userPrompt: string,
