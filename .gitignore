@@ -37,3 +37,6 @@ playwright-report/
 tests/.auth/
 # Vitest coverage
 coverage
+
+# Supabase CLI local state
+supabase/.temp/
