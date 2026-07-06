@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { useAuth } from "@/lib/AuthContext";
+import { mfaStatus } from "@/lib/mfa";
+import MfaChallenge from "@/components/auth/MfaChallenge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +41,7 @@ const DEMO_USERS = [
 
 export default function Login() {
   const navigate = useNavigate();
+  const { mfaChallengeRequired, refreshMfa } = useAuth();
   const [email, setEmail]             = useState("");
   const [password, setPassword]       = useState("");
   const [showPw, setShowPw]           = useState(false);
@@ -46,10 +50,37 @@ export default function Login() {
   const [error, setError]             = useState("");
   const [magicSent, setMagicSent]     = useState(false);
   const [mode, setMode]               = useState("password");
+  const [mfaStep, setMfaStep]         = useState(false); // show TOTP challenge
 
   /* ── helpers ── */
 
   const goToDashboard = () => navigate("/Dashboard", { replace: true });
+
+  // If a session already exists at aal1 with a verified factor (e.g. page
+  // reload mid-login), surface the challenge automatically.
+  useEffect(() => { if (mfaChallengeRequired) setMfaStep(true); }, [mfaChallengeRequired]);
+
+  // On successful TOTP verify: refresh assurance level, then proceed.
+  const onMfaVerified = async () => { await refreshMfa(); goToDashboard(); };
+
+  /**
+   * After a successful password sign-in, step up to aal2 if the account has a
+   * verified authenticator; otherwise go straight to the dashboard.
+   */
+  const continueAfterSignIn = async () => {
+    try {
+      const { shouldChallenge } = await mfaStatus();
+      if (shouldChallenge) { setMfaStep(true); setLoading(false); setDemoLoading(""); return; }
+    } catch { /* if AAL check fails, fall through to dashboard */ }
+    goToDashboard();
+  };
+
+  const cancelMfa = async () => {
+    await supabase.auth.signOut();
+    setMfaStep(false);
+    setPassword("");
+    setError("");
+  };
 
   /**
    * Try sign-in; if the account doesn't exist yet, create it then sign in.
@@ -114,7 +145,7 @@ export default function Login() {
     setLoading(true);
     try {
       await signInOrCreate(email, password, "User", "member");
-      goToDashboard();
+      await continueAfterSignIn();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed");
       setLoading(false);
@@ -148,10 +179,9 @@ export default function Login() {
     setMode("password");
     try {
       await signInOrCreate(demo.email, demo.password, demo.fullName, demo.role);
-      goToDashboard();
+      await continueAfterSignIn();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Demo sign-in failed");
-    } finally {
       setDemoLoading("");
     }
   };
@@ -200,7 +230,7 @@ VITE_SUPABASE_ANON_KEY=eyJ...`}
         )}
 
         {/* ── Demo accounts ── */}
-        <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] p-5 mb-3">
+        <div className={`bg-white rounded-2xl shadow-sm border border-[#E2E8F0] p-5 mb-3 ${mfaStep ? "hidden" : ""}`}>
           <div className="flex items-center gap-2 mb-3">
             <Users className="w-4 h-4 text-[#64748B]" />
             <span className="text-sm font-medium text-[#0F172A]">Try a demo account</span>
@@ -229,7 +259,7 @@ VITE_SUPABASE_ANON_KEY=eyJ...`}
         </div>
 
         {/* Divider */}
-        <div className="flex items-center gap-3 mb-3 px-1">
+        <div className={`flex items-center gap-3 mb-3 px-1 ${mfaStep ? "hidden" : ""}`}>
           <div className="flex-1 h-px bg-[#E2E8F0]" />
           <span className="text-xs text-[#94A3B8] font-medium">or sign in with email</span>
           <div className="flex-1 h-px bg-[#E2E8F0]" />
@@ -237,7 +267,9 @@ VITE_SUPABASE_ANON_KEY=eyJ...`}
 
         {/* ── Sign-in card ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] p-8">
-          {magicSent ? (
+          {mfaStep ? (
+            <MfaChallenge onSuccess={onMfaVerified} onCancel={cancelMfa} />
+          ) : magicSent ? (
             <div className="text-center py-4">
               <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
                 <Zap className="w-6 h-6 text-green-600" />
