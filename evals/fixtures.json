@@ -1,0 +1,19 @@
+{
+  "match": [
+    {"id":"good-fit","expect":"high",
+     "job":"Senior React Engineer: 5+ yrs React, TypeScript, Redux, REST APIs, AWS. Remote.",
+     "candidate":"8 yrs frontend. Expert React/TypeScript/Redux. Built AWS-deployed SPAs. Led teams of 4."},
+    {"id":"bad-fit","expect":"low",
+     "job":"Senior React Engineer: 5+ yrs React, TypeScript, Redux, REST APIs, AWS. Remote.",
+     "candidate":"Forklift operator, 10 yrs warehouse logistics. OSHA certified. No software experience."}
+  ],
+  "draft": [
+    {"id":"outreach","job":"DevOps Engineer, Austin TX, Kubernetes+Terraform",
+     "candidate":"Priya S., SRE 6 yrs, K8s + Terraform + GCP",
+     "rubric":"Professional recruiter outreach: mentions the role and matching skills, personalized to Priya, no fabricated claims, has clear call-to-action, 60-150 words."}
+  ],
+  "classify": [
+    {"id":"jd-email","expect":"job","text":"Hi team, we have an urgent requirement for a Java Developer with Spring Boot, 8+ years, Dallas TX, $70/hr C2C. Send profiles ASAP."},
+    {"id":"resume-email","expect":"resume","text":"Please find attached my resume. I am a data engineer with 5 years in Spark, Airflow and Snowflake, currently open to new W2 roles."}
+  ]
+}

@@ -34,7 +34,26 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      setUser({ ...authUser, ...profile, email: authUser.email });
+      // First login after email verification: no profile exists yet (signup
+      // couldn't create one without a session). Bootstrap it as 'invited' so
+      // the admin-approval gate applies to verified signups too.
+      let effectiveProfile = profile;
+      if (!profile && error?.code === "PGRST116") {
+        const { data: created } = await supabase
+          .from("user_profiles")
+          .insert({
+            id: authUser.id,
+            email: authUser.email,
+            full_name: authUser.user_metadata?.full_name || authUser.email,
+            role: "recruiter",
+            status: "invited",
+          })
+          .select()
+          .single();
+        effectiveProfile = created || { status: "invited", role: "recruiter" };
+      }
+
+      setUser({ ...authUser, ...effectiveProfile, email: authUser.email });
       setIsAuthenticated(true);
     } catch {
       setUser(authUser);

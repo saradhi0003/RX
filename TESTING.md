@@ -227,7 +227,16 @@ forward test plan for when they land.
   Playwright [auth.spec.js](tests/smoke/auth.spec.js).
 - **Tool:** Vitest + RTL, Playwright.
 
-### 19. MFA Authentication ⚠ (not implemented)
+### 19. MFA Authentication ✅ (implemented + e2e)
+- **Journey spec:** [tests/smoke/signup-journey.spec.js](tests/smoke/signup-journey.spec.js)
+  drives signup → email verification (admin API stands in for the inbox) →
+  blocked pending admin approval → approve → MFA enroll (real TOTP via otplib)
+  → re-login through the challenge. Needs `RX_SERVICE_ROLE_KEY` env; skips
+  without it. Note: built-in Supabase SMTP is capped ~2 emails/hour — with the
+  cap hit the spec falls back to admin-created users; add custom SMTP
+  (Resend/Postmark) to exercise the true email path.
+
+### 19-legacy. MFA (original plan, superseded)
 - **Status:** Login currently supports password + **magic-link OTP**
   (`signInWithOtp`) only — there is **no TOTP/MFA enrollment or challenge**.
   (`input-otp` is a UI primitive, not MFA.)
