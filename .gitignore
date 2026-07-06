@@ -35,3 +35,5 @@ data-import/
 test-results/
 playwright-report/
 tests/.auth/
+# Vitest coverage
+coverage
