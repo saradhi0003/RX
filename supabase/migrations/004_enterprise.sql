@@ -38,6 +38,13 @@ CREATE INDEX IF NOT EXISTS idx_llm_usage_task       ON llm_usage (task);
 
 -- ── 2. Full-text search indexes ────────────────────────────────────────────
 
+-- array_to_string() is only STABLE, but generated columns require IMMUTABLE
+-- expressions (42P17). Wrap it — safe because text[] → text joining is
+-- deterministic for our use.
+CREATE OR REPLACE FUNCTION immutable_array_to_string(text[], text)
+RETURNS text LANGUAGE sql IMMUTABLE AS
+$fn$ SELECT array_to_string($1, $2) $fn$;
+
 -- candidates: search across name, email, title, skills, location, summary
 ALTER TABLE candidates ADD COLUMN IF NOT EXISTS fts tsvector
   GENERATED ALWAYS AS (
@@ -46,7 +53,7 @@ ALTER TABLE candidates ADD COLUMN IF NOT EXISTS fts tsvector
     setweight(to_tsvector('english', coalesce(title,      '')), 'B') ||
     setweight(to_tsvector('english', coalesce(location,   '')), 'C') ||
     setweight(to_tsvector('english', coalesce(summary,    '')), 'D') ||
-    setweight(to_tsvector('english', coalesce(array_to_string(skills, ' '), '')), 'B')
+    setweight(to_tsvector('english', coalesce(immutable_array_to_string(skills, ' '), '')), 'B')
   ) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_candidates_fts ON candidates USING GIN (fts);
@@ -61,7 +68,7 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS fts tsvector
     setweight(to_tsvector('english', coalesce(company_name, '')), 'B') ||
     setweight(to_tsvector('english', coalesce(location,     '')), 'C') ||
     setweight(to_tsvector('english', coalesce(description,  '')), 'D') ||
-    setweight(to_tsvector('english', coalesce(array_to_string(skills_required, ' '), '')), 'B')
+    setweight(to_tsvector('english', coalesce(immutable_array_to_string(skills_required, ' '), '')), 'B')
   ) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_jobs_fts           ON jobs USING GIN (fts);
