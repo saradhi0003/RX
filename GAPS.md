@@ -134,6 +134,12 @@ shortcuts; command palette.
 - Main bundle 808 kB + VideoCall 654 kB — needs `manualChunks` (P2)
 - No a11y pass (roles/contrast audit) (P3)
 
+### 18b. Signup approval (added 2026-07-06)
+**DONE:** new signups get `user_profiles.status='invited'` (migration 016) and are
+blocked by the existing Layout/AccessBlocker gate until an admin sets them
+Active in Access Control. Demos pre-approved. Server-side RLS enforcement of
+approval rides with the 012 policy swap (phase B).
+
 ### 18. Login Page
 **State:** Password + magic-link + demo accounts; e2e green (2/2); banner when
 Supabase unconfigured.

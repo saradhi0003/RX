@@ -76,6 +76,6 @@ npm run test:all       # vitest + playwright
   P0-1 multi-tenancy is on `feat/multi-tenancy-p0-1` (migration 012 + signup
   change + a pending Edge-Function `workspace_id` audit). See the plan in
   ARCHITECTURE.md §24 and the branch.
-- **MFA (TOTP) + email-verification + protected login** are built on branch
-  `feat/auth-mfa-email` (see [AUTH_SETUP.md](AUTH_SETUP.md) for the required
-  Supabase dashboard steps). On `main`, auth is still password + magic-link OTP.
+- **Auth (2026-07-06):** MFA (TOTP) merged + e2e-proven; email verification ON;
+  HIBP + password policy; CSP/HSTS headers; **new signups need admin approval**
+  (status='invited' → Access Control). See AUTH_SETUP.md + GAPS.md.

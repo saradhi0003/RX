@@ -50,7 +50,8 @@ export default function Register() {
         id: data.user.id,
         email,
         full_name: fullName,
-        role: "admin",
+        role: "recruiter",
+        status: "invited", // pending admin approval (Access Control)
       });
     }
     setLoading(false);

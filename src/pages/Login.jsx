@@ -86,7 +86,7 @@ export default function Login() {
    * Try sign-in; if the account doesn't exist yet, create it then sign in.
    * @param {string} emailVal @param {string} passwordVal @param {string} fullName @param {string} role
    */
-  const signInOrCreate = async (emailVal, passwordVal, fullName, role) => {
+  const signInOrCreate = async (emailVal, passwordVal, fullName, role, status = "invited") => {
     const { error: signInErr } = await supabase.auth.signInWithPassword({
       email: emailVal,
       password: passwordVal,
@@ -116,6 +116,7 @@ export default function Login() {
         email: emailVal,
         full_name: fullName,
         role,
+        status, // 'invited' = pending admin approval; demos are pre-approved
       });
     }
 
@@ -144,7 +145,7 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await signInOrCreate(email, password, "User", "member");
+      await signInOrCreate(email, password, "User", "recruiter", "invited");
       await continueAfterSignIn();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign-in failed");
@@ -178,7 +179,7 @@ export default function Login() {
     setPassword(demo.password);
     setMode("password");
     try {
-      await signInOrCreate(demo.email, demo.password, demo.fullName, demo.role);
+      await signInOrCreate(demo.email, demo.password, demo.fullName, demo.role, "active");
       await continueAfterSignIn();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Demo sign-in failed");
