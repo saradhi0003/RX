@@ -16,6 +16,19 @@ inventing a new one.
 | Review gate | Approval Queue (`email_drafts`, ApprovalQueue page) | Human confirmation before actions |
 | Dedup | `inbound_emails.message_id UNIQUE` | Idempotent ingestion |
 
+## 0.5 Email-plane separation (decision, 2026-07-06)
+
+Two planes, never mixed:
+- **System plane:** `noreply@talentstack.org` (Zoho alias on the org account) is
+  used ONLY for Supabase auth emails — signup verification, password reset,
+  magic links. Configured once in Supabase SMTP.
+- **User plane:** every signed-up user connects THEIR OWN mailbox (Zoho OAuth
+  first; Gmail/Outlook later). Reading (MCP ingestion), classification, and
+  outreach/follow-up sends all run under the user's identity — sends go out as
+  the user, replies land in the user's real inbox. Connections are per-user
+  rows in `channel_connections` (type `zoho_mail`, owner = user id, workspace
+  scoped post-012); tokens per connection, never shared, never the noreply.
+
 ## 1. Architecture
 
 ```
