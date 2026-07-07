@@ -20,7 +20,7 @@
  */
 
 // @ts-ignore
-const provider    = import.meta.env.VITE_LLM_PROVIDER   || "openai";
+const provider    = import.meta.env.VITE_LLM_PROVIDER   || "anthropic";
 // @ts-ignore
 const directMode  = String(import.meta.env.VITE_LLM_DIRECT || "").toLowerCase() === "true";
 
@@ -62,7 +62,8 @@ const OPENAI_RATES = {
 const ANTHROPIC_RATES = {
   "claude-haiku-4-5-20251001": { input: 0.00025,  output: 0.00125 },
   "claude-sonnet-4-6":         { input: 0.003,    output: 0.015   },
-  "claude-opus-4-7":           { input: 0.015,    output: 0.075   },
+  "claude-opus-4-7":           { input: 0.005,    output: 0.025   },
+  "claude-opus-4-8":           { input: 0.005,    output: 0.025   },
 };
 
 /** @param {string} model @param {number} p @param {number} c @returns {number} */
@@ -161,7 +162,7 @@ async function callOpenAIStream({ prompt, system, model = "gpt-4o-mini", tempera
  * @param {{ prompt: string; system?: string; model?: string; temperature?: number; max_tokens?: number; task?: string }} opts
  * @returns {Promise<string>}
  */
-async function callAnthropic({ prompt, system, model = "claude-haiku-4-5-20251001", temperature = 0.3, max_tokens = 2000, task }) {
+async function callAnthropic({ prompt, system, model = "claude-opus-4-8", temperature = 0.3, max_tokens = 2000, task }) {
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
   // @ts-ignore
   const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
@@ -188,7 +189,7 @@ async function callAnthropic({ prompt, system, model = "claude-haiku-4-5-2025100
  * @param {(delta: string, accumulated: string) => void} onChunk
  * @returns {Promise<string>}
  */
-async function callAnthropicStream({ prompt, system, model = "claude-haiku-4-5-20251001", temperature = 0.3, max_tokens = 2000 }, onChunk) {
+async function callAnthropicStream({ prompt, system, model = "claude-opus-4-8", temperature = 0.3, max_tokens = 2000 }, onChunk) {
   const Anthropic = (await import("@anthropic-ai/sdk")).default;
   // @ts-ignore
   const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;

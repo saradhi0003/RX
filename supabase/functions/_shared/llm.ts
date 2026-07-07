@@ -36,7 +36,7 @@ export async function invokeLLM(
   systemPrompt: string,
   model?: string | null
 ): Promise<string> {
-  const resolvedModel = model || (await getSetting("llm_default_model")) || "gpt-4o-mini";
+  const resolvedModel = model || (await getSetting("llm_default_model")) || "claude-opus-4-8";
   const provider = detectProvider(resolvedModel);
 
   if (provider === "anthropic") {

@@ -44,7 +44,7 @@ Deno.serve(withErrorHandling(async (req) => {
   const postmarkToken = await getSetting("postmark_token");
   const fromEmail = await getSetting("from_email");
   const aiSettings = await getAISettings();
-  const model = aiSettings?.drafting_model || "gpt-4o";
+  const model = aiSettings?.drafting_model || "claude-opus-4-8";
 
   let sent = 0;
   const errors: string[] = [];

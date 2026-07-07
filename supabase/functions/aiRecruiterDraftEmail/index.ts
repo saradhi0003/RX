@@ -28,7 +28,7 @@ Deno.serve(withErrorHandling(async (req) => {
   if (!candidate_ids?.length) return errResponse("candidate_ids array is required", 400);
 
   const aiSettings = await getAISettings();
-  const model = aiSettings?.drafting_model || "gpt-4o";
+  const model = aiSettings?.drafting_model || "claude-opus-4-8";
 
   // Fetch job
   const { data: job } = await supabase

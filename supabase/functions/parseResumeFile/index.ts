@@ -44,7 +44,7 @@ Deno.serve(withErrorHandling(async (req) => {
   if (!resume_text?.trim()) return errResponse("resume_text is required", 400);
 
   const aiSettings = await getAISettings();
-  const model = aiSettings?.parsing_model || "gpt-4o-mini";
+  const model = aiSettings?.parsing_model || "claude-opus-4-8";
 
   const parsed = await invokeLLMJson<ParsedCandidate>(
     `Parse this resume:\n\n${resume_text.slice(0, 8000)}`,

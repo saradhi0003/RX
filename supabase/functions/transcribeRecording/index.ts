@@ -131,7 +131,7 @@ Deno.serve(async (req: Request) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "gpt-4o-mini",
+            model: "claude-opus-4-8",
             response_format: { type: "json_object" },
             messages: [
               {

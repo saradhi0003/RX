@@ -23,7 +23,7 @@ export async function classifyMessage(text: string): Promise<ClassifyResult> {
     const result = await invokeLLMJson<ClassifyResult>(
       `Classify this message:\n\n${text.slice(0, 3000)}`,
       SYSTEM_PROMPT,
-      "gpt-4o-mini"
+      "claude-opus-4-8"
     );
     return result;
   } catch {

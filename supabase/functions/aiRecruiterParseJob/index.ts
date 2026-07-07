@@ -44,7 +44,7 @@ Deno.serve(withErrorHandling(async (req) => {
   if (!job_description?.trim()) return errResponse("job_description is required", 400);
 
   const aiSettings = await getAISettings();
-  const model = aiSettings?.parsing_model || "gpt-4o-mini";
+  const model = aiSettings?.parsing_model || "claude-opus-4-8";
 
   // Create or update the run record
   let runId = run_id;

@@ -44,7 +44,7 @@ Deno.serve(withErrorHandling(async (req) => {
   if (jobErr || !job) return errResponse("Job not found", 404);
 
   const aiSettings = await getAISettings();
-  const model = aiSettings?.matching_model || "gpt-4o-mini";
+  const model = aiSettings?.matching_model || "claude-opus-4-8";
   const minScore = aiSettings?.minimum_match_score || 50;
 
   // Create run if not provided
