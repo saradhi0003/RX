@@ -90,23 +90,83 @@ export default function Login() {
 
   /* ── render ── */
 
-  return (
-    <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
+  // Brand lockup: vector mark + wordmark (purple T + S, matching the logo)
+  const Wordmark = ({ light = false }) => (
+    <span
+      className="font-semibold tracking-tight"
+      style={{ fontFamily: "'Bricolage Grotesque', 'IBM Plex Sans', sans-serif" }}
+    >
+      <span className="text-[#5A16F3]">T</span>
+      <span className={light ? "text-white" : "text-[#16121F]"}>alent </span>
+      <span className="text-[#5A16F3]">S</span>
+      <span className={light ? "text-white" : "text-[#16121F]"}>tack</span>
+    </span>
+  );
 
-        {/* Logo — swap /logo.svg in public/ for your company mark (PNG/SVG). */}
-        {/* Falls back to gradient RX mark if logo.svg is missing.            */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center mb-4">
-            <img
-              src="/logo.svg"
-              alt="Recruiter X"
-              className="h-14 w-auto"
-              onError={(e) => { e.currentTarget.src = "/favicon.svg"; e.currentTarget.className = "h-14 w-14"; }}
-            />
+  return (
+    <div className="min-h-screen flex bg-[#FAFAFC]">
+
+      {/* ══ Left — brand panel (desktop only) ══ */}
+      <div className="hidden lg:flex lg:w-[46%] xl:w-1/2 relative overflow-hidden flex-col justify-between p-12 bg-[#0D0A1F]">
+        {/* Oversized translucent mark as backdrop art */}
+        <svg viewBox="0 0 96 96" className="absolute -right-24 -bottom-28 w-[560px] h-[560px] opacity-[0.16] pointer-events-none" aria-hidden="true">
+          <g transform="translate(8 16) skewY(-9)">
+            <rect x="0" y="28" width="21" height="42" rx="8" fill="#2BD5F6" />
+            <rect x="26" y="18" width="21" height="58" rx="8" fill="#189FE8" />
+            <rect x="52" y="0" width="23" height="66" rx="8" fill="#5A16F3" />
+          </g>
+        </svg>
+        <div className="absolute -left-32 -top-32 w-96 h-96 rounded-full bg-[#5A16F3] opacity-20 blur-[120px] pointer-events-none" aria-hidden="true" />
+
+        {/* Lockup */}
+        <div className="relative flex items-center gap-3">
+          <img src="/logo.svg" alt="" className="h-9 w-9" />
+          <span className="text-[22px]"><Wordmark light /></span>
+        </div>
+
+        {/* Headline + value props */}
+        <div className="relative max-w-md">
+          <h1
+            className="text-4xl xl:text-[44px] leading-[1.12] font-semibold text-white"
+            style={{ fontFamily: "'Bricolage Grotesque', 'IBM Plex Sans', sans-serif" }}
+          >
+            Hiring, stacked
+            <br />in your <span className="text-[#2BD5F6]">favor</span>.
+          </h1>
+          <p className="mt-5 text-[15px] leading-relaxed text-[#A8A3BD]">
+            One workspace for candidates, jobs, and clients — with an AI recruiter
+            that reads, matches, and drafts while your team closes.
+          </p>
+          <ul className="mt-8 space-y-3">
+            {["AI matching & outreach drafts", "Pipeline Kanban with approvals", "Your inbox, auto-triaged"].map((t) => (
+              <li key={t} className="flex items-center gap-3 text-sm text-[#CFCBE0]">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#2BD5F6]" />
+                {t}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="relative text-xs text-[#6E6788]">© {new Date().getFullYear()} TalentStack · recruiterx.app</p>
+      </div>
+
+      {/* ══ Right — sign-in ══ */}
+      <div className="flex-1 flex items-center justify-center px-6 py-12">
+      <div className="w-full max-w-[400px]">
+
+        {/* Lockup (mobile + form header) */}
+        <div className="mb-10 lg:mb-8">
+          <div className="flex items-center gap-2.5 lg:hidden mb-8 justify-center">
+            <img src="/logo.svg" alt="" className="h-9 w-9" />
+            <span className="text-[21px]"><Wordmark /></span>
           </div>
-          <h1 className="text-2xl font-bold text-[#0F172A]">Recruiter X</h1>
-          <p className="text-sm text-[#64748B] mt-1">Sign in to your workspace</p>
+          <h2
+            className="text-[26px] font-semibold text-[#16121F] tracking-tight"
+            style={{ fontFamily: "'Bricolage Grotesque', 'IBM Plex Sans', sans-serif" }}
+          >
+            Welcome back
+          </h2>
+          <p className="text-sm text-[#6E6788] mt-1.5">Sign in to your workspace to continue.</p>
         </div>
 
         {/* ── Not-configured banner ── */}
@@ -131,22 +191,24 @@ VITE_SUPABASE_ANON_KEY=eyJ...`}
           </div>
         )}
 
-        {/* ── Sign-in card ── */}
-        <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] p-8">
+        {/* ── Sign-in ── */}
+        <div>
           {mfaStep ? (
-            <MfaChallenge onSuccess={onMfaVerified} onCancel={cancelMfa} />
+            <div className="bg-white rounded-2xl border border-[#EAE8F0] shadow-[0_1px_2px_rgba(22,18,31,.04)] p-8">
+              <MfaChallenge onSuccess={onMfaVerified} onCancel={cancelMfa} />
+            </div>
           ) : magicSent ? (
-            <div className="text-center py-4">
-              <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center mx-auto mb-4">
-                <Zap className="w-6 h-6 text-green-600" />
+            <div className="bg-white rounded-2xl border border-[#EAE8F0] shadow-[0_1px_2px_rgba(22,18,31,.04)] p-8 text-center">
+              <div className="w-12 h-12 rounded-full bg-[#EAFBF1] flex items-center justify-center mx-auto mb-4">
+                <Zap className="w-6 h-6 text-[#16A34A]" />
               </div>
-              <h2 className="font-semibold text-[#0F172A] mb-2">Check your email</h2>
-              <p className="text-sm text-[#64748B]">
+              <h2 className="font-semibold text-[#16121F] mb-2">Check your email</h2>
+              <p className="text-sm text-[#6E6788]">
                 We sent a magic link to <strong>{email}</strong>. Click it to sign in.
               </p>
               <Button
                 variant="ghost"
-                className="mt-4 text-[#9333EA] text-sm"
+                className="mt-4 text-[#5A16F3] text-sm"
                 onClick={() => { setMagicSent(false); setMode("password"); }}
               >
                 Back to sign in
@@ -155,15 +217,15 @@ VITE_SUPABASE_ANON_KEY=eyJ...`}
           ) : (
             <>
               {/* Mode toggle */}
-              <div className="flex rounded-xl bg-[#F8FAFC] p-1 mb-6">
+              <div className="flex rounded-xl bg-[#F1EFF6] p-1 mb-6">
                 {["password", "magic"].map((m) => (
                   <button
                     key={m}
                     onClick={() => { setMode(m); setError(""); }}
-                    className={`flex-1 text-sm py-1.5 rounded-lg font-medium transition-all ${
+                    className={`flex-1 text-sm py-2 rounded-lg font-medium transition-all ${
                       mode === m
-                        ? "bg-white text-[#0F172A] shadow-sm"
-                        : "text-[#64748B] hover:text-[#0F172A]"
+                        ? "bg-white text-[#16121F] shadow-[0_1px_3px_rgba(22,18,31,.08)]"
+                        : "text-[#6E6788] hover:text-[#16121F]"
                     }`}
                   >
                     {m === "password" ? "Password" : "Magic Link"}
@@ -173,7 +235,7 @@ VITE_SUPABASE_ANON_KEY=eyJ...`}
 
               <form onSubmit={mode === "password" ? handlePassword : handleMagicLink} className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="email" className="text-sm text-[#0F172A]">Email</Label>
+                  <Label htmlFor="email" className="text-[13px] font-medium text-[#3B3552]">Email</Label>
                   <Input
                     id="email"
                     type="email"
@@ -181,51 +243,54 @@ VITE_SUPABASE_ANON_KEY=eyJ...`}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="h-11 rounded-xl border-[#E2E8F0] focus:border-[#9333EA] focus:ring-[#9333EA]"
+                    autoComplete="email"
+                    className="h-11 rounded-xl bg-white border-[#DDD9E8] focus-visible:ring-2 focus-visible:ring-[#5A16F3]/30 focus-visible:border-[#5A16F3]"
                   />
                 </div>
 
                 {mode === "password" && (
                   <div className="space-y-1.5">
-                    <Label htmlFor="password" className="text-sm text-[#0F172A]">Password</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="password" className="text-[13px] font-medium text-[#3B3552]">Password</Label>
+                      <a href="/reset-password" className="text-xs text-[#5A16F3] hover:underline">
+                        Forgot password?
+                      </a>
+                    </div>
                     <div className="relative">
                       <Input
                         id="password"
                         type={showPw ? "text" : "password"}
-                        placeholder="••••••••"
+                        placeholder="••••••••••"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
-                        className="h-11 rounded-xl border-[#E2E8F0] focus:border-[#9333EA] focus:ring-[#9333EA] pr-10"
+                        autoComplete="current-password"
+                        className="h-11 rounded-xl bg-white border-[#DDD9E8] focus-visible:ring-2 focus-visible:ring-[#5A16F3]/30 focus-visible:border-[#5A16F3] pr-10"
                       />
                       <button
                         type="button"
                         onClick={() => setShowPw(!showPw)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B]"
+                        aria-label={showPw ? "Hide password" : "Show password"}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8A84A3] hover:text-[#3B3552]"
                       >
                         {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
-                    </div>
-                    <div className="text-right">
-                      <a href="/reset-password" className="text-xs text-[#9333EA] hover:underline">
-                        Forgot password?
-                      </a>
                     </div>
                   </div>
                 )}
 
                 {error && (
-                  <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg leading-relaxed">{error}</p>
+                  <p className="text-sm text-[#B91C1C] bg-[#FEF2F2] border border-[#FECACA] px-3.5 py-2.5 rounded-xl leading-relaxed">{error}</p>
                 )}
 
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full h-11 rounded-xl bg-[#9333EA] hover:bg-[#A855F7] text-white font-medium"
+                  className="w-full h-11 rounded-xl bg-[#5A16F3] hover:bg-[#4A0FD6] active:bg-[#3F0BBd] text-white font-medium text-[15px] shadow-[0_1px_2px_rgba(90,22,243,.35)] transition-colors"
                 >
                   {loading
                     ? <Loader2 className="w-4 h-4 animate-spin" />
-                    : mode === "password" ? "Sign In" : "Send Magic Link"}
+                    : mode === "password" ? "Sign in" : "Send magic link"}
                 </Button>
               </form>
             </>
@@ -233,13 +298,14 @@ VITE_SUPABASE_ANON_KEY=eyJ...`}
         </div>
 
         {/* Footer */}
-        <p className="text-center text-sm text-[#64748B] mt-6">
+        <p className="text-center text-sm text-[#6E6788] mt-8">
           Don't have an account?{" "}
-          <a href="/Register" className="text-[#9333EA] font-medium hover:underline">
+          <a href="/Register" className="text-[#5A16F3] font-medium hover:underline">
             Create workspace
           </a>
         </p>
 
+      </div>
       </div>
     </div>
   );

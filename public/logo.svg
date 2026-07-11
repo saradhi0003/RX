@@ -1,3 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 350" role="img" aria-label="Talent Stack">
-  <image href="/logo.png" width="1400" height="350" preserveAspectRatio="xMidYMid meet" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" fill="none" role="img" aria-label="Talent Stack">
+  <!-- TalentStack mark: three fanned pages (cyan, blue, violet) -->
+  <g transform="translate(8 16) skewY(-9)">
+    <rect x="0"  y="28" width="21" height="42" rx="8" fill="#2BD5F6"/>
+    <rect x="26" y="18" width="21" height="58" rx="8" fill="#189FE8"/>
+    <rect x="52" y="0"  width="23" height="66" rx="8" fill="#5A16F3"/>
+  </g>
 </svg>
