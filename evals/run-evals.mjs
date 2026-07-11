@@ -8,7 +8,7 @@ const URL_ = process.env.VITE_SUPABASE_URL || "https://bwjfglerixssibenkjse.supa
 
 const auth = await fetch(`${URL_}/auth/v1/token?grant_type=password`, { method: "POST",
   headers: { apikey: KEY, "Content-Type": "application/json" },
-  body: JSON.stringify({ email: "recruiter@recruiterx.demo", password: "Demo@Recruiter123" }) }).then(r => r.json());
+  body: JSON.stringify({ email: process.env.RX_ADMIN_EMAIL, password: process.env.RX_ADMIN_PASSWORD }) }).then(r => r.json());
 const AT = auth.access_token;
 
 async function llm(prompt, system, json = true) {
