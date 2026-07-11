@@ -7,37 +7,7 @@ import MfaChallenge from "@/components/auth/MfaChallenge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff, Loader2, Zap, Users, AlertTriangle } from "lucide-react";
-
-const DEMO_USERS = [
-  {
-    label: "Admin",
-    fullName: "Admin Demo",
-    email: "admin@recruiterx.demo",
-    password: "Demo@Admin123",
-    role: "admin",
-    color: "bg-[#9333EA] hover:bg-[#A855F7] text-white",
-    description: "Full access",
-  },
-  {
-    label: "Recruiter",
-    fullName: "Recruiter Demo",
-    email: "recruiter@recruiterx.demo",
-    password: "Demo@Recruiter123",
-    role: "recruiter",
-    color: "bg-[#2563EB] hover:bg-[#1D4ED8] text-white",
-    description: "Recruiting ops",
-  },
-  {
-    label: "Accounts",
-    fullName: "Accounts Demo",
-    email: "accounts@recruiterx.demo",
-    password: "Demo@Accounts123",
-    role: "accounts",
-    color: "bg-[#10B981] hover:bg-[#059669] text-white",
-    description: "Invoices & expenses",
-  },
-];
+import { Eye, EyeOff, Loader2, Zap, AlertTriangle } from "lucide-react";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -46,7 +16,6 @@ export default function Login() {
   const [password, setPassword]       = useState("");
   const [showPw, setShowPw]           = useState(false);
   const [loading, setLoading]         = useState(false);
-  const [demoLoading, setDemoLoading] = useState(""); // label of demo being signed in
   const [error, setError]             = useState("");
   const [magicSent, setMagicSent]     = useState(false);
   const [mode, setMode]               = useState("password");
@@ -70,7 +39,7 @@ export default function Login() {
   const continueAfterSignIn = async () => {
     try {
       const { shouldChallenge } = await mfaStatus();
-      if (shouldChallenge) { setMfaStep(true); setLoading(false); setDemoLoading(""); return; }
+      if (shouldChallenge) { setMfaStep(true); setLoading(false); return; }
     } catch { /* if AAL check fails, fall through to dashboard */ }
     goToDashboard();
   };
@@ -82,61 +51,6 @@ export default function Login() {
     setError("");
   };
 
-  /**
-   * Try sign-in; if the account doesn't exist yet, create it then sign in.
-   * @param {string} emailVal @param {string} passwordVal @param {string} fullName @param {string} role
-   */
-  const signInOrCreate = async (emailVal, passwordVal, fullName, role, status = "invited") => {
-    const { error: signInErr } = await supabase.auth.signInWithPassword({
-      email: emailVal,
-      password: passwordVal,
-    });
-
-    if (!signInErr) return; // success
-
-    const isNotFound =
-      signInErr.message.toLowerCase().includes("invalid login") ||
-      signInErr.message.toLowerCase().includes("user not found") ||
-      signInErr.message.toLowerCase().includes("email not confirmed");
-
-    if (!isNotFound) throw signInErr;
-
-    // Account doesn't exist — auto-create it
-    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-      email: emailVal,
-      password: passwordVal,
-      options: { data: { full_name: fullName } },
-    });
-    if (signUpErr) throw signUpErr;
-
-    // Create profile row
-    if (signUpData?.user) {
-      await supabase.from("user_profiles").upsert({
-        id: signUpData.user.id,
-        email: emailVal,
-        full_name: fullName,
-        role,
-        status, // 'invited' = pending admin approval; demos are pre-approved
-      });
-    }
-
-    // Sign in after creation
-    const { error: signInErr2 } = await supabase.auth.signInWithPassword({
-      email: emailVal,
-      password: passwordVal,
-    });
-    if (signInErr2) {
-      // Email confirmation may be required — tell the user clearly
-      if (signInErr2.message.toLowerCase().includes("email not confirmed")) {
-        throw new Error(
-          "Account created but email confirmation is required. " +
-          "Disable 'Confirm email' in Supabase → Authentication → Settings, then try again."
-        );
-      }
-      throw signInErr2;
-    }
-  };
-
   /* ── handlers ── */
 
   /** @param {React.FormEvent} e */
@@ -144,13 +58,20 @@ export default function Login() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    try {
-      await signInOrCreate(email, password, "User", "recruiter", "invited");
-      await continueAfterSignIn();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-in failed");
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+    if (signInErr) {
+      const msg = signInErr.message.toLowerCase();
+      if (msg.includes("email not confirmed")) {
+        setError("Please verify your email first — check your inbox for the confirmation link.");
+      } else if (msg.includes("invalid login")) {
+        setError("Invalid email or password. New here? Create an account to get started.");
+      } else {
+        setError(signInErr.message);
+      }
       setLoading(false);
+      return;
     }
+    await continueAfterSignIn();
   };
 
   /** @param {React.FormEvent} e */
@@ -165,26 +86,6 @@ export default function Login() {
     if (err) setError(err.message);
     else setMagicSent(true);
     setLoading(false);
-  };
-
-  /** @param {typeof DEMO_USERS[0]} demo */
-  const handleDemoLogin = async (demo) => {
-    if (!isSupabaseConfigured) {
-      setError("Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local");
-      return;
-    }
-    setError("");
-    setDemoLoading(demo.label);
-    setEmail(demo.email);
-    setPassword(demo.password);
-    setMode("password");
-    try {
-      await signInOrCreate(demo.email, demo.password, demo.fullName, demo.role, "active");
-      await continueAfterSignIn();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Demo sign-in failed");
-      setDemoLoading("");
-    }
   };
 
   /* ── render ── */
@@ -229,42 +130,6 @@ VITE_SUPABASE_ANON_KEY=eyJ...`}
             </div>
           </div>
         )}
-
-        {/* ── Demo accounts ── */}
-        <div className={`bg-white rounded-2xl shadow-sm border border-[#E2E8F0] p-5 mb-3 ${mfaStep ? "hidden" : ""}`}>
-          <div className="flex items-center gap-2 mb-3">
-            <Users className="w-4 h-4 text-[#64748B]" />
-            <span className="text-sm font-medium text-[#0F172A]">Try a demo account</span>
-            <span className="ml-auto text-[10px] text-[#94A3B8]">auto-created on first use</span>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {DEMO_USERS.map((demo) => (
-              <button
-                key={demo.label}
-                onClick={() => handleDemoLogin(demo)}
-                disabled={!!demoLoading || loading}
-                className={`${demo.color} rounded-xl py-2.5 px-2 text-center transition-all
-                  disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                {demoLoading === demo.label
-                  ? <Loader2 className="w-4 h-4 animate-spin mx-auto" />
-                  : (
-                    <>
-                      <p className="text-sm font-semibold leading-none">{demo.label}</p>
-                      <p className="text-[10px] mt-1 opacity-80 leading-tight">{demo.description}</p>
-                    </>
-                  )}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className={`flex items-center gap-3 mb-3 px-1 ${mfaStep ? "hidden" : ""}`}>
-          <div className="flex-1 h-px bg-[#E2E8F0]" />
-          <span className="text-xs text-[#94A3B8] font-medium">or sign in with email</span>
-          <div className="flex-1 h-px bg-[#E2E8F0]" />
-        </div>
 
         {/* ── Sign-in card ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] p-8">
@@ -355,7 +220,7 @@ VITE_SUPABASE_ANON_KEY=eyJ...`}
 
                 <Button
                   type="submit"
-                  disabled={loading || !!demoLoading}
+                  disabled={loading}
                   className="w-full h-11 rounded-xl bg-[#9333EA] hover:bg-[#A855F7] text-white font-medium"
                 >
                   {loading
