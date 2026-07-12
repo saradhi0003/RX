@@ -16,6 +16,10 @@ JSX in a `.js` file).
   in a **module-level store keyed by `tableId`** and persisted to `localStorage`
   (`rx.tablewidths.<tableId>`), so all consumers of a table share one source of truth
   and concurrent column edits don't clobber each other.
+- **`useEntityList.js`** — standard list-loading state (`{data, loading, error,
+  reload}`) for entity-backed pages; pairs with
+  `@/components/common/EmptyState` so errors surface instead of blank tables
+  (GAPS.md Layer 2). Used on AIAgents, ApprovalQueue, LLMCostDashboard.
 - **`use-mobile.jsx`** — `useIsMobile()` viewport breakpoint (shadcn default).
 
 Related: the two table hooks are consumed by

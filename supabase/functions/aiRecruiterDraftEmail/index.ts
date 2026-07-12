@@ -4,7 +4,8 @@
  * Drafts personalized outreach emails for selected candidates.
  */
 import { supabase, getAISettings } from "../_shared/supabaseClient.ts";
-import { invokeLLM } from "../_shared/llm.ts";
+import { invokeLLM, checkDailyCeiling } from "../_shared/llm.ts";
+import { scrubForLLM } from "../_shared/pii.ts";
 import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
 
 const SYSTEM = `You are a senior recruiter writing personalized outreach emails.
@@ -26,6 +27,16 @@ Deno.serve(withErrorHandling(async (req) => {
 
   if (!job_id) return errResponse("job_id is required", 400);
   if (!candidate_ids?.length) return errResponse("candidate_ids array is required", 400);
+
+  // Daily cost ceiling — one LLM call per candidate below.
+  const ceiling = await checkDailyCeiling();
+  if (!ceiling.ok) {
+    return errResponse(
+      `LLM daily cost ceiling reached ($${ceiling.spent.toFixed(2)} of $${ceiling.ceiling}). ` +
+      "Raise LLM_DAILY_COST_CEILING_USD or wait until tomorrow (UTC).",
+      429,
+    );
+  }
 
   const aiSettings = await getAISettings();
   const model = aiSettings?.drafting_model || "claude-opus-4-8";
@@ -55,14 +66,14 @@ Company: ${job.company_name || "Our client"}
 Location: ${job.location || "Remote/Flexible"}
 Salary: ${job.salary_range || "Competitive"}
 Key Skills: ${(job.skills_required || []).join(", ")}
-About the Role: ${job.description || ""}
+About the Role: ${scrubForLLM(job.description)}
 
 CANDIDATE:
 Name: ${candidate.full_name}
 Current Title: ${candidate.title || "N/A"}
 Skills: ${(candidate.skills || []).join(", ")}
 Experience: ${candidate.experience_years ?? "?"} years
-Bio: ${candidate.summary || "No summary available"}
+Bio: ${scrubForLLM(candidate.summary) || "No summary available"}
 
 Write a personalized outreach email for this candidate.`.trim();
 

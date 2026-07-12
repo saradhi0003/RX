@@ -11,6 +11,7 @@ import { InvokeFunction } from "@/integrations/Core";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import { usePermissions } from "@/components/common/PermissionsContext";
 import { clientEnvPresence } from "@/lib/env";
+import LLMCostDashboard from "@/components/dashboard/LLMCostDashboard";
 
 function StatusDot({ ok }) {
   return ok
@@ -281,6 +282,9 @@ export default function SystemHealth() {
           </CardContent>
         </Card>
       )}
+
+      {/* LLM spend & usage — reads llm_usage (GAPS.md Layer 4 gap) */}
+      <LLMCostDashboard />
     </div>
   );
 }

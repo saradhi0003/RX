@@ -30,12 +30,23 @@ export async function checkDailyCeiling(): Promise<{ ok: boolean; spent: number;
   }
 }
 
+// Per-request input cap — a runaway context (unbounded resume/job text) is the
+// other spend failure mode besides call volume. ~4 chars/token heuristic.
+const MAX_PROMPT_CHARS = Number(Deno.env.get("LLM_MAX_PROMPT_CHARS") || "48000");
+
 /** Route to the correct LLM provider based on model name or explicit provider override */
 export async function invokeLLM(
   userPrompt: string,
   systemPrompt: string,
   model?: string | null
 ): Promise<string> {
+  const totalChars = (userPrompt?.length || 0) + (systemPrompt?.length || 0);
+  if (totalChars > MAX_PROMPT_CHARS) {
+    throw new Error(
+      `Prompt too large: ${totalChars} chars exceeds LLM_MAX_PROMPT_CHARS=${MAX_PROMPT_CHARS}. ` +
+      "Truncate the context before calling the LLM.",
+    );
+  }
   const resolvedModel = model || (await getSetting("llm_default_model")) || "claude-opus-4-8";
   const provider = detectProvider(resolvedModel);
 

@@ -12,7 +12,11 @@ shipped migration — add a new one.
   (`llm_usage`) · 005–007 import prep/upsert/unique fixes · 008 roles
   (admin/recruiter/accounts) · 009 expenses · 010 video calls · 011 bookings ·
   **012 multitenancy** (workspaces + `workspace_id` scoping + policy rewrite —
-  on branch `feat/multi-tenancy-p0-1`, not yet applied).
+  on branch `feat/multi-tenancy-p0-1`, not yet applied) · 013–016 audit-trigger
+  fix / UI field alignment / recruiter sync / signup approval ·
+  **017 agents + agent_runs** and **018 approval_items** (on branch
+  `feat/ai-core`, **staged — NOT applied**; DB paused. Apply 017 then 018 on a
+  live/preview DB before merging that branch).
 
 ### Rules for schema changes
 - Every tenant table needs an **RLS policy** — the security boundary is here, not

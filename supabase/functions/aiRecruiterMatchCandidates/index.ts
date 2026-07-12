@@ -4,7 +4,8 @@
  * Scores all active candidates against a job and stores results in candidate_match_results.
  */
 import { supabase, getAISettings } from "../_shared/supabaseClient.ts";
-import { invokeLLMJson } from "../_shared/llm.ts";
+import { invokeLLMJson, checkDailyCeiling } from "../_shared/llm.ts";
+import { scrubForLLM } from "../_shared/pii.ts";
 import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
 
 interface MatchResult {
@@ -34,6 +35,16 @@ Deno.serve(withErrorHandling(async (req) => {
   const { job_id, run_id, max_candidates = 50 } = body;
 
   if (!job_id) return errResponse("job_id is required", 400);
+
+  // Daily cost ceiling — a match sweep is the most expensive call in the app.
+  const ceiling = await checkDailyCeiling();
+  if (!ceiling.ok) {
+    return errResponse(
+      `LLM daily cost ceiling reached ($${ceiling.spent.toFixed(2)} of $${ceiling.ceiling}). ` +
+      "Raise LLM_DAILY_COST_CEILING_USD or wait until tomorrow (UTC).",
+      429,
+    );
+  }
 
   // Fetch job
   const { data: job, error: jobErr } = await supabase
@@ -71,13 +82,14 @@ Deno.serve(withErrorHandling(async (req) => {
     return okResponse({ run_id: runId, matches: [], message: "No active candidates found" });
   }
 
+  // Free-text fields can carry contact details — scrub before the LLM sees them.
   const jobContext = `
 JOB: ${job.title}
 LOCATION: ${job.location || "Any"}
 REQUIRED SKILLS: ${(job.skills_required || []).join(", ")}
 EXPERIENCE: ${job.experience_min ?? 0}–${job.experience_max ?? "∞"} years
-REQUIREMENTS:\n${job.requirements || "Not specified"}
-DESCRIPTION:\n${job.description || ""}`.trim();
+REQUIREMENTS:\n${scrubForLLM(job.requirements) || "Not specified"}
+DESCRIPTION:\n${scrubForLLM(job.description)}`.trim();
 
   // Score candidates in parallel (up to 10 at a time to avoid rate limits)
   const results: Array<{ candidate_id: string; score: number; match: MatchResult }> = [];
@@ -93,7 +105,7 @@ TITLE: ${c.title || "Unknown"}
 SKILLS: ${(c.skills || []).join(", ")}
 EXPERIENCE: ${c.experience_years ?? "?"} years
 LOCATION: ${c.location || "Unknown"}
-SUMMARY: ${c.summary || "No summary provided"}`;
+SUMMARY: ${scrubForLLM(c.summary) || "No summary provided"}`;
 
         const match = await invokeLLMJson<MatchResult>(
           `${jobContext}\n\n---\n${candidateContext}`,

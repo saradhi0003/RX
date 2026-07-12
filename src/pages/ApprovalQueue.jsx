@@ -5,13 +5,17 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { RefreshCcw, Check, Loader2, Mail } from "lucide-react";
+import { RefreshCcw, Check, X, Loader2, Mail, Bot, Clock } from "lucide-react";
 import PageHeader from "@/components/common/PageHeader";
+import EmptyState from "@/components/common/EmptyState";
 import { EmailDraft } from "@/entities/EmailDraft";
+import { ApprovalItem } from "@/entities/ApprovalItem";
+import { useEntityList } from "@/hooks/useEntityList";
 import { InvokeFunction } from "@/integrations/Core";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import DraftListItem from "@/components/approval-queue/DraftListItem";
 import DraftEditor from "@/components/approval-queue/DraftEditor";
+import { formatDistanceToNow } from "date-fns";
 
 const REJECT_REASONS = ["Wrong tone", "Wrong recipient", "Not needed", "Other"];
 
@@ -21,7 +25,14 @@ const TABS = [
   { key: "candidate_outreach", label: "Outreach" },
   { key: "recruiter_clarification", label: "Clarifications" },
   { key: "followup", label: "Follow-ups" },
+  { key: "items", label: "Agent Actions" },
 ];
+
+const RISK_BADGE = {
+  low: "bg-green-100 text-green-800",
+  medium: "bg-amber-100 text-amber-800",
+  high: "bg-red-100 text-red-800",
+};
 
 export default function ApprovalQueue() {
   const [drafts, setDrafts] = useState([]);
@@ -57,6 +68,41 @@ export default function ApprovalQueue() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Generic approval items (agent actions, automation steps, bulk outreach).
+  // Table lands with migration 018; until it's applied this shows the error state.
+  const {
+    data: items,
+    error: itemsError,
+    reload: reloadItems,
+  } = useEntityList(() => ApprovalItem.filter({ status: "pending" }, "due_at", 200));
+  const [decidingItem, setDecidingItem] = useState(null);
+
+  const decideItem = async (item, decision, reason = null) => {
+    setDecidingItem(item.id);
+    try {
+      await ApprovalItem.update(item.id, {
+        status: decision,
+        decision,
+        decision_reason: reason,
+        decided_at: new Date().toISOString(),
+      });
+      await reloadItems();
+      addNotification({
+        type: decision === "approved" ? "success" : "info",
+        title: decision === "approved" ? "Approved" : "Rejected",
+        message: item.title,
+      });
+    } catch (err) {
+      addNotification({ type: "error", title: "Error", message: err?.message || "Could not update item" });
+    }
+    setDecidingItem(null);
+  };
+
+  const lowRiskItems = items.filter((i) => i.risk_tier === "low");
+  const bulkApproveLowRisk = async () => {
+    for (const item of lowRiskItems) await decideItem(item, "approved", "bulk low-risk approval");
+  };
+
   const visibleDrafts = activeTab === "all"
     ? drafts
     : drafts.filter(d =>
@@ -67,6 +113,7 @@ export default function ApprovalQueue() {
 
   function getCount(type) {
     if (type === "all") return drafts.length;
+    if (type === "items") return items.length;
     if (type === "followup") return drafts.filter(d => d.draft_type === "followup" || d.draft_type === "follow_up").length;
     return drafts.filter(d => d.draft_type === type).length;
   }
@@ -156,7 +203,7 @@ export default function ApprovalQueue() {
                 {bulkProgress}/{visibleDrafts.length + bulkProgress} approved…
               </div>
             )}
-            <Button variant="outline" size="sm" onClick={load} className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => { load(); reloadItems(); }} className="gap-2">
               <RefreshCcw className="w-3.5 h-3.5" />
               Refresh
             </Button>
@@ -178,7 +225,7 @@ export default function ApprovalQueue() {
           ))}
         </TabsList>
 
-        {TABS.map(t => (
+        {TABS.filter(t => t.key !== "items").map(t => (
           <TabsContent key={t.key} value={t.key} className="mt-4">
             {loading ? (
               <div className="flex items-center justify-center py-16 text-[#94A3B8]">
@@ -206,6 +253,74 @@ export default function ApprovalQueue() {
             )}
           </TabsContent>
         ))}
+
+        {/* Generic approval items — agent actions, automation steps, bulk outreach */}
+        <TabsContent value="items" className="mt-4">
+          {itemsError ? (
+            <EmptyState error={itemsError} action={{ label: "Retry", fn: reloadItems }} />
+          ) : items.length === 0 ? (
+            <EmptyState
+              icon={Bot}
+              title="No agent actions waiting"
+              description="Actions queued by agents and automations will appear here for review"
+            />
+          ) : (
+            <div className="space-y-3">
+              {lowRiskItems.length > 1 && (
+                <div className="flex justify-end">
+                  <Button variant="outline" size="sm" onClick={bulkApproveLowRisk} className="gap-2">
+                    <Check className="w-3.5 h-3.5" />
+                    Approve all low-risk ({lowRiskItems.length})
+                  </Button>
+                </div>
+              )}
+              {items.map(item => (
+                <div key={item.id} className="border rounded-lg p-4 bg-white flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm text-[#0F172A] truncate">{item.title}</span>
+                      <Badge className={RISK_BADGE[item.risk_tier] || RISK_BADGE.medium}>{item.risk_tier} risk</Badge>
+                      <Badge variant="outline" className="text-xs">{(item.type || "").replace(/_/g, " ")}</Badge>
+                      {item.ai_confidence != null && (
+                        <span className="text-xs text-[#94A3B8]">AI confidence {(Number(item.ai_confidence) * 100).toFixed(0)}%</span>
+                      )}
+                    </div>
+                    {item.diff_summary && (
+                      <p className="text-sm text-[#64748B] mt-1 whitespace-pre-wrap">{item.diff_summary}</p>
+                    )}
+                    {item.due_at && (
+                      <p className="text-xs text-[#94A3B8] mt-1 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        due {formatDistanceToNow(new Date(item.due_at), { addSuffix: true })}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      disabled={decidingItem === item.id}
+                      onClick={() => decideItem(item, "approved")}
+                      className="gap-1 bg-[#9333EA] hover:bg-[#A855F7]"
+                    >
+                      {decidingItem === item.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={decidingItem === item.id}
+                      onClick={() => decideItem(item, "rejected")}
+                      className="gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* Edit & approve modal */}

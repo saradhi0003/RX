@@ -28,7 +28,10 @@ auth guards in [src/App.jsx](src/App.jsx), 404 handling, Suspense loader.
 over Supabase; RLS decides visibility; MSW-tested.
 **Gaps:**
 - Entity `throw`s are swallowed by most callers → **blank tables instead of
-  error states** (P1 — worst UX bug in the app; bit us in prod already)
+  error states** (P1 — worst UX bug in the app; bit us in prod already).
+  **Partially fixed 2026-07-11 (feat/ai-core):** `useEntityList` hook +
+  `EmptyState` component exist and are live on AIAgents, ApprovalQueue, and the
+  LLM cost dashboard. Remaining: roll out to the other ~40 list pages.
 - No pagination — hard `limit 200` default (P2)
 
 ### 3. Semantic Layer (matching / scoring)
@@ -42,14 +45,18 @@ MatchExplanationCard) with min-score filtering + ranking.
 **State:** Dashboard + PipelineAnalytics + widgets render green in e2e.
 **Gaps:**
 - All aggregation client-side over `limit 200` fetches — wrong at scale (P2)
-- `llm_usage` cost data captured but **no cost dashboard** (P2)
+- ~~`llm_usage` cost data captured but **no cost dashboard**~~ **Done 2026-07-11
+  (feat/ai-core):** `LLMCostDashboard` on /SystemHealth — 7d/30d spend, daily
+  trend, cost by model, slowest tasks. Client-side aggregation (move to RPC at scale).
 
 ### 5. Execution Layer (sends / actions)
 **State:** Email/SMS sends via Edge Functions; `recruiter_activities` logged;
 automation actions in `executeAutomation.jsx`.
 **Gaps:**
 - **No retry / dead-letter** for failed sends — a failed send is just a log row (P2)
-- No idempotency key on outbound sends (double-click → double-send risk) (P2)
+- ~~No idempotency key on outbound sends~~ **Done 2026-07-11 (feat/ai-core):**
+  `sendApprovedDraft` claims the draft atomically (approved → sending; conditional
+  update = the lock); concurrent send → 409; network failure releases the lock.
 
 ### 6. Retrieval Layer (query / search)
 **State:** react-query (`retry:1`, no focus refetch), `$like → ilike` filters,
@@ -75,15 +82,21 @@ FTS indexes exist in migration 001.
 **State:** Strong — [src/lib/llm.js](src/lib/llm.js) routes via `llmProxy`
 (keys server-side), fallback chain, streaming, cost logging to `llm_usage`.
 **Gaps:**
-- **No cost ceilings or rate limits** — a runaway loop can spend without bound
-  (P1; StockAnalysis has `*_COST_CEILING` — port the concept) (P1)
-- No per-user/per-workspace quotas (P2)
+- ~~No cost ceilings or rate limits~~ **Done 2026-07-11 (feat/ai-core):** daily
+  ceiling (`checkDailyCeiling`, `LLM_DAILY_COST_CEILING_USD`) now enforced at
+  llmProxy **and** all three aiRecruiter* entry points (429); per-request input
+  cap (`LLM_MAX_PROMPT_CHARS`, default 48k chars) inside `invokeLLM`; the client
+  surfaces 429 as `LLMBudgetError`.
+- No per-user/per-workspace quotas — needs `workspace_id` on `llm_usage`, lands
+  with multi-tenancy (P2)
 
 ### 10. LLM Context Layer
 **State:** Prompt builders assemble job/candidate context; `.slice(0,3000)`
 truncation; JSON-mode instructions.
 **Gaps:**
-- **No PII scrubbing** before sending candidate data to providers (P2)
+- ~~No PII scrubbing~~ **Done 2026-07-11 (feat/ai-core):** `scrubForLLM`
+  (`_shared/pii.ts` + `src/utils/piiScrubber.js` mirror) masks emails/phones/
+  SSNs/LinkedIn URLs; applied to the match + draft prompt free-text fields.
 - No prompt snapshot/golden tests — silent prompt drift (P2)
 
 ### 11. Database Backend
@@ -99,8 +112,9 @@ truncation; JSON-mode instructions.
 **State:** 17 functions, shared client/LLM/error modules; now a central
 [env.ts](supabase/functions/_shared/env.ts) (this pass).
 **Gaps:**
-- **`scheduledFollowupRun` has no CRON_SECRET gate** — anyone with the URL can
-  trigger the send run (P1)
+- ~~`scheduledFollowupRun` has no CRON_SECRET gate~~ **Done (earlier pass):**
+  `x-cron-secret` header check against the `CRON_SECRET` Edge secret; gate
+  disabled with a warning only when the secret is unset (local dev).
 - 11 functions insert tenant rows via service-role → must stamp `workspace_id`
   when 012 lands (P0, tied to layer 11)
 - Inbound webhooks need a workspace-routing rule post-012 (P0, design decision)
@@ -109,15 +123,24 @@ truncation; JSON-mode instructions.
 **State:** parse → match → draft → approve → send pipeline works end-to-end;
 runs tracked in `ai_recruiter_runs`.
 **Gaps:**
-- **No cost ceiling / concurrency cap on sweeps** (StockAnalysis:
-  `PER_SWEEP_COST_CEILING`, `SWEEP_CONCURRENCY=3`) (P1)
+- ~~No cost ceiling on sweeps~~ **Done 2026-07-11 (feat/ai-core):** daily ceiling
+  checked at every aiRecruiter* entry point; match sweeps already batch 10-wide.
 - Runs not resumable after mid-pipeline failure (P2)
+- **AI Agents page now DB-backed** (2026-07-11, feat/ai-core): `agents` +
+  `agent_runs` tables (migration 017, staged), `Agent`/`AgentRun` entities,
+  AIAgents.jsx off mock data. Remaining: the execution engine (`runAgent`
+  ReAct loop, P3) — agents persist but do not run yet.
 
 ### 15. Investigation & Execution Layer (human-in-the-loop)
 **State:** Good — ApprovalQueue + DraftEditor + EmailDraftReview enforce human
-approval before sends.
+approval before sends. **Generalized 2026-07-11 (feat/ai-core):** new
+`approval_items` table (migration 018, staged) + "Agent Actions" queue tab with
+risk tiers, AI confidence, due-time, and bulk-approve-low-risk — any agent/
+automation action can now queue for human review, not just email drafts.
 **Gaps:**
 - No test proving an unapproved draft cannot be sent (approval-bypass audit) (P2)
+- Nothing writes to `approval_items` yet — producers land with the agent
+  execution engine (P3)
 
 ### 16. Orchestration Layer
 **State:** Inbound webhooks → classify → route; daily follow-up cron; unique

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,181 +22,135 @@ import {
 import { addNotification } from "@/components/notifications/NotificationToast";
 import PageHeader from "@/components/common/PageHeader";
 import Breadcrumbs from "@/components/common/Breadcrumbs";
+import EmptyState from "@/components/common/EmptyState";
 import AIAgentBuilder from "@/components/agents/AIAgentBuilder";
+import { Agent } from "@/entities/Agent";
+import { AgentRun } from "@/entities/AgentRun";
+import { useEntityList } from "@/hooks/useEntityList";
+
+// DB row (trigger_config JSONB) ↔ builder form ({ trigger }) mapping.
+const toUi = (row) => ({ ...row, trigger: row.trigger_config || {}, actions: row.actions || [] });
+const toRow = (form) => ({
+  name: form.name,
+  description: form.description,
+  type: form.type,
+  trigger_config: form.trigger || {},
+  actions: form.actions || [],
+  enabled: form.enabled !== false,
+});
 
 export default function AIAgents() {
-  const [agents, setAgents] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [builderOpen, setBuilderOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState(null);
-  const [stats, setStats] = useState({
-    totalAgents: 0,
-    activeAgents: 0,
-    totalRuns: 0,
-    successRate: 0
-  });
 
-  // Mock data for demonstration - in production, this would come from a backend API
-  useEffect(() => {
-    loadAgents();
-  }, []);
+  const {
+    data: agentRows,
+    loading,
+    error,
+    reload,
+  } = useEntityList(() => Agent.list("-created_date"));
+  const { data: runs, reload: reloadRuns } = useEntityList(() =>
+    AgentRun.list("-started_at", 200)
+  );
 
-  const loadAgents = async () => {
-    setLoading(true);
-    try {
-      // In a real implementation, these would be stored in a database
-      const mockAgents = [
-        {
-          id: "job_matcher",
-          name: "Auto Job Matcher",
-          description: "Automatically matches candidates to new jobs using AI",
-          type: "entity_trigger",
-          trigger: {
-            entity: "Job",
-            event: "created",
-            conditions: { status: "open" }
-          },
-          actions: [
-            {
-              type: "ai_analysis",
-              model: "o1",
-              prompt: "Analyze candidates for job match"
-            },
-            {
-              type: "create_applications",
-              threshold: 80
-            }
-          ],
-          enabled: true,
-          stats: {
-            runs: 45,
-            successes: 43,
-            failures: 2,
-            lastRun: new Date(Date.now() - 3600000).toISOString(),
-            avgDuration: 12.5
-          }
-        },
-        {
-          id: "follow_up_reminder",
-          name: "Follow-up Reminder Agent",
-          description: "Automatically creates tasks for stale candidate applications",
-          type: "scheduled",
-          schedule: "0 9 * * *",
-          trigger: {
-            schedule: "daily",
-            time: "09:00"
-          },
-          actions: [
-            {
-              type: "query_entities",
-              entity: "Application",
-              filter: { status: "interviewing" }
-            },
-            {
-              type: "create_tasks",
-              condition: "no_activity_7_days"
-            }
-          ],
-          enabled: true,
-          stats: {
-            runs: 120,
-            successes: 118,
-            failures: 2,
-            lastRun: new Date(Date.now() - 86400000).toISOString(),
-            avgDuration: 3.2
-          }
-        },
-        {
-          id: "candidate_enrichment",
-          name: "Candidate Profile Enrichment",
-          description: "Enriches candidate profiles with AI-extracted insights from resumes",
-          type: "entity_trigger",
-          trigger: {
-            entity: "Candidate",
-            event: "created"
-          },
-          actions: [
-            {
-              type: "ai_analysis",
-              model: "gpt-4o",
-              prompt: "Extract skills, experience, and summary from candidate data"
-            },
-            {
-              type: "update_entity",
-              fields: ["skills", "experience_years", "summary"]
-            }
-          ],
-          enabled: false,
-          stats: {
-            runs: 0,
-            successes: 0,
-            failures: 0,
-            lastRun: null,
-            avgDuration: 0
-          }
-        }
-      ];
+  const agents = useMemo(() => agentRows.map(toUi), [agentRows]);
 
-      setAgents(mockAgents);
-
-      // Calculate stats
-      const totalRuns = mockAgents.reduce((sum, a) => sum + a.stats.runs, 0);
-      const totalSuccesses = mockAgents.reduce((sum, a) => sum + a.stats.successes, 0);
-      
-      setStats({
-        totalAgents: mockAgents.length,
-        activeAgents: mockAgents.filter(a => a.enabled).length,
-        totalRuns,
-        successRate: totalRuns > 0 ? Math.round((totalSuccesses / totalRuns) * 100) : 0
-      });
-    } catch (error) {
-      console.error("Error loading agents:", error);
-      addNotification({
-        type: "error",
-        title: "Load Failed",
-        message: "Failed to load AI agents"
-      });
+  // Per-agent run stats derived from the last 200 runs.
+  const runStats = useMemo(() => {
+    const map = new Map();
+    for (const r of runs) {
+      const s = map.get(r.agent_id) || { runs: 0, successes: 0, lastRun: null, durTotal: 0, durCount: 0 };
+      s.runs += 1;
+      if (r.status === "success") s.successes += 1;
+      if (!s.lastRun || r.started_at > s.lastRun) s.lastRun = r.started_at;
+      if (r.completed_at && r.started_at) {
+        s.durTotal += (new Date(r.completed_at) - new Date(r.started_at)) / 1000;
+        s.durCount += 1;
+      }
+      map.set(r.agent_id, s);
     }
-    setLoading(false);
+    return map;
+  }, [runs]);
+
+  const statsFor = (agentId) => {
+    const s = runStats.get(agentId);
+    return {
+      runs: s?.runs || 0,
+      successes: s?.successes || 0,
+      lastRun: s?.lastRun || null,
+      avgDuration: s?.durCount ? (s.durTotal / s.durCount).toFixed(1) : 0,
+    };
   };
 
-  const toggleAgent = async (agentId) => {
+  const stats = useMemo(() => {
+    const totalRuns = runs.length;
+    const totalSuccesses = runs.filter((r) => r.status === "success").length;
+    return {
+      totalAgents: agents.length,
+      activeAgents: agents.filter((a) => a.enabled).length,
+      totalRuns,
+      successRate: totalRuns > 0 ? Math.round((totalSuccesses / totalRuns) * 100) : 0,
+    };
+  }, [agents, runs]);
+
+  const toggleAgent = async (agent) => {
     try {
-      setAgents(prev => prev.map(a => 
-        a.id === agentId ? { ...a, enabled: !a.enabled } : a
-      ));
-      
+      await Agent.update(agent.id, { enabled: !agent.enabled });
+      await reload();
       addNotification({
         type: "success",
         title: "Agent Updated",
-        message: "Agent status changed successfully"
+        message: `${agent.name} ${agent.enabled ? "paused" : "activated"}`
       });
-    } catch (error) {
-      console.error("Error toggling agent:", error);
+    } catch (err) {
+      console.error("Error toggling agent:", err);
       addNotification({
         type: "error",
         title: "Update Failed",
-        message: "Failed to update agent status"
+        message: err?.message || "Failed to update agent status"
       });
     }
   };
 
-  const deleteAgent = async (agentId) => {
-    if (!confirm("Are you sure you want to delete this agent?")) return;
-    
+  const deleteAgent = async (agent) => {
+    if (!confirm(`Delete agent "${agent.name}"? Its run history is removed too.`)) return;
+
     try {
-      setAgents(prev => prev.filter(a => a.id !== agentId));
+      await Agent.delete(agent.id);
+      await Promise.all([reload(), reloadRuns()]);
       addNotification({
         type: "success",
         title: "Agent Deleted",
         message: "Agent deleted successfully"
       });
-    } catch (error) {
-      console.error("Error deleting agent:", error);
+    } catch (err) {
+      console.error("Error deleting agent:", err);
       addNotification({
         type: "error",
         title: "Delete Failed",
-        message: "Failed to delete agent"
+        message: err?.message || "Failed to delete agent"
+      });
+    }
+  };
+
+  const saveAgent = async (form) => {
+    try {
+      if (editingAgent) await Agent.update(editingAgent.id, toRow(form));
+      else await Agent.create(toRow(form));
+      setBuilderOpen(false);
+      setEditingAgent(null);
+      await reload();
+      addNotification({
+        type: "success",
+        title: "Agent Saved",
+        message: "AI agent saved successfully"
+      });
+    } catch (err) {
+      console.error("Error saving agent:", err);
+      addNotification({
+        type: "error",
+        title: "Save Failed",
+        message: err?.message || "Failed to save agent"
       });
     }
   };
@@ -311,10 +265,20 @@ export default function AIAgents() {
         </Card>
       </div>
 
+      {/* Load error — surface it, never a silently blank list */}
+      {error && (
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState error={error} action={{ label: "Retry", fn: reload }} />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Agents List */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {agents.map(agent => {
           const Icon = getAgentIcon(agent.type);
+          const agentStats = statsFor(agent.id);
           return (
             <Card key={agent.id} className={`${agent.enabled ? "border-2 border-green-200" : ""}`}>
               <CardHeader>
@@ -383,22 +347,22 @@ export default function AIAgents() {
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-2 text-center text-sm border-t pt-4">
                   <div>
-                    <p className="font-semibold text-slate-900">{agent.stats.runs}</p>
+                    <p className="font-semibold text-slate-900">{agentStats.runs}</p>
                     <p className="text-xs text-slate-500">Runs</p>
                   </div>
                   <div>
-                    <p className="font-semibold text-green-600">{agent.stats.successes}</p>
+                    <p className="font-semibold text-green-600">{agentStats.successes}</p>
                     <p className="text-xs text-slate-500">Success</p>
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-900">{agent.stats.avgDuration}s</p>
+                    <p className="font-semibold text-slate-900">{agentStats.avgDuration}s</p>
                     <p className="text-xs text-slate-500">Avg Time</p>
                   </div>
                 </div>
 
-                {agent.stats.lastRun && (
+                {agentStats.lastRun && (
                   <p className="text-xs text-slate-500">
-                    Last run: {new Date(agent.stats.lastRun).toLocaleString()}
+                    Last run: {new Date(agentStats.lastRun).toLocaleString()}
                   </p>
                 )}
 
@@ -407,7 +371,7 @@ export default function AIAgents() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => toggleAgent(agent.id)}
+                    onClick={() => toggleAgent(agent)}
                     className="gap-2 flex-1"
                   >
                     {agent.enabled ? (
@@ -436,7 +400,7 @@ export default function AIAgents() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => deleteAgent(agent.id)}
+                    onClick={() => deleteAgent(agent)}
                     className="text-red-600 hover:text-red-700"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -449,7 +413,7 @@ export default function AIAgents() {
       </div>
 
       {/* Empty State */}
-      {agents.length === 0 && (
+      {!error && agents.length === 0 && (
         <Card>
           <CardContent className="p-12 text-center">
             <Brain className="w-16 h-16 text-purple-400 mx-auto mb-4" />
@@ -478,20 +442,7 @@ export default function AIAgents() {
             setBuilderOpen(false);
             setEditingAgent(null);
           }}
-          onSave={(agent) => {
-            if (editingAgent) {
-              setAgents(prev => prev.map(a => a.id === agent.id ? agent : a));
-            } else {
-              setAgents(prev => [...prev, { ...agent, id: `agent_${Date.now()}` }]);
-            }
-            setBuilderOpen(false);
-            setEditingAgent(null);
-            addNotification({
-              type: "success",
-              title: "Agent Saved",
-              message: "AI agent saved successfully"
-            });
-          }}
+          onSave={saveAgent}
         />
       )}
     </div>

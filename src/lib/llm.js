@@ -24,6 +24,18 @@ const provider    = import.meta.env.VITE_LLM_PROVIDER   || "anthropic";
 // @ts-ignore
 const directMode  = String(import.meta.env.VITE_LLM_DIRECT || "").toLowerCase() === "true";
 
+/**
+ * Thrown when the server-side spend ceiling rejects a call (HTTP 429 from an
+ * Edge Function). Callers can `err instanceof LLMBudgetError` to show a
+ * budget-specific toast instead of a generic failure.
+ */
+export class LLMBudgetError extends Error {
+  constructor(message) {
+    super(message || "LLM daily cost ceiling reached — try again tomorrow or raise the ceiling.");
+    this.name = "LLMBudgetError";
+  }
+}
+
 // ── Proxy path (default) — routes via Supabase Edge Function llmProxy ────────
 async function callProxy(opts) {
   const { supabase } = await import("@/lib/supabase");
@@ -36,6 +48,7 @@ async function callProxy(opts) {
     if (/404|not found/i.test(msg)) {
       throw new Error(`llmProxy Edge Function is not deployed. Deploy it with: supabase functions deploy llmProxy && supabase secrets set OPENAI_API_KEY=... ANTHROPIC_API_KEY=... — or set VITE_LLM_DIRECT=true for dev.`);
     }
+    if (/429|cost ceiling/i.test(msg)) throw new LLMBudgetError(msg);
     throw new Error(msg);
   }
   logUsage({ provider: "proxy", model: opts.model || "auto", prompt_tokens: 0, completion_tokens: 0, cost_usd: 0, latency_ms: Date.now() - t0, task: opts.task });

@@ -30,6 +30,17 @@ Deno.serve(withErrorHandling(async (req) => {
   if (!postmarkToken) return errResponse("Postmark token not configured", 503);
   if (!fromEmail) return errResponse("From email not configured", 503);
 
+  // Idempotency lock: atomically claim the draft (approved → sending) so a
+  // double-click or retried invocation can't send twice. The status check
+  // above is only advisory — this conditional update is the real gate.
+  const { data: claimed } = await supabase
+    .from("email_drafts")
+    .update({ status: "sending" })
+    .eq("id", draft_id)
+    .eq("status", "approved")
+    .select("id");
+  if (!claimed?.length) return errResponse("Draft is already being sent by another request", 409);
+
   // Build Postmark payload
   const payload: Record<string, unknown> = {
     From: fromEmail,
@@ -47,16 +58,23 @@ Deno.serve(withErrorHandling(async (req) => {
   if (thread_message_id) headers.push({ Name: "References", Value: thread_message_id });
   if (headers.length) payload.Headers = headers;
 
-  const pmRes = await fetch("https://api.postmarkapp.com/email", {
-    method: "POST",
-    headers: {
-      "X-Postmark-Server-Token": postmarkToken,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const pmJson = await pmRes.json();
+  let pmRes: Response;
+  let pmJson: { Message?: string; MessageID?: string };
+  try {
+    pmRes = await fetch("https://api.postmarkapp.com/email", {
+      method: "POST",
+      headers: {
+        "X-Postmark-Server-Token": postmarkToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    pmJson = await pmRes.json();
+  } catch (netErr) {
+    // Release the lock so a retry is possible — nothing was sent.
+    await supabase.from("email_drafts").update({ status: "approved" }).eq("id", draft_id);
+    return errResponse(`Postmark unreachable: ${netErr?.message || netErr}`, 502);
+  }
   if (!pmRes.ok) {
     await supabase.from("email_drafts").update({ status: "send_failed", send_failed_reason: pmJson.Message }).eq("id", draft_id);
     return errResponse(`Postmark error: ${pmJson.Message}`, 502);

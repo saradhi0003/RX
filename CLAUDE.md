@@ -82,6 +82,14 @@ npm run test:all       # vitest + playwright
   Consultants, Recruiters, Expenses, AccessControl, Approvals, Companies, Tasks).
   Column widths persist per-tab in `localStorage`. See
   [src/components/CLAUDE.md](src/components/CLAUDE.md) + [TESTING.md](TESTING.md) §17a.
+- **AI-core work on branch `feat/ai-core`** (2026-07-11): LLM cost ceilings at all
+  aiRecruiter* entry points + per-request cap + `LLMBudgetError`; PII scrubbing
+  (`_shared/pii.ts`, `@/utils/piiScrubber`); `useEntityList` + `EmptyState`
+  error-state pattern; AI Agents persisted (migration **017**, staged);
+  generic approval queue (`approval_items`, migration **018**, staged);
+  LLM cost dashboard on /SystemHealth; atomic send lock in `sendApprovedDraft`.
+  **Deploy gate:** migrations 017/018 must be applied to a live/preview DB before
+  this branch merges (same precedent as 012). See GAPS.md for per-layer status.
 - **P0 work in flight:** P0-2 (camera/mic `Permissions-Policy` fix) is on `main`;
   P0-1 multi-tenancy is on `feat/multi-tenancy-p0-1` (migration 012 + signup
   change + a pending Edge-Function `workspace_id` audit). See the plan in

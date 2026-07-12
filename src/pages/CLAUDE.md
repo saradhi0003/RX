@@ -13,8 +13,9 @@ One file = one route. ~52 pages. Registered (name → lazy import) in
 
 ## Conventions
 - **Data:** fetch via entities (`@/entities/*`) + react-query — never
-  `supabase.from` directly. Handle the `throw` from entity calls (show a toast /
-  empty state; don't render blank rows on error or logged-out).
+  `supabase.from` directly. Handle the `throw` from entity calls: use
+  `useEntityList` (`@/hooks/useEntityList`) + `EmptyState`
+  (`@/components/common/EmptyState`) — never render blank rows on error.
 - **Navigation:** `createPageUrl` from `@/utils` + react-router. Deep links carry
   state in the query string (enterprise pattern — see ARCHITECTURE.md §9.5).
 - **Layout:** don't re-implement the shell; the page renders inside `<Layout>`.
