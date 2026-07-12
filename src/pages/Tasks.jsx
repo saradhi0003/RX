@@ -54,6 +54,7 @@ import {
 import DeleteConfirmModal from "@/components/common/DeleteConfirmModal";
 import { Checkbox } from "@/components/ui/checkbox";
 import { addNotification } from "@/components/notifications/NotificationToast";
+import { useColumnResize } from "@/hooks/useColumnResize";
 
 // Placeholder for SkeletonTable if not imported
 const SkeletonTable = ({ rows, cols }) => (
@@ -292,6 +293,23 @@ export default function Tasks() {
       setSortOrder("asc");
     }
   };
+
+  // List-view columns: `key` drives saved widths + header-click sort, `def` is
+  // the fallback grid track. The select/actions columns are fixed (no handle).
+  const taskColumns = [
+    { key: "select", label: "", sort: null, def: "40px" },
+    { key: "title", label: "TITLE", sort: "title", def: "1.6fr" },
+    { key: "assignee", label: "ASSIGNEE", sort: "assigned_to", def: "1fr" },
+    { key: "priority", label: "PRIORITY", sort: "priority", def: "90px" },
+    { key: "status", label: "STATUS", sort: "status", def: "90px" },
+    { key: "due", label: "DUE DATE", sort: "due_date", def: "100px" },
+    { key: "related", label: "RELATED", sort: "related_entity", def: "80px" },
+    { key: "actions", label: "", sort: null, def: "36px" },
+  ];
+  const { widthFor: taskWidthFor, ResizeHandle: TaskResizeHandle } = useColumnResize("tasks");
+  const taskGridTemplate = taskColumns
+    .map((c) => { const w = taskWidthFor(c.key); return w ? `${w}px` : c.def; })
+    .join(" ");
 
   // The filteredTasks array is sorted in place here if in list mode.
   // This modified array will then be used for pagination below.
@@ -660,12 +678,20 @@ export default function Tasks() {
                 </div>
               )}
               {/* Header */}
-              <div style={{ display: "grid", gridTemplateColumns: "40px 1.6fr 1fr 90px 90px 100px 80px 36px", padding: "9px 20px", borderBottom: "1px solid #E2E8F0", background: "#FAFAFA" }}>
-                {["", "TITLE", "ASSIGNEE", "PRIORITY", "STATUS", "DUE DATE", "RELATED", ""].map((h, i) => (
-                  <div key={i} style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".04em", color: "#94A3B8" }}>
-                    {i === 0 ? <Checkbox checked={allVisibleSelected} onCheckedChange={c => toggleSelectAllVisible(!!c)} /> : h}
-                  </div>
-                ))}
+              <div style={{ display: "grid", gridTemplateColumns: taskGridTemplate, padding: "9px 20px", borderBottom: "1px solid #E2E8F0", background: "#FAFAFA" }}>
+                {taskColumns.map((col, i) => {
+                  const active = col.sort && sortBy === col.sort;
+                  return (
+                    <div key={col.key} className="group" onClick={col.sort ? () => handleSort(col.sort) : undefined}
+                      style={{ position: "relative", fontSize: 11, fontWeight: 600, letterSpacing: ".04em", color: active ? "#475569" : "#94A3B8", display: "flex", alignItems: "center", gap: 4, cursor: col.sort ? "pointer" : "default", userSelect: "none" }}>
+                      {i === 0
+                        ? <span onClick={e => e.stopPropagation()} style={{ display: "inline-flex" }}><Checkbox checked={allVisibleSelected} onCheckedChange={c => toggleSelectAllVisible(!!c)} /></span>
+                        : col.label}
+                      {active && (sortOrder === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
+                      {col.label && <TaskResizeHandle colKey={col.key} />}
+                    </div>
+                  );
+                })}
               </div>
 
               {paginatedTasks.map((t, idx) => {
@@ -676,7 +702,7 @@ export default function Tasks() {
 
                 return (
                   <div key={t.id} onClick={() => setSelectedTask(t)}
-                    style={{ display: "grid", gridTemplateColumns: "40px 1.6fr 1fr 90px 90px 100px 80px 36px", padding: "10px 20px", borderBottom: idx < paginatedTasks.length - 1 ? "1px solid #F2F2F7" : "none", alignItems: "center", cursor: "pointer", background: highlightedTask?.id === t.id ? "rgba(0,113,227,.04)" : "transparent", transition: "background 100ms" }}
+                    style={{ display: "grid", gridTemplateColumns: taskGridTemplate, padding: "10px 20px", borderBottom: idx < paginatedTasks.length - 1 ? "1px solid #F2F2F7" : "none", alignItems: "center", cursor: "pointer", background: highlightedTask?.id === t.id ? "rgba(0,113,227,.04)" : "transparent", transition: "background 100ms" }}
                     onMouseEnter={e => { if (highlightedTask?.id !== t.id) e.currentTarget.style.background = "#F9F9FB"; }}
                     onMouseLeave={e => { e.currentTarget.style.background = highlightedTask?.id === t.id ? "rgba(0,113,227,.04)" : "transparent"; }}>
                     <div onClick={e => e.stopPropagation()}><Checkbox checked={selectedIds.has(t.id)} onCheckedChange={() => toggleSelect(t.id)} /></div>

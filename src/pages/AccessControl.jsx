@@ -14,6 +14,8 @@ import { usePermissions } from "@/components/common/PermissionsContext";
 import { AuditLog } from "@/entities/AuditLog";
 import { getRolesCached, invalidateRolesCache } from "@/components/utils/rolesCache";
 import InviteUserModal from "@/components/common/InviteUserModal"; // New import
+import { DataTableProvider, SortableHead } from "@/components/common/DataTable";
+import { useTableSort } from "@/hooks/useTableSort";
 
 // Replace ENTITIES with a comprehensive list used across the app
 const ENTITIES = [
@@ -52,6 +54,20 @@ export default function AccessControl() {
     if (!q) return users;
     return users.filter(u => (u.full_name || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q));
   }, [users, search]);
+
+  const usersSortAccessors = useMemo(
+    () => ({ role: (u) => roles.find((r) => r.id === u.role_id)?.name || "" }),
+    [roles]
+  );
+  const usersSort = useTableSort(filteredUsers, {
+    defaultKey: "created_date",
+    defaultOrder: "desc",
+    accessors: usersSortAccessors,
+  });
+  const auditSort = useTableSort(auditLogs, {
+    defaultKey: "created_date",
+    defaultOrder: "desc",
+  });
 
   const isAdmin = (user?.role === "admin") || (role?.name === "Admin");
 
@@ -205,19 +221,20 @@ export default function AccessControl() {
               <CardTitle>Users</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
+              <DataTableProvider tableId="access-users" sort={usersSort}>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Seat</TableHead>
-                    <TableHead>Access Level</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <SortableHead columnKey="full_name">Name</SortableHead>
+                    <SortableHead columnKey="email">Email</SortableHead>
+                    <SortableHead columnKey="seat">Seat</SortableHead>
+                    <SortableHead columnKey="role">Access Level</SortableHead>
+                    <SortableHead columnKey="status">Status</SortableHead>
+                    <SortableHead columnKey="actions" sortable={false}>Actions</SortableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map(u => (
+                  {usersSort.sorted.map(u => (
                     <TableRow key={u.id}>
                       <TableCell>{u.full_name || "—"}</TableCell>
                       <TableCell>{u.email}</TableCell>
@@ -259,6 +276,7 @@ export default function AccessControl() {
                   ))}
                 </TableBody>
               </Table>
+              </DataTableProvider>
             </CardContent>
           </Card>
         </TabsContent>
@@ -361,19 +379,20 @@ export default function AccessControl() {
               <CardTitle>Login Audit (Last 12 Months)</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
+              <DataTableProvider tableId="access-audit" sort={auditSort}>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>When</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>IP</TableHead>
-                    <TableHead>Device / Agent</TableHead>
-                    <TableHead>App</TableHead>
-                    <TableHead>Action</TableHead>
+                    <SortableHead columnKey="created_date">When</SortableHead>
+                    <SortableHead columnKey="user_email">User</SortableHead>
+                    <SortableHead columnKey="ip">IP</SortableHead>
+                    <SortableHead columnKey="user_agent">Device / Agent</SortableHead>
+                    <SortableHead columnKey="app">App</SortableHead>
+                    <SortableHead columnKey="action">Action</SortableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {auditLogs.map(l => (
+                  {auditSort.sorted.map(l => (
                     <TableRow key={l.id}>
                       <TableCell>{new Date(l.created_date).toLocaleString()}</TableCell>
                       <TableCell className="truncate">{l.user_email}</TableCell>
@@ -388,6 +407,7 @@ export default function AccessControl() {
                   )}
                 </TableBody>
               </Table>
+              </DataTableProvider>
             </CardContent>
           </Card>
         </TabsContent>

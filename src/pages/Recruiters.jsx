@@ -19,6 +19,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import TransferOwnershipModal from "../components/recruiters/TransferOwnershipModal";
 import InviteUserModal from "@/components/common/InviteUserModal";
 import { getRolesCached } from "@/components/utils/rolesCache"; // UPDATED PATH
+import { DataTableProvider, SortableHead } from "@/components/common/DataTable";
+import { useTableSort } from "@/hooks/useTableSort";
 
 export default function RecruitersPage() {
   const [recruiters, setRecruiters] = useState([]);
@@ -82,6 +84,20 @@ export default function RecruitersPage() {
       (r.specializations || []).some(s => s.toLowerCase().includes(q))
     );
   }, [search, recruiters]);
+
+  const sortAccessors = useMemo(
+    () => ({
+      name: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim(),
+      role: (r) => roles.find((role) => role.id === r.role_id)?.name || r.role || "",
+      specializations: (r) => r.specializations?.[0] || "",
+    }),
+    [roles]
+  );
+  const sort = useTableSort(filtered, {
+    defaultKey: "created_date",
+    defaultOrder: "desc",
+    accessors: sortAccessors,
+  });
 
   const handleCreateRecruiter = async (data, accessRoleIdParam) => {
     const accessRoleId = accessRoleIdParam || "";
@@ -209,20 +225,21 @@ export default function RecruitersPage() {
 
           <Card>
             <CardContent className="p-0">
+              <DataTableProvider tableId="recruiters" sort={sort}>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Access Level</TableHead>
-                    <TableHead>Territory</TableHead>
-                    <TableHead>Specializations</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <SortableHead columnKey="name">Name</SortableHead>
+                    <SortableHead columnKey="email">Email</SortableHead>
+                    <SortableHead columnKey="role">Access Level</SortableHead>
+                    <SortableHead columnKey="territory">Territory</SortableHead>
+                    <SortableHead columnKey="specializations">Specializations</SortableHead>
+                    <SortableHead columnKey="status">Status</SortableHead>
+                    <SortableHead columnKey="actions" sortable={false}>Actions</SortableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map(r => {
+                  {sort.sorted.map(r => {
                     const roleName = roles.find(role => role.id === r.role_id)?.name || r.role;
                     return (
                       <TableRow key={r.id} className="hover:bg-slate-50">
@@ -271,6 +288,7 @@ export default function RecruitersPage() {
                   })}
                 </TableBody>
               </Table>
+              </DataTableProvider>
             </CardContent>
           </Card>
         </TabsContent>

@@ -216,6 +216,26 @@ forward test plan for when they land.
 - **Tool:** Vitest + RTL (**example:** [tests/unit/ui/button.test.jsx](tests/unit/ui/button.test.jsx)),
   Playwright [tests/smoke/pages.spec.js](tests/smoke/pages.spec.js).
 
+#### 17a. Sortable + resizable list tables ✅
+- **Is:** the shared behavior every list tab uses — click a column header to sort
+  (asc → desc), drag a header's right edge to resize, widths persisted per-tab.
+- **Where:** [src/hooks/useTableSort.js](src/hooks/useTableSort.js) (sort state +
+  comparator), [src/hooks/useColumnResize.jsx](src/hooks/useColumnResize.jsx)
+  (localStorage-backed width store, `tableId`-keyed),
+  [src/components/common/DataTable.jsx](src/components/common/DataTable.jsx)
+  (`DataTableProvider` + `SortableHead` over the shadcn `<Table>`). Applied on
+  Invoices/Consultants/Recruiters/Expenses/AccessControl/Approvals (shadcn tables)
+  and Companies/Tasks (bespoke CSS-grid lists — same hooks, grid template driven by
+  saved widths).
+- **Test:** unit-test the comparator (strings numeric-aware, numbers, dates,
+  nulls-last both directions) and the `requestSort` toggle; assert `SortableHead`
+  fires `requestSort` on click, skips `sortable={false}` columns, sets `aria-sort`,
+  and renders a resize grip; assert widths persist to and re-read from localStorage.
+  Do **not** assert pixel widths (jsdom has no layout). Full drag → Playwright.
+- **Tool:** Vitest + RTL. **Specs:** [tests/unit/ui/useTableSort.test.js](tests/unit/ui/useTableSort.test.js),
+  [tests/unit/ui/useColumnResize.test.jsx](tests/unit/ui/useColumnResize.test.jsx),
+  [tests/unit/ui/DataTable.test.jsx](tests/unit/ui/DataTable.test.jsx) (14 tests).
+
 ### 18. Login Page
 - **Is:** email/password sign-in, magic-link (OTP email), demo-account buttons,
   the "Supabase not connected" banner.

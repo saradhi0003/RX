@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Upload, RefreshCcw, Copy, FileText } from "lucide-react";
 import PageHeader from "@/components/common/PageHeader";
+import { DataTableProvider, SortableHead } from "@/components/common/DataTable";
+import { useTableSort } from "@/hooks/useTableSort";
 import { Expense } from "@/entities/Expense";
 import ExpenseForm from "@/components/accounts/ExpenseForm";
 import ImportModal from "@/components/common/ImportModal";
@@ -44,6 +46,8 @@ export default function Expenses() {
     const s = scopeFor("Expense");
     return s === "all" || ex.created_by === (me?.email || "");
   };
+
+  const sort = useTableSort(expenses, { defaultKey: "date", defaultOrder: "desc" });
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -156,21 +160,22 @@ export default function Expenses() {
         <CardHeader><CardTitle className="text-lg">All Expenses</CardTitle></CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
+            <DataTableProvider tableId="expenses" sort={sort}>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Amount (USD)</TableHead>
-                  <TableHead>Amount (Original)</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <SortableHead columnKey="date">Date</SortableHead>
+                  <SortableHead columnKey="name">Name</SortableHead>
+                  <SortableHead columnKey="type">Type</SortableHead>
+                  <SortableHead columnKey="amount_usd">Amount (USD)</SortableHead>
+                  <SortableHead columnKey="amount">Amount (Original)</SortableHead>
+                  <SortableHead columnKey="location">Location</SortableHead>
+                  <SortableHead columnKey="source">Source</SortableHead>
+                  <SortableHead columnKey="actions" sortable={false}>Actions</SortableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {expenses.map(ex => {
+                {sort.sorted.map(ex => {
                   const canEditThis = canUpdate && withinExpenseScope(ex);
                   const canDeleteThis = canDelete && withinExpenseScope(ex);
                   const canCloneThis = canCreate && withinExpenseScope(ex);
@@ -212,6 +217,7 @@ export default function Expenses() {
                 )}
               </TableBody>
             </Table>
+            </DataTableProvider>
           </div>
         </CardContent>
       </Card>

@@ -25,6 +25,30 @@ library; wrap it, don't fork it.
 - **approval-queue/** — the human review gate before actions execute.
 - **automation/** — `executeAutomation.jsx` runs rule actions (Execution layer).
 
+## Shared list tables — sortable + resizable columns
+Every list tab uses one shared behavior. **Don't re-roll per-page sort/resize.**
+Three pieces (the hooks live in `@/hooks` — see [../hooks/CLAUDE.md](../hooks/CLAUDE.md)):
+- `useTableSort(rows, { defaultKey, defaultOrder, accessors })` → `{ sorted,
+  sortKey, sortOrder, requestSort }`. `accessors` (memoize it) only for columns
+  whose display value ≠ the raw field (a joined company/role name, a nested value).
+- `useColumnResize(tableId)` → `{ widthFor, ResizeHandle }`. Widths persist to
+  `localStorage` under `rx.tablewidths.<tableId>` via a **module-level store keyed
+  by `tableId`** — pick a stable, unique `tableId` per table.
+- `DataTableProvider` + `SortableHead` (in [common/DataTable.jsx](common/DataTable.jsx)).
+
+Two integration paths:
+1. **shadcn `<Table>` pages** (Invoices, Consultants, Recruiters, Expenses,
+   AccessControl, Approvals): wrap `<Table>` in `<DataTableProvider tableId sort={…}>`,
+   replace each `<TableHead>` with `<SortableHead columnKey="field">` (action/checkbox
+   columns get `sortable={false}`), render the body from `sort.sorted`.
+2. **bespoke CSS-grid list pages** (Companies, Tasks): no `<th>` to swap. Call
+   `useColumnResize(tableId)` once, build `gridTemplateColumns` from `widthFor(key) ??
+   default` and apply it to **both** the header and every row, and drop a
+   `<ResizeHandle colKey>` into each header cell (make the cell `position:relative` +
+   `className="group"`); wire header clicks to the page's existing `handleSort`.
+
+Out of scope: card/kanban views (no columns) and matrix tables (SkillMatrix/BRD).
+
 ## Tests
 Component tests: Vitest + React Testing Library under `tests/unit/ui/`
 (example: `tests/unit/ui/button.test.jsx`). Assert roles/labels and behavior, not

@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Send, DollarSign, Check, Mail } from "lucide-react";
 import PageHeader from "@/components/common/PageHeader";
+import { DataTableProvider, SortableHead } from "@/components/common/DataTable";
+import { useTableSort } from "@/hooks/useTableSort";
 import { Invoice } from "@/entities/Invoice";
 import { Company } from "@/entities/Company";
 import InvoiceForm from "@/components/accounts/InvoiceForm";
@@ -42,6 +44,19 @@ export default function Invoices() {
     const s = scopeFor("Invoice");
     return s === "all" || inv.created_by === (me?.email || "");
   };
+
+  // Sort: the Company column shows a joined name, so it needs an accessor.
+  const sortAccessors = React.useMemo(
+    () => ({
+      company: (inv) => companies.find((c) => c.id === inv.company_id)?.name || "",
+    }),
+    [companies]
+  );
+  const sort = useTableSort(invoices, {
+    defaultKey: "created_date",
+    defaultOrder: "desc",
+    accessors: sortAccessors,
+  });
 
   // Define hooks unconditionally
   const load = React.useCallback(async () => {
@@ -150,20 +165,21 @@ export default function Invoices() {
         <CardHeader><CardTitle className="text-lg">All Invoices</CardTitle></CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
+            <DataTableProvider tableId="invoices" sort={sort}>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>#</TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Issue</TableHead>
-                  <TableHead>Due</TableHead>
-                  <TableHead>Total</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <SortableHead columnKey="invoice_number">#</SortableHead>
+                  <SortableHead columnKey="company">Company</SortableHead>
+                  <SortableHead columnKey="issue_date">Issue</SortableHead>
+                  <SortableHead columnKey="due_date">Due</SortableHead>
+                  <SortableHead columnKey="total">Total</SortableHead>
+                  <SortableHead columnKey="status">Status</SortableHead>
+                  <SortableHead columnKey="actions" sortable={false}>Actions</SortableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {invoices.map(inv => {
+                {sort.sorted.map(inv => {
                   const comp = companies.find(c => c.id === inv.company_id);
                   const canEditThis = canUpdate && withinInvoiceScope(inv);
                   const canDeleteThis = canDelete && withinInvoiceScope(inv);
@@ -206,6 +222,7 @@ export default function Invoices() {
                 )}
               </TableBody>
             </Table>
+            </DataTableProvider>
           </div>
         </CardContent>
       </Card>

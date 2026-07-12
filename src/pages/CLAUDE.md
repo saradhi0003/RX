@@ -20,12 +20,18 @@ One file = one route. ~52 pages. Registered (name → lazy import) in
 - **Layout:** don't re-implement the shell; the page renders inside `<Layout>`.
 - **Permissions:** gate actions with `PermissionGate` /
   `@/components/common/PermissionsContext`.
+- **List tables:** a page with a data grid should get sortable + resizable columns
+  from the shared hooks/components, not a bespoke implementation — see
+  [../components/CLAUDE.md](../components/CLAUDE.md) → "Shared list tables"
+  (`@/hooks/useTableSort`, `@/hooks/useColumnResize`, `common/DataTable`).
 - Keep pages thin — push logic into `src/components/<domain>/` and `src/lib`.
 
 ## Auth surface
 `Login.jsx` (password + magic-link OTP + demo buttons), `Register.jsx`
 (multi-step, creates the workspace at signup on the multi-tenancy branch),
-`AuthContext` in `@/lib`. **No MFA yet.**
+`AuthContext` in `@/lib`. **MFA (TOTP) is live** (merged + e2e-proven 2026-07-06);
+email verification is on and new signups need admin approval — see
+[../../AUTH_SETUP.md](../../AUTH_SETUP.md) and root [CLAUDE.md](../../CLAUDE.md).
 
 ## Tests
 RTL render tests go in `tests/unit/ui/`; wrap pages in `MemoryRouter` and mock

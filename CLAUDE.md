@@ -50,6 +50,10 @@ npm run test:all       # vitest + playwright
   `#2563EB`, slate) is themed via CSS vars in [tailwind.config.js](tailwind.config.js).
 - **UI primitives:** `src/components/ui/*` is vendored shadcn — don't hand-edit;
   regenerate via the shadcn CLI ([components.json](components.json)).
+- **List tables:** don't hand-roll per-page sort/resize. Reuse the shared hooks
+  (`@/hooks/useTableSort`, `@/hooks/useColumnResize`) + `DataTableProvider`/
+  `SortableHead` (`@/components/common/DataTable`). See
+  [src/components/CLAUDE.md](src/components/CLAUDE.md) → "Shared list tables".
 - **JSX, not TSX.** Types are checked from JSDoc via `checkJs` (jsconfig).
 - **React 18 transform:** no `import React` needed just to render JSX.
 - **Dates:** Base44-compat alias — rows expose `created_date` (mirrors
@@ -69,9 +73,15 @@ npm run test:all       # vitest + playwright
   on the client filtering.
 - Don't commit `.env.local`, `data-import/` (PII), or test artifacts (gitignored).
 
-## Current state / gotchas (2026-06-21)
+## Current state / gotchas (2026-07-11)
 - **Supabase project is paused** (free tier auto-pause) → the live app shows empty
   data and e2e/DB tests can't run until it's restored.
+- **List tables are sortable + resizable** (2026-07-11): shared hooks
+  `@/hooks/useTableSort` + `@/hooks/useColumnResize` and
+  `DataTableProvider`/`SortableHead` now back every data-grid tab (Invoices,
+  Consultants, Recruiters, Expenses, AccessControl, Approvals, Companies, Tasks).
+  Column widths persist per-tab in `localStorage`. See
+  [src/components/CLAUDE.md](src/components/CLAUDE.md) + [TESTING.md](TESTING.md) §17a.
 - **P0 work in flight:** P0-2 (camera/mic `Permissions-Policy` fix) is on `main`;
   P0-1 multi-tenancy is on `feat/multi-tenancy-p0-1` (migration 012 + signup
   change + a pending Edge-Function `workspace_id` audit). See the plan in

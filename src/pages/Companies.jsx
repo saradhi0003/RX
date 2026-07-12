@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Company, Job } from "@/entities/all";
 import { User } from "@/entities/User";
+import { useColumnResize } from "@/hooks/useColumnResize";
 import CompanyForm from "../components/companies/CompanyForm";
 import PermissionGate from "@/components/common/PermissionGate";
 import PageHeader from "@/components/common/PageHeader";
@@ -210,6 +211,22 @@ export default function CompaniesPage() { // Renamed component
       setSortOrder("asc"); // Default to ascending when changing sort field
     }
   };
+
+  // Connections list columns: `key` drives saved widths + header-click sort,
+  // `def` is the fallback grid track when no width has been saved.
+  const connColumns = [
+    { key: "connection", label: "CONNECTION", sort: "name", def: "1.8fr" },
+    { key: "industry", label: "INDUSTRY", sort: "industry", def: "120px" },
+    { key: "primary_contact", label: "PRIMARY CONTACT", sort: "primary_contact", def: "130px" },
+    { key: "open_jobs", label: "OPEN JOBS", sort: "open_jobs", def: "90px" },
+    { key: "status", label: "STATUS", sort: "status", def: "90px" },
+    { key: "added", label: "ADDED", sort: "created_date", def: "80px" },
+    { key: "actions", label: "", sort: null, def: "36px" },
+  ];
+  const { widthFor: connWidthFor, ResizeHandle: ConnResizeHandle } = useColumnResize("companies");
+  const connGridTemplate = connColumns
+    .map((c) => { const w = connWidthFor(c.key); return w ? `${w}px` : c.def; })
+    .join(" ");
 
   // NEW: columns visible (persisted on view)
   const defaultColumns = ["connection", "industry", "location", "primary_contact", "last_name", "contact_numbers", "open_jobs", "status", "created_by", "website", "job_stack_access"];
@@ -699,13 +716,19 @@ export default function CompaniesPage() { // Renamed component
       <div style={{ padding:"20px 24px 40px" }}>
         <div style={{ background:"#fff", borderRadius:16, boxShadow:"0 2px 12px rgba(0,0,0,.07),0 0 0 .5px rgba(0,0,0,.05)", overflow:"hidden" }}>
           {/* Header */}
-          <div style={{ display:"grid", gridTemplateColumns:"1.8fr 120px 130px 90px 90px 80px 36px", gap:0, padding:"9px 20px", borderBottom:"1px solid #E2E8F0", background:"#FAFAFA" }}>
-            {["CONNECTION","INDUSTRY","PRIMARY CONTACT","OPEN JOBS","STATUS","ADDED",""].map((h,i) => (
-              <div key={i} style={{ fontSize:11, fontWeight:600, letterSpacing:".04em", color:"#94A3B8", display:"flex", alignItems:"center", gap:i===0?8:0 }}>
-                {i===0 && <Checkbox checked={allVisibleSelected} onCheckedChange={c=>toggleSelectAllVisible(!!c)} />}
-                {h}
-              </div>
-            ))}
+          <div style={{ display:"grid", gridTemplateColumns:connGridTemplate, gap:0, padding:"9px 20px", borderBottom:"1px solid #E2E8F0", background:"#FAFAFA" }}>
+            {connColumns.map((col,i) => {
+              const active = col.sort && sortBy === col.sort;
+              return (
+                <div key={col.key} className="group" onClick={col.sort ? () => handleSort(col.sort) : undefined}
+                  style={{ position:"relative", fontSize:11, fontWeight:600, letterSpacing:".04em", color: active ? "#475569" : "#94A3B8", display:"flex", alignItems:"center", gap:i===0?8:4, cursor: col.sort ? "pointer" : "default", userSelect:"none" }}>
+                  {i===0 && <span onClick={e=>e.stopPropagation()} style={{ display:"inline-flex" }}><Checkbox checked={allVisibleSelected} onCheckedChange={c=>toggleSelectAllVisible(!!c)} /></span>}
+                  {col.label}
+                  {active && (sortOrder === "asc" ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
+                  {col.label && <ConnResizeHandle colKey={col.key} />}
+                </div>
+              );
+            })}
           </div>
 
           {loading ? (
@@ -727,7 +750,7 @@ export default function CompaniesPage() { // Renamed component
 
             return (
               <div key={company.id} onClick={() => { setSelectedCompany(company); window.dispatchEvent(new CustomEvent("preview:open", { detail: { entity: "Company", id: company.id } })); }}
-                style={{ display:"grid", gridTemplateColumns:"1.8fr 120px 130px 90px 90px 80px 36px", gap:0, padding:"10px 20px", borderBottom:idx<paginatedConn.length-1?"1px solid #F2F2F7":"none", alignItems:"center", cursor:"pointer", background:isSelected?"rgba(0,113,227,.05)":"transparent", transition:"background 100ms" }}
+                style={{ display:"grid", gridTemplateColumns:connGridTemplate, gap:0, padding:"10px 20px", borderBottom:idx<paginatedConn.length-1?"1px solid #F2F2F7":"none", alignItems:"center", cursor:"pointer", background:isSelected?"rgba(0,113,227,.05)":"transparent", transition:"background 100ms" }}
                 onMouseEnter={e => { if(!isSelected) e.currentTarget.style.background="#F9F9FB"; }}
                 onMouseLeave={e => { e.currentTarget.style.background=isSelected?"rgba(0,113,227,.05)":"transparent"; }}>
 

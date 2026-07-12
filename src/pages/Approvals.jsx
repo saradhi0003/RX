@@ -12,6 +12,8 @@ import { sendAppEmail } from "@/components/utils/email";
 import { usePermissions } from "@/components/common/PermissionsContext";
 import { InvokeLLM } from "@/integrations/Core";
 import { addNotification } from "@/components/notifications/NotificationToast";
+import { DataTableProvider, SortableHead } from "@/components/common/DataTable";
+import { useTableSort } from "@/hooks/useTableSort";
 
 function weekKey(isoDate) {
   const d = new Date(isoDate);
@@ -36,6 +38,13 @@ export default function Approvals() {
   const [showAIInsights, setShowAIInsights] = useState(false);
   const [aiInsights, setAIInsights] = useState(null);
   const [analyzingAI, setAnalyzingAI] = useState(false);
+
+  // Timesheet rows carry Date objects under `start`; sort the Week column by it.
+  const weekAccessors = useMemo(() => ({ week: (g) => g.start, hours: (g) => g.hours }), []);
+  const leavesPendingSort = useTableSort(leavesPending, { defaultKey: "created_date", defaultOrder: "desc" });
+  const leavesApprovedSort = useTableSort(leavesApproved, { defaultKey: "created_date", defaultOrder: "desc" });
+  const timesheetsPendingSort = useTableSort(timesheetsPending, { defaultKey: "week", defaultOrder: "desc", accessors: weekAccessors });
+  const timesheetsApprovedSort = useTableSort(timesheetsApproved, { defaultKey: "week", defaultOrder: "desc", accessors: weekAccessors });
 
   const load = async () => {
     setLoading(true);
@@ -558,18 +567,19 @@ Be specific, data-driven, and actionable.`,
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
+              <DataTableProvider tableId="approvals-leaves-pending" sort={leavesPendingSort}>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Requester</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Start</TableHead>
-                    <TableHead>End</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <SortableHead columnKey="user_id">Requester</SortableHead>
+                    <SortableHead columnKey="type">Type</SortableHead>
+                    <SortableHead columnKey="start_date">Start</SortableHead>
+                    <SortableHead columnKey="end_date">End</SortableHead>
+                    <SortableHead columnKey="actions" sortable={false}>Actions</SortableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {leavesPending.map(l => (
+                  {leavesPendingSort.sorted.map(l => (
                     <TableRow key={l.id}>
                       <TableCell className="truncate">{l.user_id}</TableCell>
                       <TableCell className="capitalize">{l.type}</TableCell>
@@ -589,6 +599,7 @@ Be specific, data-driven, and actionable.`,
                   )}
                 </TableBody>
               </Table>
+              </DataTableProvider>
             </div>
           </CardContent>
         </Card>
@@ -604,17 +615,18 @@ Be specific, data-driven, and actionable.`,
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
+              <DataTableProvider tableId="approvals-timesheets-pending" sort={timesheetsPendingSort}>
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Week</TableHead>
-                    <TableHead>Hours</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <SortableHead columnKey="user_id">User</SortableHead>
+                    <SortableHead columnKey="week">Week</SortableHead>
+                    <SortableHead columnKey="hours">Hours</SortableHead>
+                    <SortableHead columnKey="actions" sortable={false}>Actions</SortableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {timesheetsPending.map(g => (
+                  {timesheetsPendingSort.sorted.map(g => (
                     <TableRow key={`${g.user_id}-${g.week}`}>
                       <TableCell className="truncate">{g.user_id}</TableCell>
                       <TableCell>{g.start.toLocaleDateString()} - {g.end.toLocaleDateString()}</TableCell>
@@ -633,6 +645,7 @@ Be specific, data-driven, and actionable.`,
                   )}
                 </TableBody>
               </Table>
+              </DataTableProvider>
             </div>
           </CardContent>
         </Card>
@@ -644,10 +657,11 @@ Be specific, data-driven, and actionable.`,
           <CardHeader><CardTitle className="text-base">Past Approved Leaves</CardTitle></CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto max-h-64">
+              <DataTableProvider tableId="approvals-leaves-approved" sort={leavesApprovedSort}>
               <Table>
-                <TableHeader><TableRow><TableHead>User</TableHead><TableHead>Type</TableHead><TableHead>Start</TableHead><TableHead>End</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><SortableHead columnKey="user_id">User</SortableHead><SortableHead columnKey="type">Type</SortableHead><SortableHead columnKey="start_date">Start</SortableHead><SortableHead columnKey="end_date">End</SortableHead></TableRow></TableHeader>
                 <TableBody>
-                  {leavesApproved.slice(0, 10).map(l => (
+                  {leavesApprovedSort.sorted.slice(0, 10).map(l => (
                     <TableRow key={`a-${l.id}`}>
                       <TableCell className="truncate">{l.user_id}</TableCell>
                       <TableCell className="capitalize">{l.type}</TableCell>
@@ -658,6 +672,7 @@ Be specific, data-driven, and actionable.`,
                   {(!loading && leavesApproved.length === 0) && <TableRow><TableCell colSpan={4} className="text-center text-slate-500 py-6">None.</TableCell></TableRow>}
                 </TableBody>
               </Table>
+              </DataTableProvider>
             </div>
           </CardContent>
         </Card>
@@ -666,10 +681,11 @@ Be specific, data-driven, and actionable.`,
           <CardHeader><CardTitle className="text-base">Past Approved Timesheets</CardTitle></CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto max-h-64">
+              <DataTableProvider tableId="approvals-timesheets-approved" sort={timesheetsApprovedSort}>
               <Table>
-                <TableHeader><TableRow><TableHead>User</TableHead><TableHead>Week</TableHead><TableHead>Hours</TableHead></TableRow></TableHeader>
+                <TableHeader><TableRow><SortableHead columnKey="user_id">User</SortableHead><SortableHead columnKey="week">Week</SortableHead><SortableHead columnKey="hours">Hours</SortableHead></TableRow></TableHeader>
                 <TableBody>
-                  {timesheetsApproved.slice(0, 10).map(g => (
+                  {timesheetsApprovedSort.sorted.slice(0, 10).map(g => (
                     <TableRow key={`appr-${g.user_id}-${g.week}`}>
                       <TableCell className="truncate">{g.user_id}</TableCell>
                       <TableCell>{g.start.toLocaleDateString()} - {g.end.toLocaleDateString()}</TableCell>
@@ -679,6 +695,7 @@ Be specific, data-driven, and actionable.`,
                   {(!loading && timesheetsApproved.length === 0) && <TableRow><TableCell colSpan={3} className="text-center text-slate-500 py-6">None.</TableCell></TableRow>}
                 </TableBody>
               </Table>
+              </DataTableProvider>
             </div>
           </CardContent>
         </Card>

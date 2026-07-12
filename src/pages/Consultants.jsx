@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,8 @@ import {
 import { Consultant } from "@/entities/Consultant";
 import ConsultantForm from "../components/consultants/ConsultantForm";
 import PermissionGate from "@/components/common/PermissionGate";
+import { DataTableProvider, SortableHead } from "@/components/common/DataTable";
+import { useTableSort } from "@/hooks/useTableSort";
 
 export default function Consultants() {
   const [consultants, setConsultants] = useState([]);
@@ -89,6 +91,21 @@ export default function Consultants() {
     };
     return colors[availability] || colors.available;
   };
+
+  // Columns whose display value differs from a raw field get an accessor.
+  const sortAccessors = useMemo(
+    () => ({
+      name: (c) => `${c.first_name || ""} ${c.last_name || ""}`.trim(),
+      rate: (c) => (c.rate_min != null ? Number(c.rate_min) : null),
+      specialization: (c) => c.specialization?.[0] || "",
+    }),
+    []
+  );
+  const sort = useTableSort(filteredConsultants, {
+    defaultKey: "created_date",
+    defaultOrder: "desc",
+    accessors: sortAccessors,
+  });
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
@@ -160,22 +177,23 @@ export default function Consultants() {
               </PermissionGate>
             </div>
           ) : (
+            <DataTableProvider tableId="consultants" sort={sort}>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Company</TableHead>
-                  <TableHead>Contact</TableHead>
-                  <TableHead>Specialization</TableHead>
-                  <TableHead>Rate</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Availability</TableHead>
-                  <TableHead>Rating</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <SortableHead columnKey="name">Name</SortableHead>
+                  <SortableHead columnKey="company">Company</SortableHead>
+                  <SortableHead columnKey="email">Contact</SortableHead>
+                  <SortableHead columnKey="specialization">Specialization</SortableHead>
+                  <SortableHead columnKey="rate">Rate</SortableHead>
+                  <SortableHead columnKey="location">Location</SortableHead>
+                  <SortableHead columnKey="availability">Availability</SortableHead>
+                  <SortableHead columnKey="rating">Rating</SortableHead>
+                  <SortableHead columnKey="actions" sortable={false}>Actions</SortableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredConsultants.map((consultant) => (
+                {sort.sorted.map((consultant) => (
                   <TableRow key={consultant.id} className="hover:bg-slate-50">
                     <TableCell>
                       <div>
@@ -272,6 +290,7 @@ export default function Consultants() {
                 ))}
               </TableBody>
             </Table>
+            </DataTableProvider>
           )}
         </CardContent>
       </Card>
