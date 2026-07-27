@@ -55,3 +55,11 @@ verify_jwt = false
 
 [functions.validateWhatsappRegistrationCode]
 verify_jwt = false
+
+# livekitToken has always run with verify_jwt off (see VideoCall.jsx setup notes).
+# Declared explicitly so `functions deploy` can't silently flip it to the `true`
+# default. It is no longer unprotected: requireApprovedUser() in the handler
+# verifies the caller's JWT itself and requires an approved profile, so the
+# platform flag is not what was guarding it.
+[functions.livekitToken]
+verify_jwt = false

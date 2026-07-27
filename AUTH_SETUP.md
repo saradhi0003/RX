@@ -7,6 +7,10 @@
 > TOTP flow (enroll → challenge → wrong-code reject → access). Remaining:
 > custom SMTP (Resend/Postmark) for production-scale verification emails —
 > built-in Supabase SMTP is ~2 emails/hour.
+>
+> **UPDATE 2026-07-27:** the admin-approval half was only ever enforced in the
+> UI. Migration **020** + `functions/_shared/auth.ts` move it into the database
+> and the Edge Functions — see §4. **Staged, not yet applied.**
 
 App-side code for all three is implemented (branch `feat/auth-mfa-email`). This
 file lists the **dashboard steps** that must be done alongside it — code alone
@@ -68,6 +72,54 @@ all IONOS **mail** records (MX, SPF TXT, DKIM, DMARC, autodiscover) left intact.
 2. **Update Supabase Auth URL Configuration** (see §2.2) to the new domain, or
    magic-link / email-confirm / OAuth redirects break on the live domain.
 3. Optionally set `VITE_APP_URL` in Vercel to the new URL and redeploy.
+
+## 4. Approval gate — enforced in the database (migration 020)
+
+**Status: code staged on `feat/ai-core`, migration NOT yet applied** (DB paused).
+
+Until 020 is applied the approval gate is **UI-only**. 016 added
+`user_profiles.status` / `is_locked`, and `Layout.jsx` + `AccessBlocker.jsx`
+honour them — but every data policy from 002 is still
+`USING (auth.uid() IS NOT NULL)`. A signup sitting at `status='invited'` who
+confirms their email holds a valid JWT and can read the entire CRM through
+PostgREST without ever loading the React app.
+
+`020_approval_rls_enforcement.sql` compiles `auth_is_approved()` into every data
+policy, hardens `auth_is_admin()`, and adds a trigger that stops a user setting
+their own `status`/`role` (the old self-update policy allowed exactly that).
+`supabase/functions/_shared/auth.ts` is the server-side twin for Edge Functions,
+which bypass RLS via the service role.
+
+### Verifying it — the only test that actually proves anything
+UI checks prove nothing here; the point is that the DB refuses. Sign in as an
+unapproved user, grab their `access_token`, and hit PostgREST directly:
+
+```bash
+# 1. Get a token for an 'invited' user (or copy it out of localStorage)
+curl -s "$VITE_SUPABASE_URL/auth/v1/token?grant_type=password" \
+  -H "apikey: $VITE_SUPABASE_ANON_KEY" -H "Content-Type: application/json" \
+  -d '{"email":"pending@example.com","password":"..."}' | jq -r .access_token
+
+# 2. Try to read candidates with it — MUST return []
+curl -s "$VITE_SUPABASE_URL/rest/v1/candidates?select=id,full_name&limit=5" \
+  -H "apikey: $VITE_SUPABASE_ANON_KEY" -H "Authorization: Bearer $TOKEN"
+
+# 3. Try to self-approve — MUST leave status unchanged ('invited')
+curl -s -X PATCH "$VITE_SUPABASE_URL/rest/v1/user_profiles?id=eq.$USER_ID" \
+  -H "apikey: $VITE_SUPABASE_ANON_KEY" -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -H "Prefer: return=representation" \
+  -d '{"status":"active","role":"admin"}'
+
+# 4. Try an Edge Function — MUST return 403, not a completion
+curl -s -X POST "$VITE_SUPABASE_URL/functions/v1/llmProxy" \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"prompt":"hello"}'
+```
+
+Then re-run steps 2 and 4 as an **approved** user — both must succeed, or the
+gate is too tight. Also smoke-test an inbound Telegram/Slack/WhatsApp message
+end-to-end: `channelMessageWebhook` fans out to other functions with the service
+key, and that path must keep working.
 
 ## Deploy order (so nothing breaks)
 1. Merge `feat/auth-mfa-email` **after** verifying login + MFA on a preview.

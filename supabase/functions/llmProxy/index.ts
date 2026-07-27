@@ -18,6 +18,7 @@
  */
 import { invokeLLM, invokeLLMJson, checkDailyCeiling } from "../_shared/llm.ts";
 import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
+import { requireApprovedUser } from "../_shared/auth.ts";
 
 interface ProxyRequest {
   prompt: string;
@@ -29,6 +30,10 @@ interface ProxyRequest {
 
 Deno.serve(withErrorHandling(async (req: Request) => {
   if (req.method !== "POST") return errResponse("Method not allowed", 405);
+
+  // Approval gate — the service role bypasses RLS, so re-check here.
+  const gate = await requireApprovedUser(req);
+  if (gate.response) return gate.response;
 
   const body = (await req.json().catch(() => null)) as ProxyRequest | null;
   if (!body?.prompt) return errResponse("Missing 'prompt' in request body", 400);

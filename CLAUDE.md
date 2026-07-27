@@ -97,3 +97,11 @@ npm run test:all       # vitest + playwright
 - **Auth (2026-07-06):** MFA (TOTP) merged + e2e-proven; email verification ON;
   HIBP + password policy; CSP/HSTS headers; **new signups need admin approval**
   (status='invited' → Access Control). See AUTH_SETUP.md + GAPS.md.
+- **Approval gate moved into the DB (2026-07-27, `feat/ai-core`):** the gate was
+  UI-only — 002's policies are `USING (auth.uid() IS NOT NULL)`, so an 'invited'
+  user could read the whole CRM via PostgREST. Migration **020** compiles
+  `auth_is_approved()` into every policy, hardens `auth_is_admin()`, and blocks
+  self-approval via `user_profiles`; `functions/_shared/auth.ts`
+  (`requireApprovedUser`) is the Edge-Function twin, since the service role
+  bypasses RLS. **020 is staged — NOT applied** (DB paused). Verify with the
+  curl tests in AUTH_SETUP.md §4 before merging.

@@ -7,6 +7,7 @@ import { supabase, getAISettings } from "../_shared/supabaseClient.ts";
 import { invokeLLM, checkDailyCeiling } from "../_shared/llm.ts";
 import { scrubForLLM } from "../_shared/pii.ts";
 import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
+import { requireApprovedUser } from "../_shared/auth.ts";
 
 const SYSTEM = `You are a senior recruiter writing personalized outreach emails.
 Write a concise, professional, and engaging email that:
@@ -22,6 +23,10 @@ SUBJECT: <subject line>
 <email body>`;
 
 Deno.serve(withErrorHandling(async (req) => {
+  // Approval gate — the service role bypasses RLS, so re-check here.
+  const gate = await requireApprovedUser(req);
+  if (gate.response) return gate.response;
+
   const body = await req.json();
   const { job_id, candidate_ids, run_id, draft_type = "candidate_outreach" } = body;
 

@@ -21,6 +21,7 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireApprovedUser } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,6 +49,12 @@ const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST")    return json({ error: "Method not allowed" }, 405);
+
+  // Approval gate — `sb` below is a service-role client that bypasses RLS,
+  // including the meeting-recordings storage policy. Recordings hold candidate
+  // PII, so re-check the caller before touching the bucket.
+  const gate = await requireApprovedUser(req);
+  if (gate.response) return gate.response;
 
   if (!OPENAI_API_KEY) {
     return json({

@@ -17,7 +17,34 @@ Server-side logic and the place API keys live. Called from the app via
   — inbound ingestion (email / Telegram / Slack / WhatsApp).
 - **createWhatsappRegistrationCode / validateWhatsappRegistrationCode**,
   **parseResumeFile**, **healthCheck** (integrations liveness).
-- **_shared/** — `supabaseClient.ts`, `llm.ts`, `classifier.ts`, `errorHandler.ts`.
+- **_shared/** — `supabaseClient.ts`, `llm.ts`, `classifier.ts`, `errorHandler.ts`,
+  `pii.ts`, `env.ts`, **`auth.ts`**.
+
+## ⚠ Approval gate — `_shared/auth.ts`
+`verify_jwt` proves the caller is *authenticated*, not *approved*. Since the
+service-role client bypasses RLS (and therefore `auth_is_approved()` from
+migration 020), every user-invoked function re-checks approval itself:
+
+```ts
+const gate = await requireApprovedUser(req);   // or requireAdminUser
+if (gate.response) return gate.response;       // 401/403 already formed
+```
+
+Wired into: llmProxy, all four aiRecruiter\*, sendApprovedDraft, stopFollowup,
+parseResumeFile, transcribeRecording, reprocessChannelMessage, livekitToken, and
+createWhatsappRegistrationCode (admin). **Add it to any new user-invoked
+function.**
+
+Deliberately NOT gated: the webhooks (`channelMessageWebhook`,
+`inboundEmailWebhook`, `validateWhatsappRegistrationCode` — external callers with
+no session), `healthCheck`, and `scheduledFollowupRun` (cron, gated by
+`CRON_SECRET`).
+
+`requireApprovedUser` verifies the JWT itself, so it works on functions deployed
+with `verify_jwt = false` (that is what now protects `livekitToken`). It also
+recognises the **service key as a trusted internal caller** — required because
+`channelMessageWebhook` fans out to `aiRecruiterParseJob` / `parseResumeFile`
+with `Bearer $SERVICE_KEY` and there is no end user in that chain.
 
 ## Conventions
 - Use the service-role client from `_shared/supabaseClient.ts` for privileged

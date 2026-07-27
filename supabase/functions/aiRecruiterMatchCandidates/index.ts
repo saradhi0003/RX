@@ -7,6 +7,7 @@ import { supabase, getAISettings } from "../_shared/supabaseClient.ts";
 import { invokeLLMJson, checkDailyCeiling } from "../_shared/llm.ts";
 import { scrubForLLM } from "../_shared/pii.ts";
 import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
+import { requireApprovedUser } from "../_shared/auth.ts";
 
 interface MatchResult {
   score: number;
@@ -31,6 +32,10 @@ Return JSON exactly:
 }`;
 
 Deno.serve(withErrorHandling(async (req) => {
+  // Approval gate — the service role bypasses RLS, so re-check here.
+  const gate = await requireApprovedUser(req);
+  if (gate.response) return gate.response;
+
   const body = await req.json();
   const { job_id, run_id, max_candidates = 50 } = body;
 

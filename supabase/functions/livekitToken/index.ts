@@ -15,6 +15,7 @@
  */
 import { AccessToken } from "https://esm.sh/livekit-server-sdk@2.9.7";
 import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
+import { requireApprovedUser } from "../_shared/auth.ts";
 
 interface TokenReq {
   room: string;
@@ -25,6 +26,12 @@ interface TokenReq {
 
 Deno.serve(withErrorHandling(async (req: Request) => {
   if (req.method !== "POST") return errResponse("Method not allowed", 405);
+
+  // This function is deployed with verify_jwt = false, so nothing else checks
+  // the caller — without this gate anyone could mint a LiveKit room token.
+  // requireApprovedUser verifies the JWT itself, so it works either way.
+  const gate = await requireApprovedUser(req);
+  if (gate.response) return gate.response;
 
   const body = (await req.json().catch(() => null)) as TokenReq | null;
   if (!body?.room || !body?.identity) {

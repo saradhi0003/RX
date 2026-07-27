@@ -6,6 +6,7 @@
  */
 import { supabase } from "../_shared/supabaseClient.ts";
 import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
+import { requireAdminUser } from "../_shared/auth.ts";
 
 function generateCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no ambiguous chars
@@ -17,6 +18,11 @@ function generateCode(): string {
 }
 
 Deno.serve(withErrorHandling(async (req) => {
+  // whatsapp_registrations is an admin_only table in RLS; the service role
+  // bypasses that, so mirror auth_is_admin() here.
+  const gate = await requireAdminUser(req);
+  if (gate.response) return gate.response;
+
   const body = await req.json();
   const { workspace_id } = body;
 

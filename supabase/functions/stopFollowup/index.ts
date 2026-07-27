@@ -5,8 +5,13 @@
  */
 import { supabase } from "../_shared/supabaseClient.ts";
 import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
+import { requireApprovedUser } from "../_shared/auth.ts";
 
 Deno.serve(withErrorHandling(async (req) => {
+  // Approval gate — the service role bypasses RLS, so re-check here.
+  const gate = await requireApprovedUser(req);
+  if (gate.response) return gate.response;
+
   const body = await req.json();
   const { schedule_id, reason = "manual_stop" } = body;
 

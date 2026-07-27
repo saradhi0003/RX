@@ -5,6 +5,7 @@
  */
 import { supabase } from "../_shared/supabaseClient.ts";
 import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
+import { requireApprovedUser } from "../_shared/auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -21,6 +22,10 @@ async function callFunction(name: string, body: unknown) {
 }
 
 Deno.serve(withErrorHandling(async (req) => {
+  // Approval gate — the service role bypasses RLS, so re-check here.
+  const gate = await requireApprovedUser(req);
+  if (gate.response) return gate.response;
+
   const body = await req.json();
   const { message_id } = body;
 
