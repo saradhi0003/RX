@@ -17,7 +17,28 @@ shipped migration — add a new one.
   **017 agents + agent_runs** and **018 approval_items** (on branch
   `feat/ai-core`, **staged — NOT applied**; DB paused. Apply 017 then 018 on a
   live/preview DB before merging that branch) · 019 security-definer view fix ·
-  **020 approval RLS enforcement** (staged — NOT applied).
+  **020 approval RLS enforcement** · **021 SECURITY DEFINER RPC leak fix**.
+  017–021 are all **APPLIED** to the live project as of 2026-07-27.
+
+### 021 — a live PII leak, found by `supabase db advisors`
+`search_candidates(text)` / `search_jobs(text)` were `SECURITY DEFINER`, so they
+ran as the owner and **ignored RLS** — and PostgREST exposes them at
+`/rest/v1/rpc/<name>` with `anon` holding EXECUTE. The anon key is public by
+design (it ships in the browser bundle), so anyone could dump 50 candidate
+records per query — name, email, phone, location — and paginate the table with
+different search terms. Confirmed live before the fix; 020 did **not** cover it,
+because SECURITY DEFINER is exactly what bypasses the policies 020 wrote.
+021 flips both to `SECURITY INVOKER`, revokes anon's EXECUTE, pins `search_path`
+on the remaining DEFINER functions, and revokes RPC access to trigger-only
+functions.
+
+**Do not "fix" the Advisor warning on `auth_is_approved()`/`auth_is_admin()` by
+revoking EXECUTE** — RLS policy expressions run with the caller's privileges, so
+that would break every gated query, and `anon` needs `auth_is_approved()` for
+the public `blog_posts` policy. See the note in 021.
+
+**Lesson:** a `SECURITY DEFINER` function that returns table rows is an RLS
+bypass with a public URL. Prefer `SECURITY INVOKER` for anything data-returning.
 
 ### 020 — the approval gate is now enforced in the DB
 016 added `user_profiles.status` / `is_locked` but only the **UI** honoured them
