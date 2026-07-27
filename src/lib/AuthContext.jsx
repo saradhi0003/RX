@@ -53,6 +53,18 @@ export const AuthProvider = ({ children }) => {
         effectiveProfile = created || { status: "invited", role: "recruiter" };
       }
 
+      // Pending signup: let the admins know someone is waiting behind the
+      // approval gate. Fire-and-forget and deliberately unawaited — the
+      // notification is best-effort and must never delay or break sign-in.
+      // notifySignupRequest is idempotent (guards on user_profiles.notified_at),
+      // so calling it on every load of a pending profile is safe and doubles as
+      // a retry for a send that previously failed.
+      if (effectiveProfile?.status === "invited") {
+        supabase.functions
+          .invoke("notifySignupRequest", { body: {} })
+          .catch(() => { /* best-effort: Access Control still shows the request */ });
+      }
+
       setUser({ ...authUser, ...effectiveProfile, email: authUser.email });
       setIsAuthenticated(true);
     } catch {

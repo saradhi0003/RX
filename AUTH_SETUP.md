@@ -121,6 +121,45 @@ gate is too tight. Also smoke-test an inbound Telegram/Slack/WhatsApp message
 end-to-end: `channelMessageWebhook` fans out to other functions with the service
 key, and that path must keep working.
 
+## 5. SMTP — two layers (⚠ ONE MANUAL STEP OUTSTANDING)
+
+Zoho SMTP credentials are live and verified against `smtppro.zoho.com:465` as
+`noreply@talentstack.org` (they are in `.env.local`). Note the **Postmark**
+token in `.env.local` is **invalid** and `POSTMARK_FROM_EMAIL` is still the
+placeholder `recruiter@yourdomain.com` — which also means `sendApprovedDraft`
+cannot currently send at all (it reads `postmark_token` / `from_email` from
+`app_settings`, and neither row exists).
+
+### Layer 2 — admin "access requested" notification (code DONE, secrets NOT set)
+`notifySignupRequest` + `_shared/email.ts` are written, deployed and tested. It
+is wired into `AuthContext` and fires whenever a profile loads as `invited`.
+**It currently returns `{skipped:true, reason:"smtp_not_configured"}`** because
+the Edge Functions have no SMTP secrets. To switch it on:
+
+```bash
+supabase secrets set \
+  SMTP_HOST=smtppro.zoho.com SMTP_PORT=465 \
+  SMTP_USER=<zoho user> SMTP_PASS=<zoho app password> \
+  SMTP_SENDER=noreply@talentstack.org
+```
+
+(The values are already in `.env.local`. I was blocked from writing secrets, so
+this step is yours.) Then verify: sign in as a pending user and confirm the
+admin receives mail and `user_profiles.notified_at` gets stamped. Until then the
+gate still works — Access Control lists pending requests regardless.
+
+There is a **real pending request waiting right now**: `bigsyy2004@gmail.com`,
+status `invited`, never notified.
+
+### Layer 1 — custom SMTP for Supabase Auth emails (NOT done, deliberately)
+Still the built-in sender at ~2 emails/hour. I did **not** change this: the CLI
+only offers `supabase config push`, which pushes the whole `[auth]` block from
+`config.toml` — and that file is configured for local dev
+(`site_url = "http://localhost:5173"`, `enable_confirmations = false`). Pushing
+it would have overwritten your production auth config and broken email
+confirmation. Do it in **Dashboard → Authentication → Emails → SMTP Settings**
+with the same Zoho values, which changes only SMTP.
+
 ## Deploy order (so nothing breaks)
 1. Merge `feat/auth-mfa-email` **after** verifying login + MFA on a preview.
 2. Flip on "Confirm email" + set Auth URLs **together** with the merge (the

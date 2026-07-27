@@ -17,6 +17,10 @@ Server-side logic and the place API keys live. Called from the app via
   — inbound ingestion (email / Telegram / Slack / WhatsApp).
 - **createWhatsappRegistrationCode / validateWhatsappRegistrationCode**,
   **parseResumeFile**, **healthCheck** (integrations liveness).
+- **notifySignupRequest** — emails the admins when a signup lands at
+  status='invited'. Best-effort: no SMTP secrets → `{skipped:true}` and
+  `notified_at` stays NULL so the next sign-in retries. Needs
+  `SMTP_HOST/PORT/USER/PASS/SENDER` secrets (see AUTH_SETUP.md §5).
 - **_shared/** — `supabaseClient.ts`, `llm.ts`, `classifier.ts`, `errorHandler.ts`,
   `pii.ts`, `env.ts`, **`auth.ts`**.
 
@@ -37,8 +41,10 @@ function.**
 
 Deliberately NOT gated: the webhooks (`channelMessageWebhook`,
 `inboundEmailWebhook`, `validateWhatsappRegistrationCode` — external callers with
-no session), `healthCheck`, and `scheduledFollowupRun` (cron, gated by
-`CRON_SECRET`).
+no session), `healthCheck`, `scheduledFollowupRun` (cron, gated by
+`CRON_SECRET`), and **`notifySignupRequest`** — that one exists precisely to
+serve an unapproved caller, so it uses `getCallerUser()` (authenticate only) and
+must never be "fixed" to use `requireApprovedUser`.
 
 `requireApprovedUser` verifies the JWT itself, so it works on functions deployed
 with `verify_jwt = false` (that is what now protects `livekitToken`). It also
