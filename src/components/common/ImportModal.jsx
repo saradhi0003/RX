@@ -11,6 +11,9 @@ import { Company } from "@/entities/Company";
 import { sendAppEmail } from "@/components/utils/email";
 import { User } from "@/entities/User"; // NEW
 
+/** Signed-URL lifetime for links sent by email — recipients open them late. */
+const SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60;
+
 function normalizeKey(s = "") {
   return String(s).toLowerCase().replace(/[^a-z0-9]/g, "");
 }
@@ -620,7 +623,8 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
         try {
           const csv = toCSV(duplicates);
           const dupFile = new File([csv], "duplicates.csv", { type: "text/csv" });
-          const { file_url } = await UploadFile({ file: dupFile });
+          // This URL is emailed, so it must outlive the default one-hour signature.
+          const { file_url } = await UploadFile({ file: dupFile, expiresIn: SEVEN_DAYS_SECONDS });
           if (myEmail) { // FIX: send to current user
             await sendAppEmail({
               to: myEmail,
@@ -655,7 +659,8 @@ export default function ImportModal({ open, onClose, entityName, entitySdk, onIm
         try {
           const csv = toCSV(duplicates);
           const dupFile = new File([csv], "duplicates.csv", { type: "text/csv" });
-          const { file_url } = await UploadFile({ file: dupFile });
+          // This URL is emailed, so it must outlive the default one-hour signature.
+          const { file_url } = await UploadFile({ file: dupFile, expiresIn: SEVEN_DAYS_SECONDS });
           dupUrl = file_url;
           if (myEmail) { // FIX: send to current user
             await sendAppEmail({

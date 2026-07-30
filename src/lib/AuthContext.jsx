@@ -1,6 +1,7 @@
 import { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { mfaStatus } from "@/lib/mfa";
+import { useIdleLogout } from "@/hooks/useIdleLogout";
 
 const AuthContext = createContext();
 
@@ -101,6 +102,12 @@ export const AuthProvider = ({ children }) => {
 
     return () => subscription.unsubscribe();
   }, [loadUserWithProfile]);
+
+  // Idle sign-out. Supabase refreshes the JWT forever on an open tab, so an
+  // unattended machine keeps a live CRM session; this terminates it after 20
+  // minutes of inactivity. The resulting auth state change flows through
+  // onAuthStateChange above and the route guards bounce to /Login.
+  useIdleLogout(isAuthenticated);
 
   /** Re-check assurance level after an MFA challenge (call once verify succeeds). */
   const refreshMfa = useCallback(async () => {

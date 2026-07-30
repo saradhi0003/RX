@@ -11,6 +11,12 @@
 > **UPDATE 2026-07-27:** the admin-approval half was only ever enforced in the
 > UI. Migration **020** + `functions/_shared/auth.ts` move it into the database
 > and the Edge Functions — see §4. **Staged, not yet applied.**
+>
+> **UPDATE 2026-07-29 (FinTracker feature port):** added idle sign-out (§6),
+> private upload storage (§7, migration **023**), and an installable Expo mobile
+> app (§8). The pattern doc these follow is vendored at
+> [skills/mfa-totp/](skills/mfa-totp/) — read it before changing any of the
+> gates. **Migration 023 is staged, not applied.**
 
 App-side code for all three is implemented (branch `feat/auth-mfa-email`). This
 file lists the **dashboard steps** that must be done alongside it — code alone
@@ -75,9 +81,10 @@ all IONOS **mail** records (MX, SPF TXT, DKIM, DMARC, autodiscover) left intact.
 
 ## 4. Approval gate — enforced in the database (migration 020)
 
-**Status: code staged on `feat/ai-core`, migration NOT yet applied** (DB paused).
+**Status: APPLIED to the live project (2026-07-27) and verified end-to-end.**
+The history below is kept because it explains *why* the migration exists.
 
-Until 020 is applied the approval gate is **UI-only**. 016 added
+Before 020 the approval gate was **UI-only**. 016 added
 `user_profiles.status` / `is_locked`, and `Layout.jsx` + `AccessBlocker.jsx`
 honour them — but every data policy from 002 is still
 `USING (auth.uid() IS NOT NULL)`. A signup sitting at `status='invited'` who
@@ -160,8 +167,95 @@ it would have overwritten your production auth config and broken email
 confirmation. Do it in **Dashboard → Authentication → Emails → SMTP Settings**
 with the same Zoho values, which changes only SMTP.
 
+## 6. Idle sign-out (code only — no dashboard step)
+
+`src/hooks/useIdleLogout.js`, wired once in `AuthContext`. Supabase's
+`autoRefreshToken` renews the JWT indefinitely while a tab is open, so an
+abandoned laptop keeps a live CRM session — full candidate PII — until the
+browser closes. This signs out after **20 minutes** idle.
+
+Two details worth not "simplifying" away:
+- the last-activity clock lives in `localStorage`, so idle time while the tab
+  was **closed** still counts (an in-memory timer resets on every restore, which
+  on a phone browser means the session never expires);
+- expiry is decided by **two** racers — a 30 s interval *and* a
+  `visibilitychange` re-check — because mobile browsers freeze timers while
+  backgrounded.
+
+To change the window, edit `IDLE_LOGOUT_MS`. Note mobile does **not** inherit
+this: the Expo app keeps the session and re-locks behind biometrics instead
+(see §8).
+
+## 7. Upload storage — private bucket (migration 023) ⚠ STAGED
+
+**Status: staged, NOT applied.**
+
+The `uploads` bucket **does not exist** on the live project (verified
+2026-07-29 — the Storage API returns `NoSuchBucket`). `Core.UploadFile()`
+defaults to it, so every upload path has been failing with "Bucket not found"
+since the Base44 → Supabase migration; the `{ file_url }` destructuring bug
+turned that error into a silent `undefined`.
+
+Migration 023 creates it private with a 20 MB cap and a MIME allow-list, and
+adds policies gated on `auth_is_approved()` — reads shared across the workspace,
+writes confined to `<user-id>/…` so nobody can clobber a colleague's file.
+On first apply it is a pure addition: no objects, nothing to migrate.
+
+> ⚠ Correction: an earlier draft of this section said the bucket was public and
+> leaking resumes. That was inferred from `getPublicUrl()` in the client code
+> without checking the project, and it was wrong.
+
+`Core.UploadFile()` now returns a short-lived **signed** URL plus a durable
+`path`. **`candidates.resume_url` stores the path**, rendered via
+`@/components/common/FileLink` (which signs on click). Storing the signed URL
+would produce links that die within the hour.
+
+### Verifying it — again, the UI proves nothing
+```bash
+# Was readable by the whole internet; must now fail with no key.
+curl -s "$VITE_SUPABASE_URL/storage/v1/object/public/uploads/<path>"
+
+# An approved user's signed URL must still work.
+curl -s "$VITE_SUPABASE_URL/storage/v1/object/sign/uploads/<path>" \
+  -H "apikey: $VITE_SUPABASE_ANON_KEY" -H "Authorization: Bearer $TOKEN"
+
+# Writing outside your own folder must be refused (uploads_insert).
+curl -s -X POST "$VITE_SUPABASE_URL/storage/v1/object/uploads/someone-else/x.pdf" \
+  -H "apikey: $VITE_SUPABASE_ANON_KEY" -H "Authorization: Bearer $TOKEN" \
+  --data-binary @small.pdf
+```
+
+**Legacy resumes are a separate, still-open problem.** Existing
+`candidates.resume_url` values point at **Base44 public URLs**
+(`https://base44.app/api/apps/.../files/public/...`) — readable by anyone with
+the link, hosted outside this Supabase project, and unreachable by any migration
+here. Moving them into the `uploads` bucket, or revoking them at Base44, is its
+own task. `<FileLink>` passes absolute URLs through unchanged, so they keep
+working in the meantime.
+
+## 8. Mobile app (Expo) — a second client, same backend
+
+[mobile/](mobile/) is an Expo app on the **same** Supabase project, Edge
+Functions and RLS. Nothing server-side was duplicated. It implements the same
+cascade as the web (`session → MFA → biometric lock → approval → app`), and the
+same upload contract.
+
+Setup, the EAS build/OTA split, and a verification checklist are in
+[mobile/README.md](mobile/README.md). Two things need **your** Expo account
+before it can build: `eas init` (writes `extra.eas.projectId`) and
+`eas update:configure` (writes `updates.url`). Both are deliberately absent from
+the committed `app.json` because they name a specific EAS project.
+
+Mobile session policy differs from web on purpose: it **keeps** the session and
+re-locks behind device biometrics rather than signing out at 20 minutes. A
+device with no biometrics enrolled is let straight in — hard-locking there would
+strand a user out of their own account for no gain, since the session and RLS
+are the real boundary.
+
 ## Deploy order (so nothing breaks)
 1. Merge `feat/auth-mfa-email` **after** verifying login + MFA on a preview.
 2. Flip on "Confirm email" + set Auth URLs **together** with the merge (the
    Register "verify your email" screen must be live first).
 3. Add the domain in Vercel; wait for TLS; then point users at it.
+4. Apply migration **023** before merging the upload changes — the new
+   `UploadFile` signs URLs against a private bucket, so it needs 023 live.

@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "TalentStack",
+    "slug": "recruiter-x",
+    "version": "1.0.0",
+    "scheme": "talentstack",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FFFFFF",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "org.talentstack.recruiterx",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSFaceIDUsageDescription": "TalentStack uses Face ID to unlock candidate data on this device."
+      }
+    },
+    "android": {
+      "package": "org.talentstack.recruiterx",
+      "versionCode": 1,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "TalentStack uses Face ID to unlock candidate data on this device."
+        }
+      ]
+    ]
+  }
+}

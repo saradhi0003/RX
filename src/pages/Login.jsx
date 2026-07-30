@@ -4,6 +4,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/lib/AuthContext";
 import { mfaStatus } from "@/lib/mfa";
 import MfaChallenge from "@/components/auth/MfaChallenge";
+import { consumeIdleNotice } from "@/hooks/useIdleLogout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +21,9 @@ export default function Login() {
   const [magicSent, setMagicSent]     = useState(false);
   const [mode, setMode]               = useState("password");
   const [mfaStep, setMfaStep]         = useState(false); // show TOTP challenge
+  // Read once at mount: explains an idle sign-out instead of an unexplained
+  // bounce back to the login screen. Consuming it clears the flag.
+  const [idleNotice] = useState(consumeIdleNotice);
 
   /* ── helpers ── */
 
@@ -277,6 +281,12 @@ VITE_SUPABASE_ANON_KEY=eyJ...`}
                       </button>
                     </div>
                   </div>
+                )}
+
+                {idleNotice && !error && (
+                  <p className="text-sm text-[#92400E] bg-[#FFFBEB] border border-[#FDE68A] px-3.5 py-2.5 rounded-xl leading-relaxed">
+                    You were signed out after 20 minutes of inactivity. Please sign in again.
+                  </p>
                 )}
 
                 {error && (

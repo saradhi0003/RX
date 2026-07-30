@@ -8,6 +8,7 @@ import * as Core from "@/integrations/Core";
 import { Sparkles, User, MapPin, Briefcase, Award, TrendingUp, Loader2, RefreshCw, AlertCircle, Brain, Target, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import FileLink from "@/components/common/FileLink";
 
 export default function RecommendedCandidates({ job }) {
   const [recommendations, setRecommendations] = useState([]);
@@ -1315,11 +1316,11 @@ For EACH required skill:
                           </Button>
                         </Link>
                         {candidate.resume_url && (
-                          <a href={candidate.resume_url} target="_blank" rel="noopener noreferrer">
+                          <FileLink value={candidate.resume_url}>
                             <Button size="sm" variant="outline">
                               View Resume
                             </Button>
-                          </a>
+                          </FileLink>
                         )}
                         {candidate.recommended_action === 'interview' && (
                           <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white gap-1">

@@ -115,8 +115,9 @@ export default function AIQuickActions({ open, onClose }) {
       setUploadProgress({ current: i + 1, total: files.length });
 
       try {
-        // Upload file
-        const { file_url } = await Core.UploadFile({ file });
+        // Upload file. `file_url` is a short-lived signed URL for extraction;
+        // `resumePath` is the durable reference stored on the candidate row.
+        const { file_url, path: resumePath } = await Core.UploadFile({ file });
 
         // Check file extension
         const ext = (file.name.split(".").pop() || "").toLowerCase();
@@ -127,7 +128,7 @@ export default function AIQuickActions({ open, onClose }) {
           results.skipped.push({
             file: file.name,
             reason: `${ext.toUpperCase()} files cannot be auto-parsed. Resume uploaded - please add candidate manually.`,
-            resume_url: file_url
+            resume_url: resumePath
           });
           continue;
         }
@@ -186,7 +187,7 @@ export default function AIQuickActions({ open, onClose }) {
           const duplicate = existing[0];
           // Update existing candidate with new resume
           await Candidate.update(duplicate.id, {
-            resume_url: file_url,
+            resume_url: resumePath,
             // Only update fields if they're missing in existing record
             ...(!duplicate.phone && parsedData.phone && { phone: parsedData.phone }),
             ...(!duplicate.location && parsedData.location && { location: parsedData.location }),
@@ -204,7 +205,7 @@ export default function AIQuickActions({ open, onClose }) {
           // Create new candidate
           const candidateData = {
             ...parsedData,
-            resume_url: file_url,
+            resume_url: resumePath,
             status: "active",
             source: "AI Resume Upload",
             notes: `Uploaded from file: ${file.name}`

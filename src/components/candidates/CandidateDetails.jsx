@@ -51,6 +51,7 @@ import RelatedQuickLinks from "@/components/common/RelatedQuickLinks";
 import { usePermissions } from "@/components/common/PermissionsContext"; // Modified line
 import PermissionGate from "@/components/common/PermissionGate"; // New line
 import { addNotification } from "@/components/notifications/NotificationToast";
+import FileLink from "@/components/common/FileLink";
 
 // Define stages with "Our Bench" positioned before "Active" as requested
 const STAGES = ["our_bench", "active", "placed", "inactive", "do_not_contact"];
@@ -473,15 +474,13 @@ export default function CandidateDetails({ candidate, onBack, onUpdate }) {
                 </a>
               )}
               {candidate.resume_url && (
-                <a
-                  href={candidate.resume_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <FileLink
+                  value={candidate.resume_url}
                   className="flex items-center gap-2 text-blue-600 hover:text-blue-800"
                 >
                   <FileText className="w-4 h-4" />
                   View Resume
-                </a>
+                </FileLink>
               )}
             </CardContent>
           </Card>

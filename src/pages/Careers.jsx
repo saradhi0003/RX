@@ -16,8 +16,9 @@ function ApplyModal({ job, onClose, onApplied }) {
   const upload = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    const { file_url } = await UploadFile({ file: f });
-    setResumeUrl(file_url);
+    // Store the storage path, not the signed URL — the latter expires in an hour.
+    const { path } = await UploadFile({ file: f });
+    setResumeUrl(path);
   };
 
   const submit = async (e) => {

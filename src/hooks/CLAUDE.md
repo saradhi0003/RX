@@ -21,6 +21,17 @@ JSX in a `.js` file).
   `@/components/common/EmptyState` so errors surface instead of blank tables
   (GAPS.md Layer 2). Used on AIAgents, ApprovalQueue, LLMCostDashboard.
 - **`use-mobile.jsx`** — `useIsMobile()` viewport breakpoint (shadcn default).
+- **`useIdleLogout.js`** — signs the user out after 20 min idle. Supabase
+  refreshes the JWT forever on an open tab, so without this an unattended
+  machine keeps a live CRM session. Wired once in
+  [`../lib/AuthContext.jsx`](../lib/AuthContext.jsx) (driven by
+  `isAuthenticated`) — **don't call it per page.** The last-activity clock is
+  persisted to `localStorage` (`rx_last_activity`), so idle time while the tab
+  was *closed* still counts; two racers (a 30 s interval **and** a
+  `visibilitychange` re-check) decide expiry, because mobile browsers freeze
+  timers while backgrounded. `consumeIdleNotice()` lets `Login.jsx` explain the
+  sign-out once instead of bouncing silently. Ported from FinTracker —
+  see [`../../skills/mfa-totp/`](../../skills/mfa-totp/).
 
 Related: the two table hooks are consumed by
 [`../components/common/DataTable.jsx`](../components/common/DataTable.jsx)

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { X, Plus, Upload, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { UploadFile, ExtractDataFromUploadedFile, InvokeLLM } from "@/integrations/Core";
+import FileLink from "@/components/common/FileLink";
 import { Candidate } from "@/entities/all";
 import { addNotification } from "@/components/notifications/NotificationToast";
 
@@ -138,11 +139,12 @@ export default function CandidateForm({ candidate, onSave, onCancel }) {
     setIsParsing(false); // default false; we only set true if we'll parse
 
     try {
-      // Upload the file first so we always keep it
-      const { file_url } = await UploadFile({ file });
+      // Upload the file first so we always keep it. `file_url` is a short-lived
+      // signed URL used for extraction below; `path` is the durable reference.
+      const { file_url, path: resumePath } = await UploadFile({ file });
 
-      // Always attach the resume URL
-      setFormData((prev) => ({ ...prev, resume_url: file_url }));
+      // Always attach the resume reference
+      setFormData((prev) => ({ ...prev, resume_url: resumePath }));
 
       // Determine extraction method based on file type
       const ext = (file.name.split(".").pop() || "").toLowerCase();
@@ -370,14 +372,9 @@ export default function CandidateForm({ candidate, onSave, onCancel }) {
                         {formData.resume_url && !isUploading && !isParsing && (
                           <p className="text-xs text-slate-600 mt-2">
                             Uploaded:{" "}
-                            <a
-                              href={formData.resume_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-blue-600 underline"
-                            >
+                            <FileLink value={formData.resume_url} className="text-blue-600 underline">
                               View resume
-                            </a>
+                            </FileLink>
                           </p>
                         )}
                       </div>

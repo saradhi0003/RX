@@ -22,6 +22,10 @@ npm run typecheck      # tsc over JS via jsconfig (checkJs)
 npm test               # Vitest unit/integration (jsdom + MSW)
 npm run test:smoke     # Playwright e2e (needs a dev server up)
 npm run test:all       # vitest + playwright
+
+cd mobile && npm start        # Expo dev server (the mobile client)
+cd mobile && npm run typecheck   # tsc over the Expo app
+cd mobile && npm run build:web   # expo export — CI parity check
 ```
 
 ## Architecture in one screen
@@ -42,6 +46,15 @@ npm run test:all       # vitest + playwright
 - **Backend logic:** Supabase Edge Functions (Deno) in
   [supabase/functions/](supabase/functions/); schema/RLS in
   [supabase/migrations/](supabase/migrations/).
+- **Second client:** [mobile/](mobile/) is an Expo app on the **same** Supabase
+  project, functions and RLS — no backend is duplicated. See
+  [mobile/README.md](mobile/README.md).
+- **File uploads:** always via `UploadFile()` in
+  [src/integrations/Core.js](src/integrations/Core.js) — never
+  `supabase.storage.upload` directly. The `uploads` bucket is private and keyed
+  on `<user-id>/…` (migration 023). **Persist the returned `path`, not
+  `file_url`** (a signed URL that expires in an hour), and render stored
+  references with [`<FileLink>`](src/components/common/FileLink.jsx).
 
 ## Conventions
 - **Import alias:** `@/` → `src/` (configured in vite, vitest, jsconfig).
@@ -85,11 +98,11 @@ npm run test:all       # vitest + playwright
 - **AI-core work on branch `feat/ai-core`** (2026-07-11): LLM cost ceilings at all
   aiRecruiter* entry points + per-request cap + `LLMBudgetError`; PII scrubbing
   (`_shared/pii.ts`, `@/utils/piiScrubber`); `useEntityList` + `EmptyState`
-  error-state pattern; AI Agents persisted (migration **017**, staged);
-  generic approval queue (`approval_items`, migration **018**, staged);
+  error-state pattern; AI Agents persisted (migration **017**); generic approval
+  queue (`approval_items`, migration **018**);
   LLM cost dashboard on /SystemHealth; atomic send lock in `sendApprovedDraft`.
-  **Deploy gate:** migrations 017/018 must be applied to a live/preview DB before
-  this branch merges (same precedent as 012). See GAPS.md for per-layer status.
+  017/018 were **applied** on 2026-07-27, clearing that deploy gate. See GAPS.md
+  for per-layer status.
 - **P0 work in flight:** P0-2 (camera/mic `Permissions-Policy` fix) is on `main`;
   P0-1 multi-tenancy is on `feat/multi-tenancy-p0-1` (migration 012 + signup
   change + a pending Edge-Function `workspace_id` audit). See the plan in
@@ -103,5 +116,28 @@ npm run test:all       # vitest + playwright
   `auth_is_approved()` into every policy, hardens `auth_is_admin()`, and blocks
   self-approval via `user_profiles`; `functions/_shared/auth.ts`
   (`requireApprovedUser`) is the Edge-Function twin, since the service role
-  bypasses RLS. **020 is staged — NOT applied** (DB paused). Verify with the
-  curl tests in AUTH_SETUP.md §4 before merging.
+  bypasses RLS. **Migrations 017–022 are APPLIED** to the live project as of
+  2026-07-27 and verified end-to-end; re-verify with the curl tests in
+  AUTH_SETUP.md §4 after any policy change.
+- **FinTracker feature port (2026-07-29, `feat/ai-core`):** the enterprise
+  features built in FinTracker, re-expressed for this stack. Pattern doc
+  vendored at [skills/mfa-totp/](skills/mfa-totp/) — **read it before touching
+  any auth gate.**
+  - **Idle sign-out** — `@/hooks/useIdleLogout`, wired once in `AuthContext`;
+    20 min, persisted clock. AUTH_SETUP.md §6.
+  - **Upload storage (migration 023, STAGED)** — the `uploads` bucket **never
+    existed** on the live project, so every upload path had been failing with
+    "Bucket not found"; the `{file_url}` destructuring bug (`UploadFile()`
+    returned `{url, path}`) turned that into a silent `undefined` at all eight
+    call sites. 023 creates it private + capped with policies on
+    `auth_is_approved()` and writes scoped to `<uid>/…`. **Still open:** legacy
+    `resume_url` values point at publicly-readable Base44 URLs outside this
+    project. AUTH_SETUP.md §7.
+  - **Expo mobile app** — [mobile/](mobile/), biometric lock + upload pipeline.
+    Needs `eas init` before it can build. AUTH_SETUP.md §8.
+  - Feature A (MFA + approval gate) and SMTP layer 2 were **already done** here;
+    the `/services` bots hold no service-role key (they post to
+    `channelMessageWebhook` with a shared secret), so the backend twin is the
+    Edge Functions, already gated.
+  - Still outstanding, both manual: Supabase Auth **custom SMTP** (§5 layer 1)
+    and applying migration **023**.

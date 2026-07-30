@@ -32,6 +32,32 @@ jobs:
           VITE_SUPABASE_ANON_KEY: placeholder
         run: npm run build
 
+  # The Expo client. Blocking: it is a clean codebase with no legacy debt, so
+  # unlike the web typecheck below there is nothing to burn down. The web export
+  # is the cheap proof that no native-only import (expo-local-authentication)
+  # leaked outside its Platform.OS guard.
+  mobile:
+    name: Mobile · Typecheck · Web export
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+        working-directory: mobile
+      - run: npm run typecheck
+        working-directory: mobile
+      - name: Web export
+        # EXPO_PUBLIC_* bake in at build time; placeholders are enough to bundle.
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: placeholder
+        run: npm run build:web
+        working-directory: mobile
+
   # Non-blocking: 3,280 legacy TS errors as of 2026-07-05. Tracked as a
   # burn-down — flip continue-on-error off once the count reaches zero.
   typecheck:

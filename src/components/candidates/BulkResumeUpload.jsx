@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { X, Upload, CheckCircle, AlertCircle, Loader2, FileText } from "lucide-react";
 import { Candidate } from "@/entities/Candidate";
 import * as Core from "@/integrations/Core";
+import FileLink from "@/components/common/FileLink";
 import { addNotification } from "@/components/notifications/NotificationToast";
 
 // Candidate schema for AI extraction
@@ -93,9 +94,10 @@ export default function BulkResumeUpload({ open, onClose, onComplete }) {
         };
 
         try {
-          // Upload file first
-          const { file_url } = await Core.UploadFile({ file });
-          fileResult.resumeUrl = file_url;
+          // Upload file first. `file_url` is a short-lived signed URL for the
+          // extraction call below; `path` is what gets persisted on the row.
+          const { file_url, path: resumePath } = await Core.UploadFile({ file });
+          fileResult.resumeUrl = resumePath;
 
           // CRITICAL: Only PDFs support AI extraction via ExtractDataFromUploadedFile
           // Word documents (.doc, .docx) are NOT supported by any of our AI integrations
@@ -157,7 +159,7 @@ export default function BulkResumeUpload({ open, onClose, onComplete }) {
           // Create candidate
           const candidateData = {
             ...parsedData,
-            resume_url: file_url,
+            resume_url: resumePath,
             status: parsedData.status || 'active',
             source: 'bulk_upload'
           };
@@ -364,14 +366,12 @@ export default function BulkResumeUpload({ open, onClose, onComplete }) {
                           </a>
                         )}
                         {result.resumeUrl && result.status === 'warning' && (
-                          <a
-                            href={result.resumeUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:underline mt-1 inline-block ml-3"
+                          <FileLink
+                            value={result.resumeUrl}
+                            className="text-xs text-blue-600 hover:underline mt-1 ml-3"
                           >
                             View resume →
-                          </a>
+                          </FileLink>
                         )}
                       </div>
                     </div>

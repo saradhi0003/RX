@@ -17,8 +17,48 @@ shipped migration — add a new one.
   **017 agents + agent_runs** and **018 approval_items** (on branch
   `feat/ai-core`, **staged — NOT applied**; DB paused. Apply 017 then 018 on a
   live/preview DB before merging that branch) · 019 security-definer view fix ·
-  **020 approval RLS enforcement** · **021 SECURITY DEFINER RPC leak fix**.
-  017–021 are all **APPLIED** to the live project as of 2026-07-27.
+  **020 approval RLS enforcement** · **021 SECURITY DEFINER RPC leak fix** ·
+  022 signup notification (`user_profiles.notified_at`) ·
+  **023 uploads bucket RLS**.
+  017–**022** are all **APPLIED** to the live project as of 2026-07-27.
+  **023 is STAGED — NOT applied.**
+
+### 023 — the resume bucket never existed
+Verified against the live project 2026-07-29: the `uploads` bucket **does not
+exist** (Storage API returns `NoSuchBucket`; the only bucket is
+`meeting-recordings`). `Core.UploadFile()` defaults to `uploads`, so every
+upload entry point — bulk resume upload, candidate form, import modal, careers
+form, AI quick actions — had been throwing "Bucket not found" since the Base44 →
+Supabase migration. A second bug hid the first: `UploadFile()` returned
+`{ url, path }` while all eight call sites destructured `{ file_url }`, so the
+failure surfaced as `undefined` rather than an error anyone chased.
+
+> ⚠ An earlier draft of this section claimed the bucket existed and was
+> **public** — a live PII leak. That was wrong, inferred from `getPublicUrl()`
+> in the client without checking the project. The inference runs backwards: the
+> call failing does not imply a public bucket exists. Check the live surface
+> before writing up a leak.
+
+023 creates the bucket private with a 20 MB cap and a MIME allow-list enforced
+by Storage itself, then adds four policies gated on `auth_is_approved()`. On
+first apply it is a pure addition — no objects exist, nothing to migrate.
+**Reads are shared, writes are per-user** — `(storage.foldername(name))[1] =
+auth.uid()::text` on INSERT/UPDATE/DELETE. That split follows 020's reasoning:
+this is a shared-workspace CRM, so a resume one recruiter uploads must be
+readable by the colleague working the same requisition; FinTracker's per-user
+read rule would hide every existing file from everyone. The per-user folder is
+there so nobody can clobber or delete another recruiter's upload.
+
+Going forward `candidates.resume_url` holds a storage **path**, rendered through
+`@/components/common/FileLink` which signs on click.
+
+**Legacy data, still outstanding:** existing `candidates.resume_url` values point
+at **Base44 public URLs** (`https://base44.app/api/apps/.../files/public/...`).
+Those objects sit on Base44's infrastructure, are readable by anyone with the
+link, and are outside this project's RLS entirely — no migration here can reach
+them. Migrating them into the `uploads` bucket (or revoking them at Base44) is
+its own task. `FileLink` passes absolute URLs through unchanged so they keep
+working meanwhile.
 
 ### 021 — a live PII leak, found by `supabase db advisors`
 `search_candidates(text)` / `search_jobs(text)` were `SECURITY DEFINER`, so they

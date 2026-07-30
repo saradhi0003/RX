@@ -25,6 +25,15 @@ library; wrap it, don't fork it.
 - **approval-queue/** — the human review gate before actions execute.
 - **automation/** — `executeAutomation.jsx` runs rule actions (Execution layer).
 
+## Opening an uploaded file — use `<FileLink>`
+[common/FileLink.jsx](common/FileLink.jsx). The `uploads` bucket is **private**
+(migration 023), so a stored reference like `candidates.resume_url` is a storage
+*path*, not an openable URL — a plain `<a href={value}>` renders a dead link.
+`<FileLink value={…}>` mints a signed URL **on click** (not on render, so a
+200-row list doesn't fire 200 signing requests) and transparently passes through
+values that are already absolute URLs, which the "Resume URL" field lets
+recruiters paste by hand.
+
 ## Shared list tables — sortable + resizable columns
 Every list tab uses one shared behavior. **Don't re-roll per-page sort/resize.**
 Three pieces (the hooks live in `@/hooks` — see [../hooks/CLAUDE.md](../hooks/CLAUDE.md)):
