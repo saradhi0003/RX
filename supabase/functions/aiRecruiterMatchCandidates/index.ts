@@ -68,7 +68,7 @@ Deno.serve(withErrorHandling(async (req) => {
   if (!runId) {
     const { data: run } = await supabase
       .from("ai_recruiter_runs")
-      .insert({ job_id, source: "manual", status: "started", model_used: model })
+      .insert({ job_id, source: "manual", status: "started", model_used: model, workspace_id: gate.profile.workspace_id })
       .select("id")
       .single();
     runId = run?.id;
@@ -146,6 +146,7 @@ SUMMARY: ${scrubForLLM(c.summary) || "No summary provided"}`;
         risk_flags: r.match.risk_flags,
         ai_summary: r.match.ai_summary,
         model_used: model,
+        workspace_id: gate.profile.workspace_id,
       }))
     );
   }
@@ -163,6 +164,7 @@ SUMMARY: ${scrubForLLM(c.summary) || "No summary provided"}`;
     activity_type: "ai_candidates_matched",
     title: `Matched ${qualified.length} candidates to ${job.title}`,
     description: `Scored ${candidates.length} candidates. ${qualified.length} above threshold (${minScore}).`,
+    workspace_id: gate.profile.workspace_id,
   });
 
   return okResponse({

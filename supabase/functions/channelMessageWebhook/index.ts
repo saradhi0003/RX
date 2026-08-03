@@ -7,6 +7,7 @@
 import { supabase } from "../_shared/supabaseClient.ts";
 import { classifyMessage } from "../_shared/classifier.ts";
 import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
+import { DEFAULT_WORKSPACE_ID } from "../_shared/auth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -49,10 +50,26 @@ Deno.serve(withErrorHandling(async (req) => {
 
   if (existing) return okResponse({ status: "duplicate", id: existing.id });
 
+  // Workspace resolution: service-role inserts bypass the 024 stamp trigger,
+  // so resolve the workspace from the channel connection (explicit id, else the
+  // sender's registered connection); fall back to the default workspace — the
+  // bots hold workspace mappings locally but don't forward them (yet).
+  let workspaceId: string = DEFAULT_WORKSPACE_ID;
+  const connLookup = channel_connection_id
+    ? supabase.from("channel_connections").select("workspace_id").eq("id", channel_connection_id)
+    : sender
+      ? supabase.from("channel_connections").select("workspace_id").eq("channel_type", channel_type).eq("external_id", sender)
+      : null;
+  if (connLookup) {
+    const { data: conn } = await connLookup.maybeSingle();
+    if (conn?.workspace_id) workspaceId = conn.workspace_id;
+  }
+
   // Store message immediately
   const { data: msg, error: insertErr } = await supabase
     .from("inbound_channel_messages")
     .insert({
+      workspace_id: workspaceId,
       channel_connection_id: channel_connection_id || null,
       channel_type,
       external_message_id,

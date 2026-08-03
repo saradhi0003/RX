@@ -12,6 +12,7 @@ import { supabase, getSetting, getAISettings } from "../_shared/supabaseClient.t
 import { invokeLLM } from "../_shared/llm.ts";
 import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
 import { hasCronSecret, getCronSecret } from "../_shared/env.ts";
+import { DEFAULT_WORKSPACE_ID } from "../_shared/auth.ts";
 
 const FOLLOWUP_SYSTEM = `You are a recruiter writing a brief, friendly follow-up email.
 The recipient has not responded to a previous outreach. Keep it short (60-80 words), polite, and add value.
@@ -35,7 +36,7 @@ Deno.serve(withErrorHandling(async (req) => {
   // Find due follow-ups
   const { data: due } = await supabase
     .from("followup_schedules")
-    .select("id, submission_id, recipient_email, thread_message_id, followup_count, max_followups, cadence_days, draft_id")
+    .select("id, submission_id, recipient_email, thread_message_id, followup_count, max_followups, cadence_days, draft_id, workspace_id")
     .eq("status", "scheduled")
     .lte("next_followup_date", today);
 
@@ -115,6 +116,8 @@ This is a gentle nudge — they haven't responded yet.`;
             provider: "postmark",
             followup_schedule_id: schedule.id,
             status: "sent",
+            // Cron runs as service role — inherit the schedule's workspace.
+            workspace_id: schedule.workspace_id ?? DEFAULT_WORKSPACE_ID,
           });
 
           // Determine next state

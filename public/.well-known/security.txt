@@ -1,0 +1,4 @@
+Contact: mailto:security@talentstack.org
+Expires: 2027-08-03T00:00:00.000Z
+Preferred-Languages: en
+Policy: https://talentstack.org/security-policy

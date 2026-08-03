@@ -66,7 +66,7 @@ Deno.serve(withErrorHandling(async (req) => {
   if (!runId) {
     const { data: run } = await supabase
       .from("ai_recruiter_runs")
-      .insert({ source, status: "started", model_used: model })
+      .insert({ source, status: "started", model_used: model, workspace_id: gate.profile.workspace_id })
       .select("id")
       .single();
     runId = run?.id;
@@ -98,6 +98,7 @@ Deno.serve(withErrorHandling(async (req) => {
       source,
       status: "open",
       parsed_at: new Date().toISOString(),
+      workspace_id: gate.profile.workspace_id,
     })
     .select("id")
     .single();
@@ -120,6 +121,7 @@ Deno.serve(withErrorHandling(async (req) => {
     activity_type: "ai_job_parsed",
     title: `Parsed job: ${parsed.title}`,
     description: `Model: ${model} | Skills: ${parsed.skills_required?.join(", ")}`,
+    workspace_id: gate.profile.workspace_id,
   });
 
   return okResponse({ job_id: job.id, run_id: runId, parsed });

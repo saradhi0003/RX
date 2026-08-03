@@ -63,3 +63,6 @@ verify_jwt = false
 # platform flag is not what was guarding it.
 [functions.livekitToken]
 verify_jwt = false
+
+[functions.requestTrial]
+verify_jwt = false

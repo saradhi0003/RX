@@ -23,22 +23,36 @@
 
 import { AccessToken } from "https://esm.sh/livekit-server-sdk@2.9.7";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+// Paste-version: keep self-contained. Replace ALLOWED_ORIGINS with your own
+// comma-separated list in Edge Function secrets if the defaults are too broad.
+const DEFAULT_ORIGINS = [
+  "https://app.talentstack.org",
+  "https://recruiterx.app",
+  "https://www.recruiterx.app",
+  "http://localhost:5173",
+];
+const ALLOWED_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS")?.split(",").map((o) => o.trim()).filter(Boolean)) || DEFAULT_ORIGINS;
 
-function json(body: unknown, status = 200): Response {
+function corsHeadersFor(origin: string | null): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": ALLOWED_ORIGINS.includes(origin || "") ? origin || "" : "",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
+  };
+}
+
+function json(body: unknown, origin: string | null, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeadersFor(origin), "Content-Type": "application/json" },
   });
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST")    return json({ error: "Method not allowed" }, 405);
+  const origin = req.headers.get("origin");
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeadersFor(origin) });
+  if (req.method !== "POST")    return json({ error: "Method not allowed" }, origin, 405);
 
   try {
     const body = await req.json();
@@ -54,7 +68,7 @@ Deno.serve(async (req: Request) => {
       return json({
         error: "Missing LIVEKIT_API_KEY / LIVEKIT_API_SECRET. Set them in " +
                "Project Settings → Edge Functions → Secrets.",
-      }, 500);
+      }, origin, 500);
     }
 
     const ttl = Math.min(Math.max(body.ttl_seconds ?? 14400, 60), 86400);
@@ -73,9 +87,9 @@ Deno.serve(async (req: Request) => {
     });
 
     const token = await at.toJwt();
-    return json({ token, url, room: body.room, identity: body.identity });
+    return json({ token, url, room: body.room, identity: body.identity }, origin);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    return json({ error: msg }, 500);
+    return json({ error: msg }, origin, 500);
   }
 });

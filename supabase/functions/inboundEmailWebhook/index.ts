@@ -7,6 +7,7 @@
 import { supabase } from "../_shared/supabaseClient.ts";
 import { classifyMessage } from "../_shared/classifier.ts";
 import { withErrorHandling, okResponse } from "../_shared/errorHandler.ts";
+import { DEFAULT_WORKSPACE_ID } from "../_shared/auth.ts";
 
 Deno.serve(withErrorHandling(async (req) => {
   const payload = await req.json();
@@ -31,10 +32,13 @@ Deno.serve(withErrorHandling(async (req) => {
 
   if (existing) return okResponse({ status: "duplicate", id: existing.id });
 
-  // Store the inbound email
+  // Store the inbound email. One Postmark inbound stream serves the whole
+  // deployment, so there is no per-message workspace signal — everything lands
+  // in the default workspace (per-tenant inbound domains are the future hook).
   const { data: email, error: insertErr } = await supabase
     .from("inbound_emails")
     .insert({
+      workspace_id: DEFAULT_WORKSPACE_ID,
       from_email: fromEmail,
       from_name: fromName,
       to_email: toEmail,

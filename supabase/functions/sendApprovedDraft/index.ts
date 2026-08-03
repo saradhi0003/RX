@@ -99,6 +99,7 @@ Deno.serve(withErrorHandling(async (req) => {
     provider: "postmark",
     provider_message_id: messageId,
     status: "sent",
+    workspace_id: gate.profile.workspace_id,
   });
 
   // Mark draft as sent
@@ -110,6 +111,7 @@ Deno.serve(withErrorHandling(async (req) => {
     activity_type: "ai_email_draft_approved",
     title: "Email sent via Postmark",
     description: `To: ${draft.to_email} | Message-ID: ${messageId}`,
+    workspace_id: gate.profile.workspace_id,
   });
 
   return okResponse({ sent: true, message_id: messageId, to: draft.to_email });

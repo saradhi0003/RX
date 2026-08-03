@@ -95,6 +95,7 @@ Deno.serve(withErrorHandling(async (req) => {
         linkedin_url: parsed.linkedin_url || null,
         source: "imported",
         status: "active",
+        workspace_id: gate.profile.workspace_id,
       })
       .select("id")
       .single();
@@ -115,6 +116,7 @@ Deno.serve(withErrorHandling(async (req) => {
       parsing_status: "done",
       parsed_at: new Date().toISOString(),
       is_primary: true,
+      workspace_id: gate.profile.workspace_id,
     })
     .select("id")
     .single();

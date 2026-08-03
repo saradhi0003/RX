@@ -59,12 +59,14 @@ with `Bearer $SERVICE_KEY` and there is no end user in that chain.
   node-tsc) — expected, not a smell.
 - Secrets come from Supabase Edge Function **secrets**, never `VITE_*`.
 
-## ⚠ Multi-tenancy (post-migration-012)
+## ⚠ Multi-tenancy (post-migration-024)
 Service role **bypasses RLS and the `workspace_id` stamp trigger**. Any INSERT
-into a tenant table must set `workspace_id` explicitly, derived from the entity
-being processed (e.g. `jobs.workspace_id` for a match run) or the inbound
-`channel_connections.workspace_id`. This audit is **pending** on branch
-`feat/multi-tenancy-p0-1`.
+into a tenant table must set `workspace_id` explicitly: user-gated functions
+use `gate.profile.workspace_id` (`_shared/auth.ts`); the cron/webhook functions
+resolve it from the entity being processed (`followup_schedules.workspace_id`,
+`channel_connections.workspace_id`) or fall back to `DEFAULT_WORKSPACE_ID`.
+The audit of all existing functions is done (2026-08-03) — keep the rule for
+every new INSERT you add.
 
 ## Tests
 `supabase functions serve <name>` + POST fixtures (assert status/shape/auth).

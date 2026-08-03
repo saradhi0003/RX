@@ -52,40 +52,16 @@ export default function Landing() {
     setSubmitting(true);
 
     try {
-      // Send trial request email to admin
-      await Core.SendEmail({
-        to: "admin@recruiterx.com", // Replace with your admin email
-        subject: `Trial Access Request - ${formData.company_name}`,
-        body: `
-New Trial Access Request:
-
-Company: ${formData.company_name}
-Name: ${formData.full_name}
-Email: ${formData.email}
-Phone: ${formData.phone}
-Company Size: ${formData.company_size}
-Message: ${formData.message}
-
-Please review and respond to this trial access request.
-        `
-      });
-
-      // Send confirmation to requester
-      await Core.SendEmail({
-        to: formData.email,
-        subject: "Trial Access Request Received - Recruiter X",
-        body: `
-Hi ${formData.full_name},
-
-Thank you for your interest in Recruiter X!
-
-We've received your trial access request and our team will review it shortly. You can expect to hear from us within 24 hours.
-
-In the meantime, feel free to reply to this email if you have any questions.
-
-Best regards,
-The Recruiter X Team
-        `
+      await Core.InvokeFunction({
+        function_name: "requestTrial",
+        payload: {
+          company_name: formData.company_name,
+          full_name: formData.full_name,
+          email: formData.email,
+          phone: formData.phone,
+          company_size: formData.company_size,
+          message: formData.message,
+        },
       });
 
       addNotification({

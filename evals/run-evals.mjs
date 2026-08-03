@@ -3,8 +3,13 @@
  *  Run: npm run evals   (needs dev creds; ~7 small LLM calls) */
 import fs from "fs";
 const F = JSON.parse(fs.readFileSync(new URL("./fixtures.json", import.meta.url)));
-const KEY = process.env.VITE_SUPABASE_ANON_KEY || "sb_publishable_2-p_Y-4CVibcDK1b_g_X_g_ZcqbY_OO";
-const URL_ = process.env.VITE_SUPABASE_URL || "https://bwjfglerixssibenkjse.supabase.co";
+const KEY = process.env.VITE_SUPABASE_ANON_KEY;
+const URL_ = process.env.VITE_SUPABASE_URL;
+
+if (!KEY || !URL_) {
+  console.error("Missing VITE_SUPABASE_ANON_KEY or VITE_SUPABASE_URL");
+  process.exit(1);
+}
 
 const auth = await fetch(`${URL_}/auth/v1/token?grant_type=password`, { method: "POST",
   headers: { apikey: KEY, "Content-Type": "application/json" },

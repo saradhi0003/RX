@@ -103,6 +103,7 @@ Write a personalized outreach email for this candidate.`.trim();
         status: "draft",
         created_by_ai: true,
         model_used: model,
+        workspace_id: gate.profile.workspace_id,
       })
       .select("id")
       .single();
@@ -124,6 +125,7 @@ Write a personalized outreach email for this candidate.`.trim();
     activity_type: "ai_email_draft_created",
     title: `Created ${draftIds.length} email draft(s) for ${job.title}`,
     description: `Model: ${model} | Recipients: ${candidates.map((c) => c.full_name).join(", ")}`,
+    workspace_id: gate.profile.workspace_id,
   });
 
   return okResponse({ draft_ids: draftIds, count: draftIds.length });

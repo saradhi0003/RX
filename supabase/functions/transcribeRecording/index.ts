@@ -22,17 +22,12 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requireApprovedUser } from "../_shared/auth.ts";
+import { corsHeadersFor, handleCors, corsError } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-function json(body: unknown, status = 200): Response {
+function json(body: unknown, origin: string | null, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...corsHeadersFor(origin), "Content-Type": "application/json" },
   });
 }
 
@@ -47,8 +42,9 @@ const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 });
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST")    return json({ error: "Method not allowed" }, 405);
+  const origin = req.headers.get("origin");
+  if (req.method === "OPTIONS") return handleCors(origin);
+  if (req.method !== "POST")    return json({ error: "Method not allowed" }, origin, 405);
 
   // Approval gate — `sb` below is a service-role client that bypasses RLS,
   // including the meeting-recordings storage policy. Recordings hold candidate
@@ -60,16 +56,16 @@ Deno.serve(async (req: Request) => {
     return json({
       error: "OPENAI_API_KEY missing in Edge Function secrets. Set it at " +
              "Project Settings → Edge Functions → Secrets.",
-    }, 500);
+    }, origin, 500);
   }
 
   let recordingId: string;
   try {
     const body = await req.json();
     recordingId = body?.recording_id;
-    if (!recordingId) return json({ error: "Missing 'recording_id'" }, 400);
+    if (!recordingId) return json({ error: "Missing 'recording_id'" }, origin, 400);
   } catch {
-    return json({ error: "Invalid JSON body" }, 400);
+    return json({ error: "Invalid JSON body" }, origin, 400);
   }
 
   // ── 1. Look up the recording row ─────────────────────────────────────────
@@ -78,7 +74,7 @@ Deno.serve(async (req: Request) => {
     .select("*")
     .eq("id", recordingId)
     .single();
-  if (selErr || !rec) return json({ error: selErr?.message || "Recording not found" }, 404);
+  if (selErr || !rec) return json({ error: selErr?.message || "Recording not found" }, origin, 404);
 
   // Mark transcribing
   await sb.from("video_call_recordings").update({ status: "transcribing", error: null }).eq("id", recordingId);
@@ -138,7 +134,7 @@ Deno.serve(async (req: Request) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "claude-opus-4-8",
+            model: "gpt-4o-mini",
             response_format: { type: "json_object" },
             messages: [
               {
@@ -192,13 +188,13 @@ Deno.serve(async (req: Request) => {
       summary_chars: summary?.length ?? 0,
       action_items_count: action_items?.length ?? 0,
       latency_ms,
-    });
+    }, origin);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await sb.from("video_call_recordings").update({
       status: "failed",
       error: msg,
     }).eq("id", recordingId);
-    return json({ ok: false, recording_id: recordingId, error: msg }, 500);
+    return json({ ok: false, recording_id: recordingId, error: msg }, origin, 500);
   }
 });

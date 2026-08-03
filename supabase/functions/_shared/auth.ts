@@ -55,6 +55,13 @@ function isServiceRoleCaller(req: Request): boolean {
   }
 }
 
+/**
+ * The workspace every workspace-less context falls back to (migration 024's
+ * backfill target). Service-role callers and inbound webhooks have no session,
+ * so they can't resolve a workspace from a profile — they use this.
+ */
+export const DEFAULT_WORKSPACE_ID = "00000000-0000-0000-0000-000000000001";
+
 /** The synthetic principal returned for trusted service-to-service calls. */
 const SERVICE_PRINCIPAL = Object.freeze({
   user: Object.freeze({ id: null, email: "service-role@internal" }),
@@ -65,6 +72,7 @@ const SERVICE_PRINCIPAL = Object.freeze({
     role: "admin",
     status: "active",
     is_locked: false,
+    workspace_id: DEFAULT_WORKSPACE_ID,
   }),
 });
 
@@ -101,7 +109,7 @@ export async function requireApprovedUser(req: Request) {
 
   const { data: profile, error: profileError } = await supabase
     .from("user_profiles")
-    .select("id, email, full_name, role, status, is_locked")
+    .select("id, email, full_name, role, status, is_locked, workspace_id")
     .eq("id", user.id)
     .maybeSingle();
 

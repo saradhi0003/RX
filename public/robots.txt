@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /login
+Disallow: /register
+Disallow: /onboarding
+Disallow: /dashboard
+Disallow: /candidates
+Disallow: /jobs
+Disallow: /systemhealth
+Sitemap: https://talentstack.org/sitemap.xml

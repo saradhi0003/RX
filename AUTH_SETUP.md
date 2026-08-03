@@ -22,6 +22,19 @@ App-side code for all three is implemented (branch `feat/auth-mfa-email`). This
 file lists the **dashboard steps** that must be done alongside it — code alone
 isn't enough.
 
+## Current outstanding manual steps (as of 2026-08-03)
+
+These are the remaining configuration steps; none are code changes.
+
+| # | Step | Where |
+|---|---|---|
+| 1 | Apply migration `023_uploads_bucket_rls.sql` | Supabase SQL editor (see §7) |
+| 2 | Apply migration `024_multitenancy.sql` — **preview first**, verify two-workspace isolation (§4), then prod. Must be applied **before** deploying the workspace-stamped Edge Functions (they insert a `workspace_id` column that doesn't exist until 024 lands — deploying functions first breaks their INSERTs) | Supabase SQL editor |
+| 3 | Deploy the stamped Edge Functions (aiRecruiter*, sendApprovedDraft, scheduledFollowupRun, channelMessageWebhook, inboundEmailWebhook, parseResumeFile) | `supabase functions deploy <name>` |
+| 4 | Set SMTP secrets for `notifySignupRequest` | `supabase secrets set` (see §5) |
+| 5 | Configure Supabase Auth SMTP (Layer 1) | Dashboard → Authentication → Emails → SMTP Settings (see §5) |
+| 6 | Initialize EAS for mobile app | `mobile/` directory with your `EXPO_TOKEN` (see §8) |
+
 ## 1. MFA (TOTP) — mostly code, one optional dashboard step
 
 **Code (done):** `src/lib/mfa.js`, `src/components/auth/MfaChallenge.jsx`,

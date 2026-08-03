@@ -62,11 +62,12 @@ export default function Register() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    // Store workspace name in app_settings
+    // Store workspace name in app_settings. user_profiles.workspace_id is NOT
+    // set here: post-024 it is a UUID FK defaulted at profile creation, and
+    // writing the free-text workspace name into it would fail.
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       await supabase.from("app_settings").upsert({ key: "workspace_name", value: workspace });
-      await supabase.from("user_profiles").update({ workspace_id: workspace }).eq("id", user.id);
     }
     // Seed default AI recruiter settings row
     await supabase.from("ai_recruiter_settings").upsert({ id: crypto.randomUUID() }).select();

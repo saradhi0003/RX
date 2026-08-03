@@ -8,11 +8,7 @@ export const supabase = createClient(
   { auth: { persistSession: false } }
 );
 
-export const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-webhook-secret",
-};
+
 
 /** Fetch a single app_settings value by key */
 export async function getSetting(key: string): Promise<string | null> {
