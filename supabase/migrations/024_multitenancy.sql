@@ -38,7 +38,31 @@ VALUES ('00000000-0000-0000-0000-000000000001', 'Default Workspace')
 ON CONFLICT (id) DO NOTHING;
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 2. Helpers (mirror the existing auth_is_admin() / auth_is_approved() pattern)
+-- 2. Convert the 3 pre-existing TEXT workspace_id columns -> UUID FK
+--    (user_profiles, channel_connections, whatsapp_registrations)
+--    Existing values are free-text names / nulls → all map to the default ws.
+--    MUST run before the helpers: auth_workspace_id() is a SQL function whose
+--    body is type-checked at creation — created against the TEXT column it
+--    fails with "return type mismatch (uuid vs text)".
+-- ─────────────────────────────────────────────────────────────────────────────
+DO $$
+DECLARE t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['user_profiles','channel_connections','whatsapp_registrations'] LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = t AND column_name = 'workspace_id' AND data_type <> 'uuid'
+    ) THEN
+      EXECUTE format('ALTER TABLE %I ADD COLUMN ws_uuid UUID', t);
+      EXECUTE format('UPDATE %I SET ws_uuid = %L', t, '00000000-0000-0000-0000-000000000001');
+      EXECUTE format('ALTER TABLE %I DROP COLUMN workspace_id', t);
+      EXECUTE format('ALTER TABLE %I RENAME COLUMN ws_uuid TO workspace_id', t);
+    END IF;
+  END LOOP;
+END $$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 3. Helpers (mirror the existing auth_is_admin() / auth_is_approved() pattern)
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Returns the calling user's workspace. SECURITY DEFINER so the policy can read
 -- user_profiles regardless of that table's own RLS. STABLE: one value per stmt.
@@ -57,27 +81,6 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
--- ─────────────────────────────────────────────────────────────────────────────
--- 3. Convert the 3 pre-existing TEXT workspace_id columns -> UUID FK
---    (user_profiles, channel_connections, whatsapp_registrations)
---    Existing values are free-text names / nulls → all map to the default ws.
--- ─────────────────────────────────────────────────────────────────────────────
-DO $$
-DECLARE t TEXT;
-BEGIN
-  FOREACH t IN ARRAY ARRAY['user_profiles','channel_connections','whatsapp_registrations'] LOOP
-    IF EXISTS (
-      SELECT 1 FROM information_schema.columns
-      WHERE table_name = t AND column_name = 'workspace_id' AND data_type <> 'uuid'
-    ) THEN
-      EXECUTE format('ALTER TABLE %I ADD COLUMN ws_uuid UUID', t);
-      EXECUTE format('UPDATE %I SET ws_uuid = %L', t, '00000000-0000-0000-0000-000000000001');
-      EXECUTE format('ALTER TABLE %I DROP COLUMN workspace_id', t);
-      EXECUTE format('ALTER TABLE %I RENAME COLUMN ws_uuid TO workspace_id', t);
-    END IF;
-  END LOOP;
-END $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 4. Add workspace_id to every tenant table; backfill; NOT NULL; index; trigger.
@@ -115,7 +118,7 @@ BEGIN
   END LOOP;
 END $$;
 
--- user_profiles: backfill done in step 3; add FK + index (no stamp trigger).
+-- user_profiles: backfill done in step 2; add FK + index (no stamp trigger).
 ALTER TABLE user_profiles
   ADD CONSTRAINT user_profiles_workspace_fk
   FOREIGN KEY (workspace_id) REFERENCES workspaces(id);

@@ -22,7 +22,13 @@
     "android": {
       "package": "org.talentstack.recruiterx",
       "versionCode": 1,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
+      ]
     },
     "web": {
       "bundler": "metro"
@@ -34,6 +40,15 @@
           "faceIDPermission": "TalentStack uses Face ID to unlock candidate data on this device."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e79dbafd-5552-425c-ab7e-44022511170c"
+      }
+    },
+    "owner": "saradhi0003s-team",
+    "updates": {
+      "url": "https://u.expo.dev/e79dbafd-5552-425c-ab7e-44022511170c"
+    }
   }
 }
