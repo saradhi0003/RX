@@ -26,14 +26,14 @@ isn't enough.
 
 These are the remaining configuration steps; none are code changes.
 
-| # | Step | Where |
-|---|---|---|
-| 1 | Apply migration `023_uploads_bucket_rls.sql` | Supabase SQL editor (see §7) |
-| 2 | Apply migration `024_multitenancy.sql` — **preview first**, verify two-workspace isolation (§4), then prod. Must be applied **before** deploying the workspace-stamped Edge Functions (they insert a `workspace_id` column that doesn't exist until 024 lands — deploying functions first breaks their INSERTs) | Supabase SQL editor |
-| 3 | Deploy the stamped Edge Functions (aiRecruiter*, sendApprovedDraft, scheduledFollowupRun, channelMessageWebhook, inboundEmailWebhook, parseResumeFile) | `supabase functions deploy <name>` |
-| 4 | Set SMTP secrets for `notifySignupRequest` | `supabase secrets set` (see §5) |
-| 5 | Configure Supabase Auth SMTP (Layer 1) | Dashboard → Authentication → Emails → SMTP Settings (see §5) |
-| 6 | Initialize EAS for mobile app | `mobile/` directory with your `EXPO_TOKEN` (see §8) |
+| # | Step | Where | Status |
+|---|---|---|---|
+| 1 | Apply migration `023_uploads_bucket_rls.sql` | Supabase SQL editor | ✅ Applied & verified 2026-08-03 |
+| 2 | Apply migration `024_multitenancy.sql` | Supabase SQL editor | ✅ Applied & verified 2026-08-03 (fixed helper ordering first — SQL fn creation must follow the TEXT→UUID column conversion) |
+| 3 | Deploy the stamped Edge Functions | `supabase functions deploy <name> --project-ref <ref>` | ✅ Done 2026-08-03 — all 19. ⚠ `--project-ref` deploys ignore `verify_jwt` in config.toml; the 6 public endpoints needed an explicit `--no-verify-jwt` redeploy |
+| 4 | Set SMTP secrets for `notifySignupRequest` | `supabase secrets set` (see §5) | ✅ Done 2026-08-03 (`SMTP_HOST/PORT/USER/PASS/SENDER`) |
+| 5 | Configure Supabase Auth SMTP (Layer 1) | Dashboard → Authentication → Emails → SMTP Settings (see §5) | ⬜ Manual — dashboard only, no API |
+| 6 | Initialize EAS for mobile app | `mobile/` with `EXPO_TOKEN` | ✅ Done 2026-08-03 — project `@saradhi0003s-team/recruiter-x`, `update:configure` applied, `EXPO_PUBLIC_SUPABASE_URL`/`_ANON_KEY` set for all 3 profiles |
 
 ## 1. MFA (TOTP) — mostly code, one optional dashboard step
 
