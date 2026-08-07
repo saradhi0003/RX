@@ -87,8 +87,26 @@ cd mobile && npm run build:web   # expo export — CI parity check
 - Don't commit `.env.local`, `data-import/` (PII), or test artifacts (gitignored).
 
 ## Current state / gotchas (2026-07-11)
-- **Supabase project is paused** (free tier auto-pause) → the live app shows empty
-  data and e2e/DB tests can't run until it's restored.
+- **Supabase is LIVE again (verified 2026-08-07).** The long-standing "project is
+  paused" note above this line was stale: `/auth/v1/health` returns GoTrue
+  v2.195.0 and PostgREST answers on every table. Free tier still auto-pauses
+  after ~7 days idle, so re-probe before believing either state.
+  RLS re-verified the same day — the anon/publishable key reads `[]` from
+  `candidates`, `jobs`, `companies`, `user_profiles` and `invoices`, i.e. 020's
+  `auth_is_approved()` gate is holding.
+- **Installable PWA (2026-08-07):** `public/manifest.webmanifest` + `public/icons/`
+  + a hand-rolled worker in [public/sw.js](public/sw.js), registered from
+  [src/lib/registerSW.js](src/lib/registerSW.js) in **prod only** (a worker in dev
+  fights Vite HMR). No `vite-plugin-pwa` — zero new deps.
+  **It is app-shell only, not offline-first, and must stay that way:** the worker
+  touches same-origin GETs only, so no Supabase row data, token or PII can reach
+  CacheStorage. Navigations are network-first (`public/offline.html` is the
+  fallback) and `index.html` is never cached, so a Vercel deploy goes live
+  immediately; only content-hashed `/assets/*` is cache-first. Bump `VERSION` in
+  `sw.js` to invalidate its caches; `unregisterServiceWorker()` is the escape
+  hatch if a bad worker ever ships. `vercel.json` serves `sw.js` `must-revalidate`
+  — keep it that way or a broken worker sticks. Guarded by
+  `tests/unit/lib/pwa.test.js` (static, so it runs while Supabase is paused).
 - **List tables are sortable + resizable** (2026-07-11): shared hooks
   `@/hooks/useTableSort` + `@/hooks/useColumnResize` and
   `DataTableProvider`/`SortableHead` now back every data-grid tab (Invoices,
