@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import {
-  ActivityIndicator, FlatList, Pressable, RefreshControl,
-  StyleSheet, Text, TextInput, View,
-} from 'react-native';
+import { useCallback, useState } from 'react';
+import { FlatList, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { supabase } from '../lib/supabase';
+import { useRows } from '../lib/useRows';
+import { Card, EmptyState, ErrorNotice, Loading, Pill } from '../components/ui';
 import { colors, radius, spacing } from '../theme';
 
 type Candidate = {
@@ -26,15 +25,10 @@ const PAGE_SIZE = 30;
  * query gets an empty array back from PostgREST, which is the behaviour we want
  * to inherit rather than reimplement here.
  */
-export function Candidates() {
-  const [rows, setRows] = useState<Candidate[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function Candidates({ onOpen }: { onOpen: (id: string, name: string) => void }) {
   const [query, setQuery] = useState('');
 
-  const load = useCallback(async (search: string) => {
-    setError(null);
+  const run = useCallback((search: string) => {
     let q = supabase
       .from('candidates')
       .select('id, full_name, title, location, email, status, created_at')
@@ -47,26 +41,10 @@ export function Candidates() {
       const safe = search.trim().replace(/[,()]/g, ' ');
       q = q.or(`full_name.ilike.%${safe}%,email.ilike.%${safe}%,title.ilike.%${safe}%`);
     }
-
-    const { data, error: err } = await q;
-    if (err) setError(err.message);
-    else setRows(data ?? []);
+    return q;
   }, []);
 
-  useEffect(() => {
-    // Debounce so a fast typist doesn't fire a query per keystroke.
-    const t = setTimeout(() => {
-      setLoading(true);
-      load(query).finally(() => setLoading(false));
-    }, 250);
-    return () => clearTimeout(t);
-  }, [query, load]);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await load(query);
-    setRefreshing(false);
-  }, [load, query]);
+  const { rows, loading, refreshing, error, refresh, reload } = useRows<Candidate>(run, query, { debounceMs: 250 });
 
   return (
     <View style={styles.flex}>
@@ -80,36 +58,30 @@ export function Candidates() {
         returnKeyType="search"
       />
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? <ErrorNotice message={error} onRetry={reload} /> : null}
 
       {loading && rows.length === 0 ? (
-        <ActivityIndicator style={styles.spinner} color={colors.primary} />
+        <Loading />
       ) : (
         <FlatList
           data={rows}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+            <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />
           }
           ListEmptyComponent={
-            <Text style={styles.empty}>
-              {query ? 'No candidates match that search.' : 'No candidates yet.'}
-            </Text>
+            <EmptyState title={query ? 'No candidates match that search.' : 'No candidates yet.'} />
           }
           renderItem={({ item }) => (
-            <Pressable style={styles.card}>
+            <Card onPress={() => onOpen(item.id, item.full_name)}>
               <Text style={styles.name}>{item.full_name}</Text>
               {item.title ? <Text style={styles.meta}>{item.title}</Text> : null}
               <View style={styles.row}>
                 {item.location ? <Text style={styles.sub}>{item.location}</Text> : null}
-                {item.status ? (
-                  <View style={styles.pill}>
-                    <Text style={styles.pillText}>{item.status}</Text>
-                  </View>
-                ) : null}
+                {item.status ? <Pill label={item.status} /> : null}
               </View>
-            </Pressable>
+            </Card>
           )}
         />
       )}
@@ -124,24 +96,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 12,
     margin: spacing.md, fontSize: 15, color: colors.text,
   },
-  spinner: { marginTop: spacing.xl },
   list: { paddingHorizontal: spacing.md, paddingBottom: spacing.xl, gap: spacing.sm },
-  card: {
-    backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1,
-    borderRadius: radius.md, padding: spacing.md, gap: 2,
-  },
   name: { color: colors.text, fontSize: 16, fontWeight: '700' },
   meta: { color: colors.textSecondary, fontSize: 14 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: spacing.xs },
   sub: { color: colors.muted, fontSize: 13 },
-  pill: {
-    backgroundColor: colors.primarySoft, borderRadius: radius.pill,
-    paddingHorizontal: 10, paddingVertical: 2,
-  },
-  pillText: { color: colors.primaryDark, fontSize: 11, fontWeight: '700' },
-  empty: { color: colors.muted, textAlign: 'center', marginTop: spacing.xl, fontSize: 14 },
-  error: {
-    color: colors.negative, fontSize: 13, textAlign: 'center',
-    paddingHorizontal: spacing.md,
-  },
 });

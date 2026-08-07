@@ -10,17 +10,56 @@ in [../skills/mfa-totp/](../skills/mfa-totp/).
 
 ## What it does
 
-Two screens behind the full gate cascade:
+The core recruiter workflow, behind the full gate cascade. Five bottom tabs —
+**Home, Candidates, Jobs, Tasks, More** — plus one level of pushed detail
+screens.
 
-- **Candidates** — search/browse. No client-side tenant filter: visibility is
-  RLS's job (`auth_is_approved()`, migration 020).
+- **Home** — counts (candidates, open jobs, submissions, open tasks) and the
+  five most recent candidates. Counts are `head: true` COUNT queries, so the
+  phone pulls integers rather than rows it will never render.
+- **Candidates** — search/browse → **candidate detail** (contact, profile,
+  skills, submissions; tap-to-call/email, and resume opening that signs the
+  private storage path).
+- **Jobs** — search + status filter → **job detail** (details, skills,
+  description, requirements, and the submissions against that job).
+- **Tasks** — filter by state and **tick tasks done**. The one screen that
+  writes: completing a task is what a recruiter actually does on a phone.
+- **More** — Submissions (pipeline with status filter), Companies, and Add.
 - **Add** — pick a resume with `expo-document-picker`, upload it to the private
   `uploads` bucket under `<user-id>/…`, and create the candidate row holding the
   storage **path**.
 
+No client-side tenant filter anywhere: visibility is RLS's job
+(`auth_is_approved()`, migration 020). An unapproved account running any of
+these queries gets `[]`, which is the behaviour we inherit rather than
+reimplement.
+
+**Everything except completing a task is read-only.** Creating and editing
+candidates, jobs and invoices stays on the web app — porting those forms would
+mean duplicating validation that RLS and the web already enforce.
+
 Parsing stays on the web on purpose: `parseResumeFile` takes extracted
 `resume_text`, and a phone has no PDF text extractor. Inventing one here would
 create candidate records that look parsed but are empty.
+
+### Navigation
+
+Still hand-rolled (`components/Shell.tsx` + the `tab`/`detail` state in
+`App.tsx`). One level of depth does not justify react-navigation: it is a
+**native** dependency, so adopting it would turn every future JS-only change
+from an OTA `eas update` into a full rebuild and reinstall. Android's hardware
+back is wired to pop the detail screen in `App.tsx`.
+
+### Shared pieces
+
+- `lib/useRows.ts` — the list-screen state machine (debounced search,
+  pull-to-refresh, first-load spinner, stale-response guard). Also exports
+  `asRows()`, which documents why supabase-js's array type for a many-to-one
+  PostgREST embed is wrong, and `humanize()`, which turns a fetch failure into
+  "You're offline" without a NetInfo dependency.
+- `components/ui.tsx` — `Card`, `Pill` (status→colour for the CHECK-constrained
+  vocabularies in 001), `EmptyState`, `ErrorNotice`, `Field`, date/money
+  formatters.
 
 ## The gate cascade (`App.tsx`)
 
@@ -87,6 +126,27 @@ is permanently broken and no OTA update can repair it (`App.tsx` renders an
 explicit "Not configured" screen for that case rather than failing obscurely).
 
 ## Gotchas already handled
+
+- **Metro's cache will bake in an EMPTY `EXPO_PUBLIC_*` and say nothing**
+  (hit 2026-08-07). `EXPO_PUBLIC_*` are inlined at bundle time, and a cached
+  bundle keeps whatever they were on the previous run — a build made before
+  `.env.local` existed inlines `process.env.EXPO_PUBLIC_SUPABASE_URL` as `''`
+  and every later build reuses it. The symptom is the "Not configured" screen
+  with a perfectly correct `.env.local` sitting right there. `rm -rf dist .expo`
+  is **not** enough; Metro's cache lives outside the project. Use:
+
+  ```bash
+  npx expo export --platform web --clear      # --clear is the fix
+  ```
+
+  Confirm the value actually landed rather than trusting the build log:
+
+  ```bash
+  grep -c "<your-project-ref>" dist/_expo/static/js/web/*.js   # must be ≥ 1
+  ```
+
+  Same trap applies to `eas build`; an APK built from a cached empty value is
+  permanently broken and no OTA update can repair it.
 
 - **`SafeAreaView` is a no-op on Android.** `Shell.tsx` pads by
   `StatusBar.currentHeight` at the top and adds bottom clearance for the gesture

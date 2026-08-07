@@ -1,15 +1,23 @@
 import type { Session } from '@supabase/supabase-js';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import { Platform, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { BackHandler, Platform, SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { useAppLock } from './lib/useAppLock';
-import { Shell, type Route } from './components/Shell';
+import { Shell, type Detail, type Tab } from './components/Shell';
 import { Login } from './screens/Login';
 import { MfaChallenge } from './screens/MfaChallenge';
 import { BiometricLock } from './screens/BiometricLock';
 import { PendingApproval } from './screens/PendingApproval';
+import { Dashboard } from './screens/Dashboard';
 import { Candidates } from './screens/Candidates';
+import { CandidateDetail } from './screens/CandidateDetail';
+import { Jobs } from './screens/Jobs';
+import { JobDetail } from './screens/JobDetail';
+import { Tasks } from './screens/Tasks';
+import { Submissions } from './screens/Submissions';
+import { Companies } from './screens/Companies';
+import { More } from './screens/More';
 import { Upload } from './screens/Upload';
 import { colors, spacing } from './theme';
 
@@ -27,7 +35,31 @@ import { colors, spacing } from './theme';
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
-  const [route, setRoute] = useState<Route>('candidates');
+
+  // Navigation is one tab plus at most one pushed detail screen — deep enough
+  // for this app, shallow enough not to need react-navigation (a native
+  // dependency would turn JS-only changes into full rebuilds instead of OTA
+  // updates).
+  const [tab, setTab] = useState<Tab>('dashboard');
+  const [detail, setDetail] = useState<Detail | null>(null);
+
+  const openTab = useCallback((next: Tab) => {
+    setDetail(null);
+    setTab(next);
+  }, []);
+  const back = useCallback(() => setDetail(null), []);
+
+  // Android's hardware back must dismiss the detail screen rather than
+  // background the app. Returning false lets the OS handle it at the tab root.
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!detail) return false;
+      setDetail(null);
+      return true;
+    });
+    return () => sub.remove();
+  }, [detail]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -156,6 +188,21 @@ export default function App() {
     );
   }
 
+  const openCandidate = (id: string, title: string) => setDetail({ screen: 'candidate', id, title });
+  const openJob = (id: string, title: string) => setDetail({ screen: 'job', id, title });
+
+  let screen;
+  if (detail?.screen === 'candidate') screen = <CandidateDetail id={detail.id} />;
+  else if (detail?.screen === 'job') screen = <JobDetail id={detail.id} />;
+  else if (detail?.screen === 'submissions') screen = <Submissions onCandidate={openCandidate} />;
+  else if (detail?.screen === 'companies') screen = <Companies />;
+  else if (detail?.screen === 'upload') screen = <Upload />;
+  else if (tab === 'dashboard') screen = <Dashboard onTab={openTab} onCandidate={openCandidate} onDetail={setDetail} />;
+  else if (tab === 'candidates') screen = <Candidates onOpen={openCandidate} />;
+  else if (tab === 'jobs') screen = <Jobs onOpen={openJob} />;
+  else if (tab === 'tasks') screen = <Tasks />;
+  else screen = <More onOpen={setDetail} email={email} />;
+
   return (
     // The capture prop observes every touch (returning false lets it through) so
     // activity pushes back the inactivity re-lock.
@@ -167,11 +214,32 @@ export default function App() {
       }}
     >
       <StatusBar style="dark" />
-      <Shell route={route} onRoute={setRoute} email={email}>
-        {route === 'candidates' ? <Candidates /> : <Upload />}
+      <Shell
+        tab={tab}
+        onTab={openTab}
+        email={email}
+        detailTitle={detailTitle(detail)}
+        onBack={detail ? back : undefined}
+      >
+        {screen}
       </Shell>
     </SafeAreaView>
   );
+}
+
+function detailTitle(detail: Detail | null): string | undefined {
+  if (!detail) return undefined;
+  switch (detail.screen) {
+    case 'candidate':
+    case 'job':
+      return detail.title;
+    case 'submissions':
+      return 'Submissions';
+    case 'companies':
+      return 'Companies';
+    case 'upload':
+      return 'Add candidate';
+  }
 }
 
 const styles = StyleSheet.create({

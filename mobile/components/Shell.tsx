@@ -8,35 +8,61 @@ import { colors, radius, spacing } from '../theme';
 const ANDROID_TOP_INSET = Platform.OS === 'android' ? RNStatusBar.currentHeight ?? 0 : 0;
 const ANDROID_BOTTOM_INSET = Platform.OS === 'android' ? 12 : 0;
 
-export type Route = 'candidates' | 'upload';
+/** Bottom-tab destinations. Anything reachable but secondary lives behind
+ *  'more' rather than crowding the bar past five targets. */
+export type Tab = 'dashboard' | 'candidates' | 'jobs' | 'tasks' | 'more';
 
-const TABS: { key: Route; label: string; icon: string }[] = [
+/** Screens pushed OVER a tab. Still hand-rolled: one level of depth does not
+ *  justify react-navigation and the native dependencies it drags in, which
+ *  would turn every future JS-only change into a full rebuild. */
+export type Detail =
+  | { screen: 'candidate'; id: string; title: string }
+  | { screen: 'job'; id: string; title: string }
+  | { screen: 'submissions' }
+  | { screen: 'companies' }
+  | { screen: 'upload' };
+
+const TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: 'dashboard', label: 'Home', icon: '📊' },
   { key: 'candidates', label: 'Candidates', icon: '👥' },
-  { key: 'upload', label: 'Add', icon: '⬆️' },
+  { key: 'jobs', label: 'Jobs', icon: '💼' },
+  { key: 'tasks', label: 'Tasks', icon: '✅' },
+  { key: 'more', label: 'More', icon: '⋯' },
 ];
 
-/** Header + bottom tab bar. Deliberately hand-rolled: two tabs do not justify
- *  a navigation library and its native dependencies. */
 export function Shell({
-  route,
-  onRoute,
+  tab,
+  onTab,
   email,
+  detailTitle,
+  onBack,
   children,
 }: {
-  route: Route;
-  onRoute: (r: Route) => void;
+  tab: Tab;
+  onTab: (t: Tab) => void;
   email: string;
+  detailTitle?: string;
+  onBack?: () => void;
   children: ReactNode;
 }) {
   return (
     <View style={styles.root}>
       <View style={styles.header}>
-        <View style={styles.brand}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeMark}>TS</Text>
+        {onBack ? (
+          <Pressable onPress={onBack} hitSlop={12} style={styles.brand}>
+            <Text style={styles.back}>‹</Text>
+            <Text style={styles.title} numberOfLines={1}>
+              {detailTitle ?? 'Back'}
+            </Text>
+          </Pressable>
+        ) : (
+          <View style={styles.brand}>
+            <View style={styles.badge}>
+              <Text style={styles.badgeMark}>TS</Text>
+            </View>
+            <Text style={styles.title}>TalentStack</Text>
           </View>
-          <Text style={styles.title}>TalentStack</Text>
-        </View>
+        )}
         <Pressable onPress={() => supabase.auth.signOut()} hitSlop={10}>
           <Text style={styles.signOut} numberOfLines={1}>
             Sign out
@@ -44,23 +70,25 @@ export function Shell({
         </Pressable>
       </View>
 
-      <Text style={styles.email} numberOfLines={1}>
-        {email}
-      </Text>
+      {onBack ? null : (
+        <Text style={styles.email} numberOfLines={1}>
+          {email}
+        </Text>
+      )}
 
       <View style={styles.body}>{children}</View>
 
       <View style={styles.tabs}>
-        {TABS.map((tab) => {
-          const activeTab = tab.key === route;
+        {TABS.map((t) => {
+          const activeTab = t.key === tab && !onBack;
           return (
             <Pressable
-              key={tab.key}
+              key={t.key}
               style={[styles.tab, activeTab && styles.tabActive]}
-              onPress={() => onRoute(tab.key)}
+              onPress={() => onTab(t.key)}
             >
-              <Text style={styles.tabIcon}>{tab.icon}</Text>
-              <Text style={[styles.tabLabel, activeTab && styles.tabLabelActive]}>{tab.label}</Text>
+              <Text style={styles.tabIcon}>{t.icon}</Text>
+              <Text style={[styles.tabLabel, activeTab && styles.tabLabelActive]}>{t.label}</Text>
             </Pressable>
           );
         })}
@@ -75,14 +103,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing.md, paddingTop: spacing.sm + ANDROID_TOP_INSET,
   },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flex: 1 },
   badge: {
     width: 30, height: 30, borderRadius: radius.sm, backgroundColor: colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
   badgeMark: { color: '#fff', fontWeight: '800', fontSize: 12 },
-  title: { color: colors.text, fontSize: 17, fontWeight: '800' },
-  signOut: { color: colors.secondary, fontSize: 13, fontWeight: '600' },
+  back: { color: colors.secondary, fontSize: 28, fontWeight: '400', marginTop: -4 },
+  title: { color: colors.text, fontSize: 17, fontWeight: '800', flexShrink: 1 },
+  signOut: { color: colors.secondary, fontSize: 13, fontWeight: '600', paddingLeft: spacing.sm },
   email: { color: colors.muted, fontSize: 12, paddingHorizontal: spacing.md, paddingTop: 2 },
   body: { flex: 1 },
   tabs: {
