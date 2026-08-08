@@ -24,7 +24,24 @@ shipped migration — add a new one.
   017–**022** applied 2026-07-27. **023 and 024 applied & verified 2026-08-03.**
   **025 applied & verified 2026-08-08** (`verify_025_agent_tenancy.sql` 10/10
   PASS; `supabase db advisors` security lints 16 → 6, and the 6 remaining are the
-  three auth helpers that 021 says must stay executable).
+  three auth helpers that 021 says must stay executable) ·
+  **026 retrieval** (pgvector + `doc_chunks` + `search_candidates_hybrid` +
+  `llm_spend_today`) **applied & verified 2026-08-08**, 12/12 PASS.
+
+### 026 — two things that will bite you
+1. **`search_path` must include `extensions`.** Supabase installs `vector` into
+   the `extensions` schema, so 021's hardening pin (`public, pg_temp`) makes the
+   `vector` type unresolvable inside a function. Every function touching a
+   vector pins `public, extensions, pg_temp`.
+2. **`p_query_embedding` is declared TEXT and cast internally.** PostgREST
+   cannot coerce a JSON array into a `vector` parameter — it fails at the
+   gateway. Pass the pgvector literal `'[0.01,-0.2,...]'`
+   (`toVectorLiteral()` in `_shared/embeddings.ts`). Do not "fix" the parameter
+   type to `vector`.
+
+Also note the corpus is **candidate metadata, not resume prose**: `resumes` has
+0 rows and 718 `resume_url` values point at Base44 URLs outside this project.
+`doc_chunks.source_table` is generic so resumes slot in later unchanged.
 
 ### 025 — the three tables 024 forgot
 024 workspace-scopes every tenant table by iterating a hardcoded

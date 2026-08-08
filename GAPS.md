@@ -63,7 +63,28 @@ automation actions in `executeAutomation.jsx`.
 FTS indexes exist in migration 001.
 **Gaps:**
 - UI search mostly uses `ilike` — **FTS indexes barely exercised** (P3)
-- No vector/semantic search over candidates/resumes (P3 — future)
+- ~~No vector/semantic search over candidates/resumes~~ **Done 2026-08-08
+  (migration 026, applied & verified 12/12).** pgvector 0.8.0 + `doc_chunks`
+  (HNSW cosine, `vector(768)`) + `search_candidates_hybrid()` — a three-channel
+  RRF fusion over chunk BM25, chunk cosine and the `candidates.fts` tsvector
+  that 004 built and nothing ever queried. `SECURITY INVOKER`, no anon EXECUTE,
+  `search_path` pinned to `public, extensions, pg_temp` (the `extensions` entry
+  is required — Supabase installs `vector` there, and 021's usual `public,
+  pg_temp` pin makes the type unresolvable).
+  Proven live: with the vector index empty it degrades to the structured
+  channel; with embeddings present, a candidate matching two channels correctly
+  outranks single-channel matches, and the fused scores match
+  `w/(k+rank)` exactly.
+  **⚠ Corpus correction:** the plan assumed `resumes.raw_text` held every
+  resume. It does not — `resumes` has **0 rows**. The 890 candidates carry the
+  text (546 with skills, 558 with a title, 61 with a substantial summary → 556
+  embeddable), and 718 `resume_url` values point at Base44 URLs whose files sit
+  outside this project. `doc_chunks.source_table` is generic, so resumes slot in
+  unchanged when their text lands. Backfill is ~$0.005, and the index is ~3 MB —
+  the free-tier storage concern raised during planning was overstated.
+  **Remaining:** run the backfill (`embedDocuments` until `remaining: 0`), and
+  the UI's `ilike` search still does not use the RPC (deliberately out of scope —
+  a separate UX change with its own risk).
 
 ### 7. Strategies (rules / playbooks / scoring profiles)
 **State:** AutomationRules + Playbooks + MatchingProfileEditor CRUD all work.
