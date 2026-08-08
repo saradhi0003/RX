@@ -352,9 +352,9 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-[#F8FAFC]">
       {/* ── Header ── */}
-      <div className="bg-white border-b border-[#E2E8F0] px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
+      <div className="bg-white border-b border-[#E2E8F0] px-4 md:px-6 py-3 md:py-4">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="min-w-0">
             <h1 className="text-[20px] font-bold text-[#1E293B]" style={{ fontFamily: 'var(--font-display)' }}>Dashboard</h1>
             <p className="text-[12px] text-[#94A3B8] mt-0.5">{dateLabel} · {quarter}</p>
           </div>
@@ -364,7 +364,7 @@ export default function Dashboard() {
               className="gap-1.5 text-[13px] border-[#E2E8F0] text-[#475569]"
               onClick={() => { invalidateDashboardCache(); setRefreshKey(k => k+1); loadDashboardData(true); }}
             >
-              <RefreshCcw className="w-3.5 h-3.5" /> Refresh
+              <RefreshCcw className="w-3.5 h-3.5" /> <span className="hidden md:inline">Refresh</span>
             </Button>
             {isAdmin && (
               <Button
@@ -372,7 +372,7 @@ export default function Dashboard() {
                 className="gap-1.5 text-[13px] border-[#E2E8F0] text-[#475569]"
                 onClick={() => setBuilderOpen(true)}
               >
-                <Plus className="w-3.5 h-3.5" /> Customize
+                <Plus className="w-3.5 h-3.5" /> <span className="hidden md:inline">Customize</span>
               </Button>
             )}
             <Button
@@ -382,18 +382,19 @@ export default function Dashboard() {
               disabled={analyzingAI}
             >
               {analyzingAI ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-              {analyzingAI ? "Analyzing..." : "AI Actions"}
+              <span className="hidden md:inline">{analyzingAI ? "Analyzing..." : "AI Actions"}</span>
             </Button>
           </div>
         </div>
 
-        {/* Tab Bar */}
-        <div className="flex gap-0 mt-3 -mb-4">
+        {/* Tab Bar — scrolls sideways on a phone rather than squeezing the
+            labels, which is what pushed the header over the viewport width. */}
+        <div className="flex gap-0 mt-3 -mb-4 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2.5 text-[13px] font-medium border-b-2 transition-colors shrink-0 whitespace-nowrap ${
                 activeTab === tab.id
                   ? "border-[#2563EB] text-[#2563EB]"
                   : "border-transparent text-[#64748B] hover:text-[#1E293B]"
@@ -405,7 +406,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
 
         {/* ── Overview Tab ── */}
         {activeTab === "overview" && (
@@ -512,7 +513,10 @@ export default function Dashboard() {
                   </Link>
                 </div>
                 {/* Table header */}
-                <div className="grid grid-cols-[2fr_2fr_1fr_1fr_1fr] gap-3 px-5 py-2.5 bg-[#F8FAFC] border-b border-[#F1F5F9]">
+                {/* Five columns do not fit a phone — below md the row becomes a
+                    single flex line (name · score · stage) and this header,
+                    which labels columns that are no longer there, is dropped. */}
+                <div className="hidden md:grid grid-cols-[2fr_2fr_1fr_1fr_1fr] gap-3 px-5 py-2.5 bg-[#F8FAFC] border-b border-[#F1F5F9]">
                   {["CANDIDATE", "ROLE", "SCORE", "STAGE", "APPLIED"].map(h => (
                     <span key={h} className="text-[10px] font-semibold text-[#94A3B8] uppercase tracking-wider">{h}</span>
                   ))}
@@ -533,26 +537,32 @@ export default function Dashboard() {
                     return (
                       <div
                         key={c.id}
-                        className="grid grid-cols-[2fr_2fr_1fr_1fr_1fr] gap-3 items-center px-5 py-3 border-b border-[#F8FAFC] last:border-0 hover:bg-[#F8FAFC] transition-colors cursor-pointer"
+                        className="flex md:grid md:grid-cols-[2fr_2fr_1fr_1fr_1fr] gap-3 items-center px-4 md:px-5 py-3 border-b border-[#F8FAFC] last:border-0 hover:bg-[#F8FAFC] transition-colors cursor-pointer"
                         onClick={() => window.dispatchEvent(new CustomEvent("preview:open", { detail: { entity: "Candidate", id: c.id } }))}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex flex-1 items-center gap-2.5 min-w-0">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 ${color}`}>
                             {(c.first_name?.[0] || "")}{(c.last_name?.[0] || "")}
                           </div>
                           <div className="min-w-0">
                             <p className="text-[13px] font-medium text-[#1E293B] truncate">{c.first_name} {c.last_name}</p>
-                            {c.current_title && <p className="text-[11px] text-[#94A3B8] truncate">{c.current_title}</p>}
+                            {/* The APPLIED column is dropped below md, so it
+                                rides along here instead of being lost. */}
+                            <p className="text-[11px] text-[#94A3B8] truncate">
+                              {c.current_title}
+                              <span className="md:hidden">{c.current_title ? " · " : ""}{timeAgo(c.created_date)}</span>
+                            </p>
                           </div>
                         </div>
-                        <span className="text-[12px] text-[#475569] truncate">{c.current_title || "—"}</span>
-                        <span className={`text-[13px] font-semibold ${score ? (score >= 85 ? "text-[#16A34A]" : score >= 70 ? "text-[#D97706]" : "text-[#94A3B8]") : "text-[#CBD5E1]"}`}>
+                        {/* Duplicates the subtitle under the name — phone drops it. */}
+                        <span className="hidden md:block text-[12px] text-[#475569] truncate">{c.current_title || "—"}</span>
+                        <span className={`text-[13px] font-semibold shrink-0 ${score ? (score >= 85 ? "text-[#16A34A]" : score >= 70 ? "text-[#D97706]" : "text-[#94A3B8]") : "text-[#CBD5E1]"}`}>
                           {score ? `${Math.round(score)}%` : "—"}
                         </span>
-                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full capitalize inline-block ${pillClass}`}>
+                        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full capitalize inline-block shrink-0 whitespace-nowrap ${pillClass}`}>
                           {stage.replace(/_/g, " ")}
                         </span>
-                        <span className="text-[12px] text-[#94A3B8]">{timeAgo(c.created_date)}</span>
+                        <span className="hidden md:inline text-[12px] text-[#94A3B8]">{timeAgo(c.created_date)}</span>
                       </div>
                     );
                   })
@@ -724,7 +734,7 @@ export default function Dashboard() {
                 <h2 className="text-[15px] font-semibold text-[#1E293B]">Open Roles</h2>
                 <Link to={createPageUrl("Jobs")} className="text-[12px] text-[#2563EB] font-medium hover:underline">See All</Link>
               </div>
-              <div className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr] gap-3 px-5 py-2.5 bg-[#F8FAFC] border-b border-[#F1F5F9]">
+              <div className="hidden md:grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr] gap-3 px-5 py-2.5 bg-[#F8FAFC] border-b border-[#F1F5F9]">
                 {["ROLE", "COMPANY", "TYPE", "PRIORITY", "POSTED"].map(h => (
                   <span key={h} className="text-[10px] font-semibold text-[#94A3B8] uppercase tracking-wider">{h}</span>
                 ))}
@@ -735,17 +745,22 @@ export default function Dashboard() {
                 const company = companies.find(c => c.id === j.company_id);
                 const priorityColors = { urgent: "bg-[#FEF2F2] text-[#DC2626]", high: "bg-[#FFF7ED] text-[#D97706]", medium: "bg-[#EFF6FF] text-[#2563EB]", low: "bg-[#F0FDF4] text-[#16A34A]" };
                 return (
-                  <div key={j.id} className="grid grid-cols-[2fr_1.5fr_1fr_1fr_1fr] gap-3 items-center px-5 py-3.5 border-b border-[#F8FAFC] last:border-0 hover:bg-[#F8FAFC] transition-colors">
-                    <div>
+                  <div key={j.id} className="flex md:grid md:grid-cols-[2fr_1.5fr_1fr_1fr_1fr] gap-3 items-center px-4 md:px-5 py-3.5 border-b border-[#F8FAFC] last:border-0 hover:bg-[#F8FAFC] transition-colors">
+                    <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-medium text-[#1E293B] truncate">{j.title}</p>
-                      <p className="text-[11px] text-[#94A3B8] truncate">{j.location || j.remote_type?.replace(/_/g," ") || "—"}</p>
+                      {/* Company and type lose their own columns below md, so
+                          they fold into the subtitle rather than disappearing. */}
+                      <p className="text-[11px] text-[#94A3B8] truncate">
+                        <span className="md:hidden">{company?.name ? `${company.name} · ` : ""}</span>
+                        {j.location || j.remote_type?.replace(/_/g," ") || "—"}
+                      </p>
                     </div>
-                    <span className="text-[12px] text-[#475569] truncate">{company?.name || "—"}</span>
-                    <span className="text-[11px] text-[#64748B] capitalize">{j.employment_type?.replace(/_/g," ") || "—"}</span>
-                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full capitalize inline-block ${priorityColors[j.priority] || "bg-[#F8FAFC] text-[#475569]"}`}>
+                    <span className="hidden md:block text-[12px] text-[#475569] truncate">{company?.name || "—"}</span>
+                    <span className="hidden md:inline text-[11px] text-[#64748B] capitalize">{j.employment_type?.replace(/_/g," ") || "—"}</span>
+                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full capitalize inline-block shrink-0 whitespace-nowrap ${priorityColors[j.priority] || "bg-[#F8FAFC] text-[#475569]"}`}>
                       {j.priority || "—"}
                     </span>
-                    <span className="text-[12px] text-[#94A3B8]">{timeAgo(j.created_date)}</span>
+                    <span className="hidden md:inline text-[12px] text-[#94A3B8]">{timeAgo(j.created_date)}</span>
                   </div>
                 );
               })}

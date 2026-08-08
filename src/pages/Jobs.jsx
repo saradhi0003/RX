@@ -66,6 +66,7 @@ import JobsBulkUpdateModal from "../components/jobs/JobsBulkUpdateModal";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import { emitEntityChanged } from "@/components/common/refreshBus";
 import RecommendedCandidates from "../components/ai/RecommendedCandidates";
+import "@/styles/list-page.css";
 
 function exportJobsToCSV(rows) {
   const headers = [
@@ -590,23 +591,23 @@ export default function JobsPage() {
     <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background:"#F8FAFC", minHeight:"100vh" }}>
 
       {/* ── Metrics bar ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:"1px solid #E2E8F0" }}>
+      <div className="rxlp-metrics">
         {[
           { label:"Open Roles", value:loading?"—":openJobs, sub:"actively hiring" },
           { label:"New This Week", value:loading?"—":newThisWeek, sub:`+${newThisWeek} posted`, subColor:"#10B981" },
           { label:"High Priority", value:loading?"—":urgentJobs, sub:"urgent + high", valColor:"#D97706" },
           { label:"Filled", value:loading?"—":filledJobs, sub:"this pipeline" },
         ].map((m,i) => (
-          <div key={i} style={{ padding:"22px 28px", borderRight:i<3?"1px solid #E2E8F0":"none" }}>
-            <div style={{ fontSize:11.5, fontWeight:500, color:"#94A3B8", marginBottom:5 }}>{m.label}</div>
-            <div style={{ fontSize:42, fontWeight:700, letterSpacing:"-.04em", lineHeight:1, color:m.valColor||"#0F172A" }}>{m.value}</div>
-            <div style={{ fontSize:11.5, color:m.subColor||"#94A3B8", marginTop:6 }}>{m.sub}</div>
+          <div key={i} className="rxlp-metric">
+            <div className="rxlp-metric-label">{m.label}</div>
+            <div className="rxlp-metric-value" style={{ color:m.valColor||"#0F172A" }}>{m.value}</div>
+            <div className="rxlp-metric-sub" style={{ color:m.subColor||"#94A3B8" }}>{m.sub}</div>
           </div>
         ))}
       </div>
 
       {/* ── Filter bar ── */}
-      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 24px", background:"#fff", borderBottom:"1px solid #E2E8F0", flexWrap:"wrap" }}>
+      <div className="rxlp-filterbar">
         <span style={{ fontSize:12, fontWeight:600, color:"#94A3B8", marginRight:4 }}>Status</span>
         {[{k:"all",l:"All"},{k:"open",l:"Open"},{k:"draft",l:"Draft"},{k:"on_hold",l:"On Hold"},{k:"filled",l:"Filled"}].map(s => (
           <button key={s.k} onClick={() => { setStatusFilter(s.k); setCurrentPage(1); }}
@@ -620,13 +621,12 @@ export default function JobsPage() {
         </button>
 
         {/* Search */}
-        <div style={{ display:"flex", alignItems:"center", gap:6, background:"rgba(0,0,0,.06)", borderRadius:10, padding:"5px 10px", marginLeft:8 }}>
-          <Search style={{ width:13, height:13, color:"#94A3B8" }} />
-          <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search jobs…"
-            style={{ border:"none", background:"transparent", outline:"none", fontSize:13, color:"#0F172A", width:160 }} />
+        <div className="rxlp-search">
+          <Search style={{ width:13, height:13, color:"#94A3B8", flexShrink:0 }} />
+          <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Search jobs…" />
         </div>
 
-        <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8 }}>
+        <div className="rxlp-bar-actions">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button style={{ padding:"6px 14px", borderRadius:20, fontSize:13, fontWeight:500, border:"1px solid #E2E8F0", background:"#fff", color:"#64748B", cursor:"pointer" }}>More ▾</button>
@@ -657,12 +657,15 @@ export default function JobsPage() {
       </div>
 
       {/* ── Table ── */}
-      <div style={{ padding:"20px 24px 40px" }}>
+      <div className="rxlp-tablewrap">
         <div style={{ background:"#fff", borderRadius:16, boxShadow:"0 2px 12px rgba(0,0,0,.07),0 0 0 .5px rgba(0,0,0,.05)", overflow:"hidden" }}>
-          {/* Header */}
-          <div style={{ display:"grid", gridTemplateColumns:"1.6fr 140px 100px 110px 100px 80px 80px 36px", gap:0, padding:"9px 20px", borderBottom:"1px solid #E2E8F0", background:"#FAFAFA" }}>
+          {/* Header. COMPANY/TYPE/RATE/ADDED drop out on a phone and reappear
+              in each row's subtitle. */}
+          <div className="rxlp-grid rxlp-grid-jobs rxlp-head" style={{ borderBottom:"1px solid #E2E8F0", background:"#FAFAFA" }}>
             {["JOB","COMPANY","TYPE","PRIORITY","STATUS","RATE","ADDED",""].map((h,i) => (
-              <div key={i} style={{ fontSize:11, fontWeight:600, letterSpacing:".04em", color:"#94A3B8", display:"flex", alignItems:"center", gap:i===0?8:0 }}>
+              <div key={i}
+                className={`rxlp-th ${[1,2,5,6].includes(i) ? "rxlp-col-hide" : ""}`}
+                style={{ gap:i===0?8:0 }}>
                 {i===0 && <Checkbox checked={allVisibleSelected} onCheckedChange={c=>toggleSelectAllVisible(!!c)} />}
                 {h}
               </div>
@@ -688,7 +691,8 @@ export default function JobsPage() {
 
             return (
               <div key={job.id} onClick={() => setSelectedJob(job)}
-                style={{ display:"grid", gridTemplateColumns:"1.6fr 140px 100px 110px 100px 80px 80px 36px", gap:0, padding:"10px 20px", borderBottom:idx<paginatedStatusJobs.length-1?"1px solid #F2F2F7":"none", alignItems:"center", cursor:"pointer", background:isSelected?"rgba(0,113,227,.05)":"transparent", transition:"background 100ms" }}
+                className="rxlp-grid rxlp-grid-jobs rxlp-row"
+                style={{ borderBottom:idx<paginatedStatusJobs.length-1?"1px solid #F2F2F7":"none", cursor:"pointer", background:isSelected?"rgba(0,113,227,.05)":"transparent", transition:"background 100ms" }}
                 onMouseEnter={e => { if(!isSelected) e.currentTarget.style.background="#F9F9FB"; }}
                 onMouseLeave={e => { e.currentTarget.style.background=isSelected?"rgba(0,113,227,.05)":"transparent"; }}>
 
@@ -702,15 +706,20 @@ export default function JobsPage() {
                     <div style={{ fontSize:13.5, fontWeight:600, color:"#0F172A", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                       <Link to={createPageUrl(`JobDetails?id=${job.id}`)} onClick={e=>e.stopPropagation()} style={{ color:"inherit", textDecoration:"none" }}>{job.title}</Link>
                     </div>
-                    <div style={{ fontSize:11.5, color:"#94A3B8" }}>{job.location || "Remote"}</div>
+                    <div style={{ fontSize:11.5, color:"#94A3B8", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                      {/* Carries the columns the phone layout drops. */}
+                      <span className="rxlp-sm-only">{compName ? `${compName} · ` : ""}</span>
+                      {job.location || "Remote"}
+                      <span className="rxlp-sm-only">{job.rate ? ` · ${job.rate}` : ""}</span>
+                    </div>
                   </div>
                 </div>
-                <div style={{ fontSize:12.5, color:"#64748B", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{compName}</div>
-                <div style={{ fontSize:12, color:"#64748B" }}>{(job.employment_type||"").replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase()) || "—"}</div>
+                <div className="rxlp-col-hide" style={{ fontSize:12.5, color:"#64748B", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{compName}</div>
+                <div className="rxlp-col-hide" style={{ fontSize:12, color:"#64748B" }}>{(job.employment_type||"").replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase()) || "—"}</div>
                 <div><span style={{ fontSize:11.5, fontWeight:600, padding:"3px 10px", borderRadius:20, background:pb.bg, color:pb.c }}>{(job.priority||"").replace(/\b\w/g,l=>l.toUpperCase()) || "—"}</span></div>
                 <div><span style={{ fontSize:11.5, fontWeight:600, padding:"3px 10px", borderRadius:20, background:sb.bg, color:sb.c }}>{(job.status||"").replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase())}</span></div>
-                <div style={{ fontSize:12.5, color:"#64748B" }}>{job.rate || "—"}</div>
-                <div style={{ fontSize:12, color:"#94A3B8" }}>{job.created_date ? timeAgo(job.created_date) : "—"}</div>
+                <div className="rxlp-col-hide" style={{ fontSize:12.5, color:"#64748B" }}>{job.rate || "—"}</div>
+                <div className="rxlp-col-hide" style={{ fontSize:12, color:"#94A3B8" }}>{job.created_date ? timeAgo(job.created_date) : "—"}</div>
                 <div onClick={e=>e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

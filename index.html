@@ -5,7 +5,10 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) return anything
+         other than 0 on a notched iPhone. The shell's safe-area padding is
+         dead CSS without it. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="Recruiter X — AI-powered recruiting workspace by TalentStack." />
     <meta name="theme-color" content="#9333EA" />
     <meta name="mobile-web-app-capable" content="yes" />

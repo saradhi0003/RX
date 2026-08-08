@@ -910,6 +910,26 @@ export default function Layout({ children, currentPageName }) {
 
           .rx-topbar { height:52px; background:#FFFFFF; border-bottom:1px solid #E2E8F0; display:flex; align-items:center; padding:0 16px 0 20px; gap:12px; flex-shrink:0; }
 
+          /* Topbar children are class-driven, not inline-styled: a media query
+             cannot override a style attribute, and every one of these needs to
+             change shape on a phone. */
+          .rx-crumb { display:flex; align-items:center; gap:6px; font-size:13px; color:#64748B; font-weight:500; min-width:0; flex-shrink:0; }
+          .rx-crumb-group { white-space:nowrap; }
+          .rx-crumb-sep { width:14px; height:14px; color:#CBD5E1; flex-shrink:0; }
+          .rx-crumb-page { color:#0F172A; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+          .rx-search { flex:1; min-width:0; max-width:380px; display:flex; align-items:center; gap:7px; background:#F1F5F9; border-radius:10px; padding:6px 11px; cursor:text; }
+          .rx-search-label { flex:1; min-width:0; font-size:13px; color:#64748B; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+          .rx-kbd { font-family:'SF Mono','Menlo',monospace; font-size:10px; color:#94A3B8; background:#fff; border:1px solid #E2E8F0; border-radius:5px; padding:1px 5px; flex-shrink:0; }
+          /* Phone-only icon twin of the search field. Always in the DOM so the
+             palette stays reachable regardless of which breakpoint is live. */
+          .rx-search-icon { display:none; align-items:center; justify-content:center; width:40px; height:40px; border-radius:10px; background:#F1F5F9; color:#475569; border:none; flex-shrink:0; cursor:pointer; }
+
+          .rx-actions { margin-left:auto; display:flex; align-items:center; gap:8px; min-width:0; }
+          .rx-ai-btn { display:flex; align-items:center; gap:5px; background:linear-gradient(135deg,#9333EA 0%,#2563EB 100%); color:#fff; border:none; border-radius:20px; padding:6px 16px; font-size:13px; font-weight:600; cursor:pointer; letter-spacing:-.01em; box-shadow:0 4px 14px -4px rgba(147,51,234,.45); white-space:nowrap; flex-shrink:0; }
+          .rx-topbar-divider { width:1px; height:18px; background:#E2E8F0; flex-shrink:0; }
+          .rx-user-meta { display:flex; flex-direction:column; align-items:flex-start; max-width:140px; }
+
           /* Tap-away backdrop. Touch only — on a mouse, mouseleave closes the
              flyout and a scrim would just swallow the next click. */
           .rx-scrim { position:fixed; inset:0; background:rgba(15,23,42,.32); z-index:28; }
@@ -924,6 +944,8 @@ export default function Layout({ children, currentPageName }) {
           @media (pointer: coarse) {
             .rx-rail-scroll button { width:44px; height:44px; }
             .rx-flyout-body a { min-height:44px; }
+            /* ⌘K is not a thing you can press on a phone. */
+            .rx-kbd { display:none; }
           }
 
           /* ── Tablet: keep the rail, narrow the flyout so content keeps room. ── */
@@ -949,7 +971,23 @@ export default function Layout({ children, currentPageName }) {
             .rx-flyout { left:56px; width:calc(100vw - 56px); max-width:280px; }
 
             .rx-topbar { padding:0 12px; padding-top:env(safe-area-inset-top, 0px);
-                         height:calc(52px + env(safe-area-inset-top, 0px)); }
+                         height:calc(52px + env(safe-area-inset-top, 0px));
+                         gap:8px; }
+
+            /* The desktop topbar wants ~620px of unshrinkable content. On a
+               390pt phone that overflowed and clipped — the search field wrapped
+               to three lines inside a 52px bar and the AI button fell off the
+               right edge. Every label collapses to its icon; nothing is removed,
+               so no action becomes unreachable. */
+            .rx-crumb { flex:1 1 auto; }
+            .rx-crumb-group, .rx-crumb-sep { display:none; }
+            .rx-search { display:none; }
+            .rx-search-icon { display:inline-flex; }
+            .rx-actions { gap:6px; }
+            .rx-ai-btn { padding:0; width:40px; height:40px; border-radius:50%; justify-content:center; }
+            .rx-ai-label { display:none; }
+            .rx-topbar-divider { display:none; }
+            .rx-user-meta { display:none; }
           }
 
           /* Installed PWA has no browser chrome, so the OS gesture bar is the
@@ -990,36 +1028,44 @@ export default function Layout({ children, currentPageName }) {
               {railOpen ? <X style={{ width:20, height:20 }} /> : <Menu style={{ width:20, height:20 }} />}
             </button>
 
-            <nav aria-label="Breadcrumb" style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, color:'#64748B', fontWeight:500, flexShrink:0, minWidth:0 }}>
+            <nav aria-label="Breadcrumb" className="rx-crumb">
               {breadcrumb.group ? (
                 <>
-                  <span style={{ whiteSpace:'nowrap' }}>{breadcrumb.group}</span>
-                  <ChevronRight style={{ width:14, height:14, color:'#CBD5E1', flexShrink:0 }} />
-                  <span style={{ color:'#0F172A', fontWeight:600, whiteSpace:'nowrap' }}>{breadcrumb.page}</span>
+                  <span className="rx-crumb-group">{breadcrumb.group}</span>
+                  <ChevronRight className="rx-crumb-sep" />
+                  <span className="rx-crumb-page">{breadcrumb.page}</span>
                 </>
               ) : (
-                <span style={{ color:'#0F172A', fontWeight:600 }}>Recruiter X</span>
+                <span className="rx-crumb-page">Recruiter X</span>
               )}
             </nav>
 
             <div
               onClick={() => setCommandPaletteOpen(true)}
-              style={{ flex:1, maxWidth:380, display:'flex', alignItems:'center', gap:7, background:'#F1F5F9', borderRadius:10, padding:'6px 11px', cursor:'text' }}
-              className="hover:bg-slate-200 transition-colors"
+              className="rx-search hover:bg-slate-200 transition-colors"
             >
               <Search style={{ width:13, height:13, color:'#64748B', flexShrink:0 }} />
-              <span style={{ flex:1, fontSize:13, color:'#64748B' }}>Search candidates, jobs, companies…</span>
-              <kbd style={{ fontFamily:"'SF Mono','Menlo',monospace", fontSize:10, color:'#94A3B8', background:'#fff', border:'1px solid #E2E8F0', borderRadius:5, padding:'1px 5px' }}>⌘K</kbd>
+              <span className="rx-search-label">Search candidates, jobs, companies…</span>
+              <kbd className="rx-kbd">⌘K</kbd>
             </div>
 
-            <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
+            {/* Phone twin of the field above — CSS decides which one is visible. */}
+            <button
+              className="rx-search-icon"
+              onClick={() => setCommandPaletteOpen(true)}
+              aria-label="Search"
+            >
+              <Search style={{ width:18, height:18 }} />
+            </button>
+
+            <div className="rx-actions">
               <button
                 onClick={() => setAiQuickActionsOpen(true)}
-                style={{ display:'flex', alignItems:'center', gap:5, background:'linear-gradient(135deg,#9333EA 0%,#2563EB 100%)', color:'#fff', border:'none', borderRadius:20, padding:'6px 16px', fontSize:13, fontWeight:600, cursor:'pointer', letterSpacing:'-.01em', boxShadow:'0 4px 14px -4px rgba(147,51,234,.45)' }}
-                className="hover:opacity-90 transition-opacity"
+                className="rx-ai-btn hover:opacity-90 transition-opacity"
+                aria-label="AI Actions"
               >
-                <Zap style={{ width:12, height:12 }} />
-                AI Actions
+                <Zap style={{ width:12, height:12, flexShrink:0 }} />
+                <span className="rx-ai-label">AI Actions</span>
               </button>
               <button
                 onClick={() => {}}
@@ -1030,7 +1076,7 @@ export default function Layout({ children, currentPageName }) {
                 <Bell style={{ width:16, height:16 }} />
                 <div style={{ position:'absolute', top:7, right:7, width:7, height:7, background:'#EF4444', borderRadius:'50%', border:'1.5px solid #fff' }} />
               </button>
-              <div style={{ width:1, height:18, background:'#E2E8F0' }} />
+              <div className="rx-topbar-divider" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
@@ -1041,7 +1087,7 @@ export default function Layout({ children, currentPageName }) {
                     <div style={{ width:28, height:28, borderRadius:'50%', background:'linear-gradient(135deg,#9333EA 0%,#2563EB 100%)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'#fff', flexShrink:0, boxShadow:'0 4px 14px -4px rgba(147,51,234,.45)' }}>
                       {initials}
                     </div>
-                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', maxWidth:140 }}>
+                    <div className="rx-user-meta">
                       <span style={{ fontSize:12, fontWeight:600, color:'#0F172A', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:140 }}>{me?.full_name || me?.email || 'User'}</span>
                       <span style={{ fontSize:10, color:'#94A3B8' }}>{myRole?.name || (me?.role === 'admin' ? 'Administrator' : 'User')}</span>
                     </div>

@@ -1,0 +1,117 @@
+/**
+ * Shared responsive shell for the bespoke CSS-grid list pages.
+ *
+ * WHY THIS FILE EXISTS
+ * Candidates and Jobs (and the same pattern in Companies/Tasks — see
+ * components/CLAUDE.md → "Shared list tables") are built from inline styles:
+ * a 4-up metrics bar, a wrapping filter bar, and a fixed-column grid table.
+ * A media query cannot override a `style` attribute, so none of that could
+ * respond to viewport width — a 7-column grid whose fixed tracks already sum
+ * to ~560px was being asked to render in 390pt, which is what produced the
+ * squeezed one-character cells.
+ *
+ * So: every property that must CHANGE with viewport lives here as a class.
+ * The pages keep inline styles for values that never vary (brand colors,
+ * per-row hover/selected backgrounds, dynamic borders).
+ *
+ * Breakpoint is 767px to match `useDevice`'s MOBILE_BREAKPOINT and the app
+ * shell's own phone rules, so JS, the shell, and page bodies all agree on
+ * where "phone" starts.
+ */
+
+/* ── Metrics bar ─────────────────────────────────────────────────────────── */
+.rxlp-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+}
+.rxlp-metric { padding: 22px 28px; border-right: 1px solid #e2e8f0; min-width: 0; }
+.rxlp-metric:last-child { border-right: none; }
+.rxlp-metric-label { font-size: 11.5px; font-weight: 500; color: #94a3b8; margin-bottom: 5px; }
+.rxlp-metric-value { font-size: 42px; font-weight: 700; letter-spacing: -0.04em; line-height: 1; }
+.rxlp-metric-sub { font-size: 11.5px; margin-top: 6px; }
+
+/* ── Filter bar ──────────────────────────────────────────────────────────── */
+.rxlp-filterbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+}
+.rxlp-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 10px;
+  padding: 5px 10px;
+  margin-left: 8px;
+}
+.rxlp-search input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  color: #0f172a;
+  width: 160px;
+}
+.rxlp-bar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+/* ── Grid table ──────────────────────────────────────────────────────────── */
+.rxlp-tablewrap { padding: 20px 24px 40px; }
+.rxlp-grid { display: grid; gap: 0; }
+.rxlp-head { padding: 9px 20px; }
+.rxlp-row { padding: 10px 20px; align-items: center; }
+.rxlp-th {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+}
+
+/* Per-page column tracks. Desktop keeps exactly what each page had. */
+.rxlp-grid-candidates { grid-template-columns: 1.8fr 130px 70px 130px 110px 80px 36px; }
+.rxlp-grid-jobs { grid-template-columns: 1.6fr 140px 100px 110px 100px 80px 80px 36px; }
+
+/* Content that only makes sense once its own column is gone (see below). */
+.rxlp-sm-only { display: none; }
+
+@media (max-width: 767px) {
+  /* Four 42px numbers in 390pt leaves ~40px of content per cell. */
+  .rxlp-metrics { grid-template-columns: repeat(2, 1fr); }
+  .rxlp-metric { padding: 14px 16px; }
+  .rxlp-metric:nth-child(2n) { border-right: none; }
+  .rxlp-metric:nth-child(-n + 2) { border-bottom: 1px solid #e2e8f0; }
+  .rxlp-metric-value { font-size: 28px; }
+
+  .rxlp-filterbar { padding: 10px 12px; gap: 6px; }
+  /* Search and the action cluster each take a full line rather than
+     squeezing the stage/status pills down to nothing. */
+  .rxlp-search { margin-left: 0; flex: 1 1 100%; }
+  .rxlp-search input { width: 100%; }
+  .rxlp-bar-actions { margin-left: 0; flex: 1 1 100%; justify-content: flex-end; }
+
+  .rxlp-tablewrap { padding: 12px 12px 32px; }
+  .rxlp-head, .rxlp-row { padding-left: 12px; padding-right: 12px; }
+  /* Desktop gets away with gap:0 because every fixed-width column carries its
+     own slack. The phone tracks are auto-sized, so cells would touch. */
+  .rxlp-grid { column-gap: 10px; }
+
+  /* Only the identifying column, the decision signal, and the row menu
+     survive. The dropped values are folded into the row's subtitle via
+     .rxlp-sm-only, so nothing is actually lost — see the pages. */
+  .rxlp-grid-candidates { grid-template-columns: minmax(0, 1fr) 56px auto 32px; }
+  .rxlp-grid-jobs { grid-template-columns: minmax(0, 1fr) auto auto 32px; }
+
+  /* !important because some of these cells still carry an inline `display`,
+     which would otherwise win over a plain class. */
+  .rxlp-col-hide { display: none !important; }
+
+  .rxlp-sm-only { display: inline; }
+}
