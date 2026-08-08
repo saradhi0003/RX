@@ -57,7 +57,16 @@ function applyFilters(query, filters = {}) {
   return query;
 }
 
-export function createEntity(tableName) {
+/**
+ * @param {string} tableName
+ * @param {{beforeWrite?: (fields: object, op: "create"|"update") => object}} [opts]
+ *   `beforeWrite` normalises a payload just before it hits Postgres. It exists
+ *   because several tables carry NOT NULL columns the UI never collects
+ *   directly (`candidates.full_name` is derived from first+last), and patching
+ *   each form would leave CSV import, paste-to-add, the careers form and the AI
+ *   quick actions still broken. One hook covers every write path.
+ */
+export function createEntity(tableName, { beforeWrite = (f) => f } = {}) {
   return {
     /** list(sortField?, limit?) */
     async list(sortField = "-created_at", limit = 200) {
@@ -99,7 +108,7 @@ export function createEntity(tableName) {
       const { created_date: _drop, ...clean } = fields;
       const { data, error } = await supabase
         .from(tableName)
-        .insert(clean)
+        .insert(beforeWrite(clean, "create"))
         .select()
         .single();
       if (error) throw error;
@@ -111,7 +120,7 @@ export function createEntity(tableName) {
       const { created_date: _drop, id: _id, ...clean } = fields;
       const { data, error } = await supabase
         .from(tableName)
-        .update(clean)
+        .update(beforeWrite(clean, "update"))
         .eq("id", id)
         .select()
         .single();

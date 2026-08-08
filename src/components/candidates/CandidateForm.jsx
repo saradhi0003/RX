@@ -308,10 +308,14 @@ export default function CandidateForm({ candidate, onSave, onCancel }) {
       });
     } catch (error) {
       console.error("Error saving candidate:", error);
+      // "Please try again" hid the actual reason (a not-null violation, an RLS
+      // denial, a failed CHECK) behind advice that could not fix any of them —
+      // and because the dialog only closes on success, the user saw a form that
+      // silently refused to save. Show what Postgres said.
       addNotification({
         type: "error",
-        title: "Error",
-        message: "Error saving candidate. Please try again."
+        title: "Could not save candidate",
+        message: error?.message || "Unknown error — see the browser console.",
       });
     }
     
