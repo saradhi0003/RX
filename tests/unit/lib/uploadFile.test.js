@@ -12,7 +12,9 @@ vi.mock("@/lib/supabase", () => ({
     storage: { from: () => ({ upload, createSignedUrl }) },
   },
 }));
-vi.mock("@/lib/llm", () => ({ invokeLLM: vi.fn() }));
+// Core re-exports both entry points; the mock must cover both or importing
+// Core throws before any upload assertion runs.
+vi.mock("@/lib/llm", () => ({ invokeLLM: vi.fn(), invokeLLMJson: vi.fn() }));
 
 const { UploadFile, resolveFileUrl, MAX_UPLOAD_BYTES } = await import("@/integrations/Core");
 

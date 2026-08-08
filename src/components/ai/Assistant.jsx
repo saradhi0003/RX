@@ -23,7 +23,7 @@ import {
   Copy,
   Download
 } from "lucide-react";
-import { InvokeLLM } from "@/integrations/Core";
+import { InvokeLLMJson } from "@/integrations/Core";
 import { Candidate, Job, Company, Application, Submission, Task } from "@/entities/all";
 import { User } from "@/entities/User";
 import { addNotification } from "@/components/notifications/NotificationToast";
@@ -217,7 +217,7 @@ export default function Assistant({ currentPageName }) {
         }]);
       } else {
         // Regular Q&A with enhanced context
-        const response = await InvokeLLM({
+        const response = await InvokeLLMJson({
           prompt: buildEnhancedPrompt(userMessage, context, newMessages),
           response_json_schema: {
             type: "object",
@@ -259,9 +259,15 @@ export default function Assistant({ currentPageName }) {
       }
     } catch (error) {
       console.error("Error:", error);
+      // Showing only "try rephrasing" hid every real cause — a missing key, a
+      // provider 4xx, a spend ceiling — behind advice that could not fix any of
+      // them. The proxy returns an actionable reason; surface it.
+      const reason = error?.message ? String(error.message) : "";
       setMessages([...newMessages, {
         role: "assistant",
-        content: "I apologize, but I encountered an error. Please try rephrasing your question or try again."
+        content: reason
+          ? `⚠️ I couldn't complete that request.\n\n\`\`\`\n${reason}\n\`\`\``
+          : "I apologize, but I encountered an error. Please try rephrasing your question or try again."
       }]);
     }
     setLoading(false);
@@ -281,7 +287,7 @@ export default function Assistant({ currentPageName }) {
   const executeAIAction = async (message, ctx) => {
     try {
       // Use AI to interpret the action and generate execution plan
-      const actionPlan = await InvokeLLM({
+      const actionPlan = await InvokeLLMJson({
         prompt: `You are an AI agent that can execute actions on a recruitment system.
 
 **User Request:** ${message}

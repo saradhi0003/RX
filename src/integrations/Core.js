@@ -2,11 +2,20 @@
  * Drop-in replacement for Base44's integrations/Core module.
  * All exports match the original API surface.
  */
-import { invokeLLM } from "@/lib/llm";
+import { invokeLLM, invokeLLMJson } from "@/lib/llm";
 import { supabase } from "@/lib/supabase";
 
 // ── InvokeLLM ─────────────────────────────────────────────────────────────────
 export const InvokeLLM = invokeLLM;
+
+/**
+ * Structured-output twin of InvokeLLM. Callers that pass a
+ * `response_json_schema` and then read fields off the result need this one —
+ * InvokeLLM resolves to a plain string, so `result.message` on it is always
+ * undefined regardless of the schema. (The proxy ignores the schema itself and
+ * enforces JSON via its system prompt; the schema stays as caller-side intent.)
+ */
+export const InvokeLLMJson = invokeLLMJson;
 
 // ── InvokeFunction ────────────────────────────────────────────────────────────
 // Routes to Supabase Edge Functions.

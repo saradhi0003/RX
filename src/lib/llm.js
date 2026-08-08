@@ -41,13 +41,30 @@ async function callProxy(opts) {
   const t0 = Date.now();
   const { data, error } = await supabase.functions.invoke("llmProxy", { body: opts });
   if (error) {
-    const msg = error.message || "llmProxy invocation failed";
-    if (/404|not found/i.test(msg)) {
+    // supabase-js flattens every non-2xx into "Edge Function returned a
+    // non-2xx status code", discarding the body — so a real cause (bad model,
+    // provider 4xx, unparseable JSON) reached callers as an unactionable
+    // string. FunctionsHttpError carries the Response on `.context`; the
+    // function always answers `{error: "<reason>"}` via errResponse(), so read
+    // it. Without this the only way to see why an LLM call failed is the
+    // Supabase dashboard.
+    let msg = error.message || "llmProxy invocation failed";
+    let status = 0;
+    const res = /** @type {any} */ (error).context;
+    if (res && typeof res.json === "function") {
+      status = res.status || 0;
+      try {
+        const body = await res.clone().json();
+        if (body?.error) msg = body.error;
+      } catch { /* non-JSON body — keep the generic message */ }
+    }
+
+    if (status === 404 || /404|not found/i.test(msg)) {
       throw new Error(
         `llmProxy Edge Function is not deployed. Deploy it with: supabase functions deploy llmProxy && supabase secrets set OPENAI_API_KEY=... ANTHROPIC_API_KEY=...`
       );
     }
-    if (/429|cost ceiling/i.test(msg)) throw new LLMBudgetError(msg);
+    if (status === 429 || /cost ceiling/i.test(msg)) throw new LLMBudgetError(msg);
     throw new Error(msg);
   }
   logUsage({
