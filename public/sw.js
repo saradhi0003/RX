@@ -13,7 +13,9 @@
  * Bump VERSION to invalidate every cache this worker owns.
  */
 
-const VERSION = "rx-v1";
+// v2: purges the rx-v1 asset cache, which could still be holding chunks from
+// before the phone tab bar shipped on clients whose worker never rotated.
+const VERSION = "rx-v2";
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 const OFFLINE_URL = "/offline.html";
