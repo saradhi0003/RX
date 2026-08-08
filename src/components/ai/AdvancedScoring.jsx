@@ -88,6 +88,7 @@ export default function AdvancedScoring({ onScoreGenerated }) {
       `;
 
       const response = await InvokeLLM({
+        task: "candidate_scoring",
         prompt,
         response_json_schema: {
           type: "object",

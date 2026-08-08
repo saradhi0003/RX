@@ -78,6 +78,7 @@ export default function BulkScoring({ jobs, candidates, applications, onUpdate }
         `;
 
         const response = await InvokeLLM({
+          task: "candidate_scoring",
           prompt,
           response_json_schema: {
             type: "object",

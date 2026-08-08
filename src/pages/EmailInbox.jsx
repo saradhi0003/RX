@@ -230,6 +230,7 @@ IMPORTANT:
 Return ONLY valid JSON array, no markdown, no explanation.`;
 
       const result = await InvokeLLM({
+        task: "email_classification",
         prompt,
         response_json_schema: {
           type: "object",
@@ -395,6 +396,7 @@ Extract and return ONLY valid JSON (no markdown, no explanation):
 }`;
 
       const res = await InvokeLLM({
+        task: "job_extract",
         prompt,
         response_json_schema: {
           type: "object",
@@ -503,6 +505,7 @@ Return ONLY valid JSON:
 }`;
 
       const candidateData = await InvokeLLM({
+        task: "candidate_extract",
         prompt,
         response_json_schema: {
           type: "object",
@@ -556,6 +559,7 @@ Respond with:
 }`;
 
       const scoreResult = await InvokeLLM({
+        task: "candidate_scoring",
         prompt: scorePrompt,
         response_json_schema: {
           type: "object",

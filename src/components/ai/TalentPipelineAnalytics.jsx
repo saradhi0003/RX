@@ -102,6 +102,7 @@ export default function TalentPipelineAnalytics() {
       };
 
       const response = await InvokeLLM({
+        task: "pipeline_analysis",
         prompt: `You are an expert talent acquisition analyst. Analyze the following recruitment pipeline data and provide strategic insights:
 
 **Data Summary:**

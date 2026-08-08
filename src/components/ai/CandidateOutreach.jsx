@@ -78,6 +78,7 @@ export default function CandidateOutreach({ candidate, job, onOutreachSent }) {
         : `Generate a general networking/introduction email to add this candidate to our talent network:`;
 
       const response = await InvokeLLM({
+        task: "outreach_draft",
         prompt: `${contextPrompt}
 
 **Candidate Profile:**

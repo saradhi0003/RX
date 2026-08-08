@@ -20,13 +20,14 @@ const VALUES = {
   VITE_LIVEKIT_URL: import.meta.env.VITE_LIVEKIT_URL ?? "",
   VITE_APP_URL: import.meta.env.VITE_APP_URL ?? "",
   VITE_LLM_PROVIDER: import.meta.env.VITE_LLM_PROVIDER ?? "",
+  VITE_LMSTUDIO_BASE_URL: import.meta.env.VITE_LMSTUDIO_BASE_URL ?? "",
 };
 
 // Required for the app to function at all.
 const REQUIRED = ["VITE_SUPABASE_URL", "VITE_SUPABASE_ANON_KEY"];
 
 // Optional — features degrade gracefully without them.
-const OPTIONAL = ["VITE_LIVEKIT_URL", "VITE_APP_URL", "VITE_LLM_PROVIDER"];
+const OPTIONAL = ["VITE_LIVEKIT_URL", "VITE_APP_URL", "VITE_LLM_PROVIDER", "VITE_LMSTUDIO_BASE_URL"];
 
 const read = (name) => VALUES[name] ?? "";
 

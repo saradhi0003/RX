@@ -18,6 +18,8 @@
  *   const obj  = await invokeLLMJson({ prompt, system });
  */
 
+import { resolveModel, LMSTUDIO_BASE_URL } from "@/lib/llmRouter";
+
 // @ts-ignore
 const provider = import.meta.env.VITE_LLM_PROVIDER || "anthropic";
 // @ts-ignore
@@ -97,6 +99,118 @@ async function logUsage(usage) {
   }
 }
 
+// ── LM Studio (local dev only — no API key required) ───────────────────────
+// OpenAI-compatible surface at /v1, so this is a plain chat/completions call.
+// With LM Link the endpoint spans every linked device: the model id chosen by
+// llmRouter is what decides which machine actually serves the request.
+
+/** Mirrors the server's invokeLLMJson — the local model needs telling too. */
+const JSON_ONLY_SUFFIX =
+  "\n\nIMPORTANT: Respond with valid JSON only. No markdown fences, no prose.";
+
+function lmStudioMessages({ prompt, system, response_format }) {
+  const sys = response_format === "json" ? `${system || ""}${JSON_ONLY_SUFFIX}`.trim() : system;
+  const messages = [];
+  if (sys) messages.push({ role: "system", content: sys });
+  messages.push({ role: "user", content: prompt });
+  return messages;
+}
+
+/** Turn a connection refusal into something that names the fix. */
+function lmStudioUnreachable(cause) {
+  return new Error(
+    `Cannot reach LM Studio at ${LMSTUDIO_BASE_URL}. Open LM Studio → Developer → ` +
+    `Start Server (default port 1234), or set VITE_LMSTUDIO_BASE_URL.`,
+    { cause },
+  );
+}
+
+async function callLMStudio(opts) {
+  const { temperature = 0.3, task } = opts;
+  const model = opts.model || (await resolveModel({ task }));
+  const messages = lmStudioMessages(opts);
+
+  const t0 = Date.now();
+  let res;
+  try {
+    res = await fetch(`${LMSTUDIO_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, temperature, stream: false }),
+    });
+  } catch (cause) {
+    throw lmStudioUnreachable(cause);
+  }
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`LM Studio error ${res.status} (model "${model}"): ${detail.slice(0, 300)}`);
+  }
+
+  const json = await res.json();
+  const text = json.choices?.[0]?.message?.content ?? "";
+  const usage = json.usage || {};
+
+  // Record the resolved id, not "auto" — on an LM Link fleet that is also the
+  // record of which device served the call.
+  logUsage({
+    provider: "lmstudio",
+    model,
+    prompt_tokens: usage.prompt_tokens || 0,
+    completion_tokens: usage.completion_tokens || 0,
+    cost_usd: 0,
+    latency_ms: Date.now() - t0,
+    task,
+  });
+  return text;
+}
+
+async function callLMStudioStream(opts, onChunk) {
+  const { temperature = 0.3, task } = opts;
+  const model = opts.model || (await resolveModel({ task }));
+  const messages = lmStudioMessages(opts);
+
+  let res;
+  try {
+    res = await fetch(`${LMSTUDIO_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, temperature, stream: true }),
+    });
+  } catch (cause) {
+    throw lmStudioUnreachable(cause);
+  }
+  if (!res.ok) throw new Error(`LM Studio stream error ${res.status} ${res.statusText}`);
+
+  // SSE, not Ollama's NDJSON: "data: {...}" records terminated by "data: [DONE]".
+  const reader = res.body?.getReader();
+  const decoder = new TextDecoder();
+  let full = "";
+  let buffer = "";
+  if (!reader) return full;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n");
+    buffer = parts.pop() || "";           // keep the trailing partial line
+    for (const line of parts) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const payload = trimmed.slice(5).trim();
+      if (payload === "[DONE]") continue;
+      try {
+        const delta = JSON.parse(payload).choices?.[0]?.delta?.content || "";
+        if (delta) {
+          full += delta;
+          onChunk(delta, full);
+        }
+      } catch { /* partial JSON — the next chunk completes it */ }
+    }
+  }
+  return full;
+}
+
 // ── Ollama (local dev only — no API key required) ──────────────────────────
 async function callOllama({ prompt, system, model = "llama3.2", temperature = 0.3, task }) {
   const messages = [];
@@ -159,18 +273,20 @@ async function callOllamaStream({ prompt, system, model = "llama3.2", temperatur
 
 /**
  * Main entry — routes cloud providers through llmProxy so keys stay server-side.
- * Use VITE_LLM_PROVIDER=ollama for offline local development.
+ * VITE_LLM_PROVIDER=lmstudio (or =ollama) for local development.
  */
 export async function invokeLLM(opts) {
+  if (provider === "lmstudio") return callLMStudio(opts);
   if (provider === "ollama") return callOllama(opts);
   return callProxy(opts);
 }
 
 /**
- * Streaming entry. For local Ollama this is a true stream; for cloud providers
- * the proxy currently returns the full response, so onChunk is called once.
+ * Streaming entry. Local providers stream for real; the cloud proxy returns the
+ * full response, so onChunk is called once.
  */
 export async function invokeLLMStream(opts, onChunk) {
+  if (provider === "lmstudio") return callLMStudioStream(opts, onChunk);
   if (provider === "ollama") return callOllamaStream(opts, onChunk);
   const text = await callProxy(opts);
   onChunk(text, text);
@@ -178,10 +294,42 @@ export async function invokeLLMStream(opts, onChunk) {
 }
 
 /**
- * Like invokeLLM but parses JSON — strips markdown fences automatically.
+ * Pull a JSON value out of a reply that may be wrapped in fences or prose.
+ * Local models frequently prepend "Here is the JSON:" or append a closing
+ * remark, which a bare JSON.parse rejects outright — and the resulting
+ * "Unexpected token h" tells the caller nothing about what came back.
+ */
+function parseLooseJson(raw) {
+  const cleaned = String(raw ?? "")
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch { /* fall through to extraction */ }
+
+  // Widest {...} or [...] span — objects and arrays nest, so anchor on the
+  // first opener and the last matching closer rather than a lazy match.
+  for (const [open, close] of [["{", "}"], ["[", "]"]]) {
+    const start = cleaned.indexOf(open);
+    const end = cleaned.lastIndexOf(close);
+    if (start !== -1 && end > start) {
+      try {
+        return JSON.parse(cleaned.slice(start, end + 1));
+      } catch { /* try the other bracket type */ }
+    }
+  }
+
+  throw new Error(
+    `The model did not return valid JSON. First 200 chars of the reply: ${cleaned.slice(0, 200)}`,
+  );
+}
+
+/**
+ * Like invokeLLM but parses JSON — tolerates markdown fences and stray prose.
  */
 export async function invokeLLMJson(opts) {
   const raw = await invokeLLM({ ...opts, response_format: "json" });
-  const cleaned = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-  return JSON.parse(cleaned);
+  return parseLooseJson(raw);
 }

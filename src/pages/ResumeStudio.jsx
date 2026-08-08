@@ -88,6 +88,7 @@ function ScoreTab() {
     setLoading(true); setResult(null);
     try {
       const raw = await invokeLLMJson({
+        task: "resume_parse",
         prompt: `You are an expert ATS resume analyst and senior recruiter.
 
 JOB DESCRIPTION:
@@ -308,6 +309,7 @@ function SkillsLabTab() {
     try {
       const text = `${job.title} ${job.description || ""} ${job.requirements || ""}`;
       const skills = await invokeLLMJson({
+        task: "skill_extract",
         prompt: `Extract the top 8 required technical skills from this job posting. Return a JSON array of skill name strings only.\n\n${text}`,
         temperature: 0.1, max_tokens: 300,
       });
@@ -333,6 +335,7 @@ function SkillsLabTab() {
         title: c.title || "", experience_years: c.experience_years || 0,
       }));
       const raw = await invokeLLMJson({
+        task: "resume_rewrite_draft",
         prompt: `You are a senior technical recruiter scoring candidates against required skills.
 
 Required skills: ${requiredSkills.join(", ")}

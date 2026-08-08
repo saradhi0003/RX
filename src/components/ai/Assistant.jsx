@@ -218,6 +218,7 @@ export default function Assistant({ currentPageName }) {
       } else {
         // Regular Q&A with enhanced context
         const response = await InvokeLLMJson({
+          task: "chat",
           prompt: buildEnhancedPrompt(userMessage, context, newMessages),
           response_json_schema: {
             type: "object",
@@ -288,6 +289,7 @@ export default function Assistant({ currentPageName }) {
     try {
       // Use AI to interpret the action and generate execution plan
       const actionPlan = await InvokeLLMJson({
+        task: "analysis",
         prompt: `You are an AI agent that can execute actions on a recruitment system.
 
 **User Request:** ${message}

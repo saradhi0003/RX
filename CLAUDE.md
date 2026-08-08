@@ -107,6 +107,16 @@ cd mobile && npm run build:web   # expo export — CI parity check
   hatch if a bad worker ever ships. `vercel.json` serves `sw.js` `must-revalidate`
   — keep it that way or a broken worker sticks. Guarded by
   `tests/unit/lib/pwa.test.js` (static, so it runs while Supabase is paused).
+- **Local models via LM Studio are browser-only, dev-only.** `VITE_LLM_PROVIDER=
+  lmstudio` makes the SPA call LM Studio directly ([src/lib/llmRouter.js](src/lib/llmRouter.js));
+  **Edge Functions cannot reach it** — they run in Supabase's cloud and `localhost`
+  is your laptop, so resume parsing, the aiRecruiter\* chain, inbound-email/Telegram
+  classification and the follow-up cron all stay on the cloud provider. Reaching
+  those would need a public tunnel. With **LM Link** a single endpoint covers every
+  linked device, so the router selects a *model* (which implies the device), never a
+  host. It ranks by parameter count parsed from the model id rather than hardcoded
+  family names — a family list is a guess about someone's disk, a size is stated in
+  the id.
 - **Lazy imports must use `lazyWithReload`** ([src/lib/lazyWithReload.js](src/lib/lazyWithReload.js)),
   not bare `React.lazy` — `pages.config.js` and `Layout.jsx` both do. Vite
   content-hashes each code-split chunk and the entry bundle hardcodes those
