@@ -20,6 +20,26 @@ const clean = (v) => {
 };
 
 /**
+ * `expenses` carries BOTH `title` (NOT NULL) and `name` (nullable) — a leftover
+ * from an earlier schema. ExpenseForm only ever writes `name`, so `title` came
+ * through NULL and Postgres rejected every expense the same way it rejected
+ * candidates. Mirror the two so either column can be read.
+ *
+ * @param {object} fields
+ * @returns {object}
+ */
+export function withExpenseTitle(fields) {
+  const out = { ...fields };
+  const title = clean(out.title);
+  const name = clean(out.name);
+
+  if (!title && name) out.title = name;
+  else if (title && !name) out.name = title;
+
+  return out;
+}
+
+/**
  * Keep `full_name` consistent with `first_name` / `last_name`.
  *
  * On update the payload is often partial (just a status change), so this only

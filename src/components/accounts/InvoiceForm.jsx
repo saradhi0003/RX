@@ -201,7 +201,7 @@ export default function InvoiceForm({ invoice, companies = [], onSave, onCancel 
                 <CardContent className="p-4 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-sm font-semibold text-slate-700">Invoice Number</Label>
+                      <Label className="text-sm font-semibold text-slate-700">Invoice Number <span className="text-red-500" aria-hidden="true">*</span></Label>
                       <Input 
                         value={form.invoice_number} 
                         onChange={(e)=>updateField("invoice_number", e.target.value)} 

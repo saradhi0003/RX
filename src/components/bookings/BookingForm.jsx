@@ -122,7 +122,7 @@ export default function BookingForm({ booking, defaultStart, defaultEnd, onSave,
         <form onSubmit={handleSubmit}>
           <CardContent className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
             <div className="space-y-1.5">
-              <Label htmlFor="title">Title</Label>
+              <Label htmlFor="title">Title <span className="text-red-500" aria-hidden="true">*</span></Label>
               <Input
                 id="title"
                 value={title}
@@ -134,12 +134,12 @@ export default function BookingForm({ booking, defaultStart, defaultEnd, onSave,
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="start_at">Starts</Label>
+                <Label htmlFor="start_at">Starts <span className="text-red-500" aria-hidden="true">*</span></Label>
                 <Input id="start_at" type="datetime-local" value={startAt}
                        onChange={(e) => setStartAt(e.target.value)} required />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="end_at">Ends</Label>
+                <Label htmlFor="end_at">Ends <span className="text-red-500" aria-hidden="true">*</span></Label>
                 <Input id="end_at" type="datetime-local" value={endAt}
                        onChange={(e) => setEndAt(e.target.value)} required />
               </div>

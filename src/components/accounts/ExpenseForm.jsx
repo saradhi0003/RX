@@ -78,7 +78,7 @@ export default function ExpenseForm({ expense, onSave, onCancel, isClone }) {
                 <Input type="date" value={form.date} onChange={(e) => update("date", e.target.value)} required />
               </div>
               <div>
-                <Label>Name</Label>
+                <Label>Name <span className="text-red-500" aria-hidden="true">*</span></Label>
                 <Input value={form.name} onChange={(e) => update("name", e.target.value)} required />
               </div>
             </div>
@@ -118,7 +118,7 @@ export default function ExpenseForm({ expense, onSave, onCancel, isClone }) {
               <p className="font-medium mb-3">Currency Information</p>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                 <div className="md:col-span-1">
-                  <Label>Amount</Label>
+                  <Label>Amount <span className="text-red-500" aria-hidden="true">*</span></Label>
                   <Input type="number" step="0.01" value={form.amount} onChange={(e) => update("amount", e.target.value)} required />
                 </div>
                  <div className="md:col-span-1">

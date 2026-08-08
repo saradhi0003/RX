@@ -68,15 +68,15 @@ export default function RecruiterForm({ recruiter, onSave, onCancel, roles = [],
           <form onSubmit={submit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label>First Name</Label>
+                <Label>First Name <span className="text-red-500" aria-hidden="true">*</span></Label>
                 <Input value={formData.first_name} onChange={(e)=>setFormData({...formData, first_name: e.target.value})} required />
               </div>
               <div>
-                <Label>Last Name</Label>
+                <Label>Last Name <span className="text-red-500" aria-hidden="true">*</span></Label>
                 <Input value={formData.last_name} onChange={(e)=>setFormData({...formData, last_name: e.target.value})} required />
               </div>
               <div>
-                <Label>Email</Label>
+                <Label>Email <span className="text-red-500" aria-hidden="true">*</span></Label>
                 <Input type="email" value={formData.email} onChange={(e)=>setFormData({...formData, email: e.target.value})} required />
               </div>
               <div>

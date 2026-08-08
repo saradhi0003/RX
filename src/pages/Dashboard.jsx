@@ -303,7 +303,8 @@ export default function Dashboard() {
         jobs: { total: jobs.length, open: jobs.filter(j => j.status === "open").length },
         applications: { total: applications.length, hired: applications.filter(a => a.status === "hired").length }
       };
-      const r = await Core.InvokeLLM({
+      const r = await Core.InvokeLLMJson({
+        task: "pipeline_analysis",
         prompt: `Recruitment pipeline data: ${JSON.stringify(dataSummary)}. Give 4 concise, actionable insights for a recruiter. Each should be 1 sentence identifying a specific issue or opportunity.`,
         response_json_schema: {
           type: "object",
@@ -314,10 +315,14 @@ export default function Dashboard() {
         }
       });
       setAIInsights(r);
-      addNotification({ type: "success", title: "AI Analysis Complete", message: "Insights ready" });
+      addNotification({ type: "success", title: "AI Insights ready", message: "Analysis complete" });
     } catch (err) {
       console.error(err);
-      addNotification({ type: "error", message: "Failed to generate insights" });
+      addNotification({
+        type: "error",
+        title: "Could not generate insights",
+        message: err?.message || "Unknown error — see the browser console.",
+      });
     }
     setAnalyzingAI(false);
   };
@@ -382,7 +387,7 @@ export default function Dashboard() {
               disabled={analyzingAI}
             >
               {analyzingAI ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-              <span className="hidden md:inline">{analyzingAI ? "Analyzing..." : "AI Actions"}</span>
+              <span className="hidden md:inline">{analyzingAI ? "Analyzing..." : "AI Insights"}</span>
             </Button>
           </div>
         </div>

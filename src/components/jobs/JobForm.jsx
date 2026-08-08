@@ -189,7 +189,7 @@ export default function JobForm({ job, onSave, onCancel }) {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="title">Title</Label>
+                <Label htmlFor="title">Title <span className="text-red-500" aria-hidden="true">*</span></Label>
                 <Input id="title" value={data.title} onChange={(e)=>setData({...data, title: e.target.value})} required />
               </div>
               <div>
