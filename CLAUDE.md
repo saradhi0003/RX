@@ -143,19 +143,33 @@ cd mobile && npm run build:web   # expo export — CI parity check
   any auth gate.**
   - **Idle sign-out** — `@/hooks/useIdleLogout`, wired once in `AuthContext`;
     20 min, persisted clock. AUTH_SETUP.md §6.
-  - **Upload storage (migration 023, STAGED)** — the `uploads` bucket **never
-    existed** on the live project, so every upload path had been failing with
-    "Bucket not found"; the `{file_url}` destructuring bug (`UploadFile()`
-    returned `{url, path}`) turned that into a silent `undefined` at all eight
-    call sites. 023 creates it private + capped with policies on
-    `auth_is_approved()` and writes scoped to `<uid>/…`. **Still open:** legacy
-    `resume_url` values point at publicly-readable Base44 URLs outside this
-    project. AUTH_SETUP.md §7.
+  - **Upload storage (migration 023) — APPLIED & verified 2026-08-03.** Before
+    that the `uploads` bucket **never existed** on the live project, so every
+    upload path failed with "Bucket not found"; the `{file_url}` destructuring
+    bug (`UploadFile()` returned `{url, path}`) turned that into a silent
+    `undefined` at all eight call sites. 023 creates it private + capped with
+    policies on `auth_is_approved()` and writes scoped to `<uid>/…`.
+    **Still open:** legacy `resume_url` values point at publicly-readable Base44
+    URLs outside this project. AUTH_SETUP.md §7.
   - **Expo mobile app** — [mobile/](mobile/), biometric lock + upload pipeline.
     Needs `eas init` before it can build. AUTH_SETUP.md §8.
   - Feature A (MFA + approval gate) and SMTP layer 2 were **already done** here;
     the `/services` bots hold no service-role key (they post to
     `channelMessageWebhook` with a shared secret), so the backend twin is the
     Edge Functions, already gated.
-  - Still outstanding, both manual: Supabase Auth **custom SMTP** (§5 layer 1)
-    and applying migration **023**.
+  - Still outstanding, manual: Supabase Auth **custom SMTP** (§5 layer 1). This
+    line used to also list migration 023 — applied 2026-08-03, along with 024.
+
+## Verified against the live DB (2026-08-08)
+Re-probed the project directly rather than trusting the notes above; three
+things the docs got wrong:
+- **023 and 024 are applied** (2026-08-03). Several docs still said "staged".
+- **`agents` / `agent_runs` / `approval_items` are not workspace-scoped.** 024's
+  `tenant_tables[]` array omits them. Their policy *name* is still
+  `*_all_authenticated`, but 020 rewrote the *body* to `auth_is_approved()` — so
+  the approval gate holds and only cross-tenant isolation is missing.
+  **Audit policy bodies, not names.** Fixed by migration **025** (written, not
+  yet applied — all three tables are empty, so it is a zero-risk apply).
+- **`checkDailyCeiling()` was a no-op** — nothing server-side ever wrote to
+  `llm_usage`. Fixed; see GAPS.md L9.
+- `vector` 0.8.0, `pg_cron` and `pgmq` are **available but not installed**.
