@@ -19,9 +19,41 @@ shipped migration — add a new one.
   live/preview DB before merging that branch) · 019 security-definer view fix ·
   **020 approval RLS enforcement** · **021 SECURITY DEFINER RPC leak fix** ·
   022 signup notification (`user_profiles.notified_at`) ·
-  **023 uploads bucket RLS**.
-  017–**022** are all **APPLIED** to the live project as of 2026-07-27.
-  **023 is STAGED — NOT applied.**
+  **023 uploads bucket RLS** · **024 multitenancy** (workspaces + `workspace_id`
+  + policy rewrite) · **025 agent-table tenancy + advisor fixes**.
+  017–**022** applied 2026-07-27. **023 and 024 applied & verified 2026-08-03.**
+  **025 applied & verified 2026-08-08** (`verify_025_agent_tenancy.sql` 10/10
+  PASS; `supabase db advisors` security lints 16 → 6, and the 6 remaining are the
+  three auth helpers that 021 says must stay executable).
+
+### 025 — the three tables 024 forgot
+024 workspace-scopes every tenant table by iterating a hardcoded
+`tenant_tables[]` array. That array **omits `agents`, `agent_runs` and
+`approval_items`** — they arrived in 017/018, which were still staged on
+`feat/ai-core` when 024 was written. So those three kept the policy 020 gave
+them: approval-gated but **not** workspace-scoped.
+
+Verified live before writing 025:
+```
+agents / agent_runs / approval_items  ->  USING auth_is_approved()
+candidates                            ->  USING (workspace_id = auth_workspace_id()
+                                                 AND auth_is_approved())
+```
+**The approval gate is holding** — the legacy policy *name*
+(`agents_all_authenticated`) is misleading, because 020 rewrote the body and
+kept the name. Audit policy **bodies**, not names; a name-only check reports a
+false positive here. The real gap is cross-tenant: any approved user of
+workspace B can read and write workspace A's agents, runs and approval items.
+Latent while only one workspace exists, live the moment a second one does.
+
+025 brings all three into the 024 pattern (FK, backfill, NOT NULL, index, stamp
+trigger, `workspace_all` policy), and clears four `supabase db advisors`
+findings: `audit_entity_change`, `rls_auto_enable`, `sync_recruiter_from_profile`
+and `guard_user_profile_privileges` were still `EXECUTE`-able by `anon` at
+`/rest/v1/rpc/<name>` (021 intended to revoke these and missed them), plus a
+pinned `search_path` on `stamp_workspace_id` and `immutable_array_to_string`.
+Zero-risk to apply: all three tables are empty, so there is nothing to backfill.
+Verify with `scripts/verify_025_agent_tenancy.sql`.
 
 ### 023 — the resume bucket never existed
 Verified against the live project 2026-07-29: the `uploads` bucket **does not
@@ -101,6 +133,20 @@ straight through PostgREST. 020 closes that:
 must read its own status to render AccessBlocker).
 
 ### Rules for schema changes
+- **Always re-run the verify script after applying a migration.** Do not trust a
+  "success" message, and do not trust a report that it was applied. When 025 was
+  applied via the SQL editor it twice left the database **byte-identical** —
+  which reads like "the migration was a no-op" rather than "it never landed".
+  Only re-querying the live catalog caught it. A `BEGIN…COMMIT` migration that
+  fails rolls back completely and leaves no trace, so absence of change is not
+  evidence of absence of intent.
+- **Schema-qualify every identifier** (`public.candidates`, not `candidates`)
+  and pin `SET LOCAL search_path = public, pg_catalog;` after `BEGIN`. This is
+  defensive practice, not a fix for the above — the unqualified version ran fine
+  when executed directly, so qualification was *not* what made 025 land. But one
+  bare `user_profiles` in `verify_025` did genuinely throw
+  `42P01 relation does not exist` in the SQL editor, so the hazard is real for
+  scripts as well as migrations.
 - Every tenant table needs an **RLS policy** — the security boundary is here, not
   the client.
 - Follow the additive pattern: add nullable column → backfill → `NOT NULL` →

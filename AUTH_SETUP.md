@@ -199,15 +199,17 @@ To change the window, edit `IDLE_LOGOUT_MS`. Note mobile does **not** inherit
 this: the Expo app keeps the session and re-locks behind biometrics instead
 (see §8).
 
-## 7. Upload storage — private bucket (migration 023) ⚠ STAGED
+## 7. Upload storage — private bucket (migration 023) ✅ APPLIED
 
-**Status: staged, NOT applied.**
+**Status: applied & verified 2026-08-03** (see the status table in §"Current
+outstanding manual steps"). This section previously read "staged, NOT applied"
+and contradicted that table — corrected 2026-08-08.
 
-The `uploads` bucket **does not exist** on the live project (verified
-2026-07-29 — the Storage API returns `NoSuchBucket`). `Core.UploadFile()`
-defaults to it, so every upload path has been failing with "Bucket not found"
-since the Base44 → Supabase migration; the `{ file_url }` destructuring bug
-turned that error into a silent `undefined`.
+Before it was applied, the `uploads` bucket did not exist on the live project
+(verified 2026-07-29 — the Storage API returned `NoSuchBucket`).
+`Core.UploadFile()` defaults to it, so every upload path had been failing with
+"Bucket not found" since the Base44 → Supabase migration; the `{ file_url }`
+destructuring bug turned that error into a silent `undefined`.
 
 Migration 023 creates it private with a 20 MB cap and a MIME allow-list, and
 adds policies gated on `auth_is_approved()` — reads shared across the workspace,
