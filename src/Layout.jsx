@@ -7,6 +7,7 @@ import {
   Mail, Clock, CheckCircle, Wallet, Receipt, Zap, AlertTriangle,
   Loader2, Brain, MailPlus, MoreHorizontal, Inbox, Activity, MailCheck, MessageCircle,
   Sparkles, Home, ChevronRight, Video, Calendar as CalendarIcon, ShieldCheck,
+  Menu, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +24,7 @@ import { Role } from "@/entities/Role";
 import AccessBlocker from "@/components/common/AccessBlocker";
 import { getRolesCached, invalidateRolesCache } from "@/components/utils/rolesCache";
 import { getUserCached, invalidateUserCache, getQuickStatsCached, getCachedUser } from "@/lib/appCache";
+import { useDevice } from "@/hooks/useDevice";
 import NotificationToast from "@/components/notifications/NotificationToast";
 import RightPreviewPanel from "@/components/common/RightPreviewPanel";
 import CandidatePreviewLoader from "@/components/previews/CandidatePreviewLoader";
@@ -133,7 +135,10 @@ const navGroups = [
     icon: Sparkles,
     items: [
       { title: "AI Recruiter", url: "/AIRecruiter", icon: BrainCircuit, badge: "Beta", badgeColor: "blue" },
-      { title: "AI Agents", url: createPageUrl("AIAgents"), icon: Brain, badge: "3", badgeColor: "blue" },
+      // No badge: this used to read a hardcoded "3" that was never derived from
+      // data, so it was wrong from the day it was written. A real count of
+      // pending approval_items lands with the agent execution engine.
+      { title: "AI Agents", url: createPageUrl("AIAgents"), icon: Brain },
       { title: "Resume Studio", url: createPageUrl("ResumeStudio"), icon: BrainCircuit },
       { title: "Automation", url: createPageUrl("AutomationRules"), icon: Zap },
       { title: "Approval Queue", url: createPageUrl("ApprovalQueue"), icon: MailCheck },
@@ -214,6 +219,9 @@ function RailButton({ group, isActive, isHover, onMouseEnter, onMouseLeave, onCl
       onMouseLeave={onMouseLeave}
       onClick={onClick}
       aria-label={group.label}
+      // On touch this button is a disclosure control for the flyout, so its
+      // state has to be announced, not just drawn.
+      aria-expanded={isHover}
       title={group.label}
       style={{ position: 'relative' }}
       className={`flex items-center justify-center w-10 h-10 rounded-[10px] transition-colors duration-150 ${
@@ -274,7 +282,7 @@ function getBreadcrumb(pathname) {
 }
 
 // Rail + flyout. Calls usePermissions (must be a child of PermissionsProvider).
-function SidebarRail({ isAdmin, activeGid, hoveredGid, hoveredGroupObj, scheduleOpenGroup, scheduleCloseFlyout, cancelClose, currentPath }) {
+function SidebarRail({ isAdmin, activeGid, hoveredGid, hoveredGroupObj, scheduleOpenGroup, scheduleCloseFlyout, cancelClose, currentPath, isTouch, railOpen, closeRail }) {
   const { can } = usePermissions();
   const renderableGroups = navGroups
     .map(g => ({ group: g, items: visibleItems(g, { isAdmin, can }) }))
@@ -284,9 +292,28 @@ function SidebarRail({ isAdmin, activeGid, hoveredGid, hoveredGroupObj, schedule
     ? visibleItems(hoveredGroupObj, { isAdmin, can })
     : [];
 
+  // On a coarse pointer there is no hover, so the rail's open/close intent has
+  // to come from taps. Binding both would double-fire on hybrid laptops, so
+  // pick exactly one set of handlers per input type.
+  const groupHandlers = (groupId) => isTouch
+    ? { onClick: () => (hoveredGid === groupId ? scheduleCloseFlyout() : scheduleOpenGroup(groupId)) }
+    : {
+        onMouseEnter: () => scheduleOpenGroup(groupId),
+        onMouseLeave: scheduleCloseFlyout,
+      };
+
   return (
     <>
-      <aside className="rx-rail" onMouseLeave={scheduleCloseFlyout}>
+      {/* Tap-away backdrop — only on touch, where there is no mouseleave to
+          close the flyout with. */}
+      {isTouch && (hoveredGid || railOpen) && (
+        <div className="rx-scrim" onClick={() => { scheduleCloseFlyout(); closeRail?.(); }} aria-hidden="true" />
+      )}
+
+      <aside
+        className={`rx-rail ${railOpen ? 'open' : ''}`}
+        {...(isTouch ? {} : { onMouseLeave: scheduleCloseFlyout })}
+      >
         {/* Logo */}
         <div
           style={{
@@ -311,8 +338,7 @@ function SidebarRail({ isAdmin, activeGid, hoveredGid, hoveredGroupObj, schedule
                   group={group}
                   isActive={activeGid === group.id}
                   isHover={hoveredGid === group.id}
-                  onMouseEnter={() => scheduleOpenGroup(group.id)}
-                  onMouseLeave={scheduleCloseFlyout}
+                  {...groupHandlers(group.id)}
                 />
               </React.Fragment>
             );
@@ -323,8 +349,7 @@ function SidebarRail({ isAdmin, activeGid, hoveredGid, hoveredGroupObj, schedule
       {/* Flyout panel anchored to the right of the rail */}
       <div
         className={`rx-flyout ${hoveredGid ? 'open' : ''}`}
-        onMouseEnter={cancelClose}
-        onMouseLeave={scheduleCloseFlyout}
+        {...(isTouch ? {} : { onMouseEnter: cancelClose, onMouseLeave: scheduleCloseFlyout })}
       >
         {hoveredGroupObj && (
           <>
@@ -344,6 +369,12 @@ function SidebarRail({ isAdmin, activeGid, hoveredGid, hoveredGroupObj, schedule
                   key={it.url}
                   item={it}
                   active={(it.matchUrl || it.url) === currentPath}
+                  // FlyoutItem has always accepted this and nothing passed it.
+                  // On touch it is required: tapping a destination must dismiss
+                  // the drawer, or the user lands on the page they asked for
+                  // with the nav still covering it. (On desktop the pathname
+                  // effect already closes the flyout, so this is harmless.)
+                  onNavigate={() => { scheduleCloseFlyout(); closeRail?.(); }}
                 />
               ))}
             </div>
@@ -810,7 +841,35 @@ export default function Layout({ children, currentPageName }) {
     if (closeTimer.current) clearTimeout(closeTimer.current);
   }, []);
 
-  React.useEffect(() => { setHoveredGroup(null); }, [location.pathname]);
+  // ── Device adaptation ──────────────────────────────────────────────────────
+  // The rail is a hover-driven flyout, which has no touch equivalent. On a
+  // coarse pointer it becomes tap-to-open; on a phone it also becomes an
+  // off-canvas drawer behind the hamburger.
+  const { isMobile, isTouch } = useDevice();
+  const [railOpen, setRailOpen] = React.useState(false);
+  const closeRail = React.useCallback(() => setRailOpen(false), []);
+
+  // Navigating must dismiss both layers, or the drawer covers the page the user
+  // just asked for.
+  React.useEffect(() => {
+    setHoveredGroup(null);
+    setRailOpen(false);
+  }, [location.pathname]);
+
+  // Leaving mobile with the drawer open would strand it in the `open` class on
+  // a layout where it is no longer positioned off-canvas.
+  React.useEffect(() => { if (!isMobile) setRailOpen(false); }, [isMobile]);
+
+  // Escape closes the topmost layer — expected of any drawer/flyout.
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== "Escape") return;
+      if (hoveredGroup) setHoveredGroup(null);
+      else setRailOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hoveredGroup]);
 
   // Show loading while checking access
   if (checkingAccess && !me) {
@@ -851,8 +910,53 @@ export default function Layout({ children, currentPageName }) {
 
           .rx-topbar { height:52px; background:#FFFFFF; border-bottom:1px solid #E2E8F0; display:flex; align-items:center; padding:0 16px 0 20px; gap:12px; flex-shrink:0; }
 
+          /* Tap-away backdrop. Touch only — on a mouse, mouseleave closes the
+             flyout and a scrim would just swallow the next click. */
+          .rx-scrim { position:fixed; inset:0; background:rgba(15,23,42,.32); z-index:28; }
+
+          .rx-hamburger { display:none; }
+
           @keyframes rx-page-in { from { opacity:0; } to { opacity:1; } }
           .rx-page-in { animation: rx-page-in 120ms ease both; }
+
+          /* ── Touch: the rail's hover-to-open interaction does not exist, so
+                every target has to be tappable (≥44px per WCAG 2.5.5). ── */
+          @media (pointer: coarse) {
+            .rx-rail-scroll button { width:44px; height:44px; }
+            .rx-flyout-body a { min-height:44px; }
+          }
+
+          /* ── Tablet: keep the rail, narrow the flyout so content keeps room. ── */
+          @media (max-width: 1023px) {
+            .rx-flyout { width:220px; }
+          }
+
+          /* ── Phone: the rail becomes an off-canvas drawer opened by the
+                hamburger. It is translated off-screen rather than removed so
+                the flyout stays anchored to it and no layout math changes. ── */
+          @media (max-width: 767px) {
+            .rx-hamburger { display:inline-flex; align-items:center; justify-content:center;
+                            width:40px; height:40px; margin-left:-8px; border-radius:9px;
+                            color:#475569; flex-shrink:0; }
+            .rx-hamburger:active { background:#F1F5F9; }
+
+            .rx-rail { position:fixed; top:0; left:0; z-index:30;
+                       transform:translateX(-100%); transition:transform 180ms ease;
+                       padding-left:env(safe-area-inset-left, 0px); }
+            .rx-rail.open { transform:translateX(0); box-shadow:6px 0 24px -12px rgba(15,23,42,.28); }
+
+            /* Full-width sheet beside the open rail. */
+            .rx-flyout { left:56px; width:calc(100vw - 56px); max-width:280px; }
+
+            .rx-topbar { padding:0 12px; padding-top:env(safe-area-inset-top, 0px);
+                         height:calc(52px + env(safe-area-inset-top, 0px)); }
+          }
+
+          /* Installed PWA has no browser chrome, so the OS gesture bar is the
+             app's problem to avoid. */
+          @media (display-mode: standalone) {
+            .rx-page-in { padding-bottom:env(safe-area-inset-bottom, 0px); }
+          }
         `}</style>
 
         {/* ── RAIL + FLYOUT ── */}
@@ -865,12 +969,27 @@ export default function Layout({ children, currentPageName }) {
           scheduleCloseFlyout={scheduleCloseFlyout}
           cancelClose={cancelClose}
           currentPath={location.pathname}
+          isTouch={isTouch}
+          railOpen={railOpen}
+          closeRail={closeRail}
         />
 
         {/* ── MAIN ── */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {/* Topbar with breadcrumb */}
           <header className="rx-topbar">
+            {/* Rendered always, shown by CSS only under the phone breakpoint —
+                so the button exists for tests and screen readers regardless of
+                which media query happens to be active. */}
+            <button
+              className="rx-hamburger"
+              onClick={() => setRailOpen(o => !o)}
+              aria-label={railOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={railOpen}
+            >
+              {railOpen ? <X style={{ width:20, height:20 }} /> : <Menu style={{ width:20, height:20 }} />}
+            </button>
+
             <nav aria-label="Breadcrumb" style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, color:'#64748B', fontWeight:500, flexShrink:0, minWidth:0 }}>
               {breadcrumb.group ? (
                 <>

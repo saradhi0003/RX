@@ -87,6 +87,21 @@ FTS indexes exist in migration 001.
   llmProxy **and** all three aiRecruiter* entry points (429); per-request input
   cap (`LLM_MAX_PROMPT_CHARS`, default 48k chars) inside `invokeLLM`; the client
   surfaces 429 as `LLMBudgetError`.
+- ⚠ **The ceiling above was a no-op until 2026-08-08.** `checkDailyCeiling()`
+  sums `llm_usage.cost_usd`, but **nothing server-side ever inserted a row** —
+  the only writer was `src/lib/llm.js`, which hardcoded `cost_usd: 0` because
+  `llmProxy` returned no token data. So `spent` was always `0`, `spent < 10` was
+  always true, and the rail never engaged. **Fixed:** new
+  `_shared/pricing.ts` (`MODEL_PRICES` + `estimateCost`, longest-prefix match so
+  dated snapshots resolve; non-zero fallback so an unknown model cannot silently
+  disable the ceiling); the three provider callers in `_shared/llm.ts` now return
+  real token counts and `invokeLLM` writes the `llm_usage` row itself (with
+  `workspace_id` explicit — service role bypasses the stamp trigger); the client
+  skips its duplicate zero-cost insert when the proxy reports `usage_logged`.
+  Guarded by `tests/unit/lib/pricing.test.js` (15 tests, runs offline).
+  `checkDailyCeiling` now also accepts a `workspaceId` so one tenant cannot
+  exhaust another's budget, and prefers an `llm_spend_today()` RPC (added with
+  the retrieval migration) over the previous unaggregated full-day row scan.
 - No per-user/per-workspace quotas — needs `workspace_id` on `llm_usage`, lands
   with multi-tenancy (P2)
 
@@ -130,6 +145,13 @@ runs tracked in `ai_recruiter_runs`.
   `agent_runs` tables (migration 017, staged), `Agent`/`AgentRun` entities,
   AIAgents.jsx off mock data. Remaining: the execution engine (`runAgent`
   ReAct loop, P3) — agents persist but do not run yet.
+- ⚠ **Verified 2026-08-08: nothing anywhere writes `agent_runs` or
+  `approval_items`.** There is no `runAgent`, no tool-calling loop and no
+  dispatcher, so a saved agent never executes, the page's "Total Runs" and
+  "Success Rate" tiles are permanently 0, and `approval_items` (L15) still has
+  no producer. The `"3"` badge on the AI Agents nav item was a hardcoded string
+  in `Layout.jsx`, wrong since the day it was written — **removed** 2026-08-08
+  rather than left lying; a real count lands with the engine.
 
 ### 15. Investigation & Execution Layer (human-in-the-loop)
 **State:** Good — ApprovalQueue + DraftEditor + EmailDraftReview enforce human
@@ -156,6 +178,23 @@ shortcuts; command palette.
 - **Blank rows on error/logged-out** instead of empty/error states (P1, same as L2)
 - Main bundle 808 kB + VideoCall 654 kB — needs `manualChunks` (P2)
 - No a11y pass (roles/contrast audit) (P3)
+- ~~No responsive design at all~~ **Partially done 2026-08-08.** `Layout.jsx`
+  had **zero** `@media` rules and a nav that only opened on `onMouseEnter` —
+  hover does not exist on touch, so the flyout was effectively unopenable on a
+  phone, while the PWA manifest actively invites phone installs. `useIsMobile`
+  existed but was imported only by the vendored shadcn `sidebar.jsx`, which no
+  page uses. **Fixed:** new `@/hooks/useDevice` (`isMobile/isTablet/isDesktop/
+  isTouch/isStandalone/orientation`) driven entirely by `matchMedia` — **no
+  user-agent sniffing**, since `(pointer: coarse)` answers the question that
+  actually matters and survives a mid-session switch between mouse and touch.
+  The rail is now tap-to-open on coarse pointers with a dismiss scrim and Escape
+  handling, an off-canvas drawer behind a hamburger under 768px, ≥44px tap
+  targets, and `env(safe-area-inset-*)` padding in standalone mode. `FlyoutItem`
+  already accepted an `onNavigate` that nothing passed — now wired, so tapping a
+  destination dismisses the drawer instead of landing behind it.
+  Guarded by `tests/unit/ui/useDevice.test.jsx` (14 tests).
+  **Remaining:** per-page data grids still scroll horizontally on a phone rather
+  than collapsing to cards (P2), and the bottom tab bar is not built (P3).
 
 ### 18b. Signup approval (added 2026-07-06)
 **DONE:** new signups get `user_profiles.status='invited'` (migration 016) and are
