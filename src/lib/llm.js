@@ -50,15 +50,23 @@ async function callProxy(opts) {
     if (/429|cost ceiling/i.test(msg)) throw new LLMBudgetError(msg);
     throw new Error(msg);
   }
-  logUsage({
-    provider: "proxy",
-    model: opts.model || "auto",
-    prompt_tokens: 0,
-    completion_tokens: 0,
-    cost_usd: 0,
-    latency_ms: Date.now() - t0,
-    task: opts.task,
-  });
+
+  // The proxy logs llm_usage itself, with real token counts and a real cost.
+  // This used to insert a second row with cost_usd: 0 unconditionally — the
+  // browser has no token data — which both doubled the call count and dragged
+  // average cost toward zero on the SystemHealth dashboard. Only log here when
+  // talking to a proxy old enough not to have done it.
+  if (!data?.usage_logged) {
+    logUsage({
+      provider: "proxy",
+      model: opts.model || "auto",
+      prompt_tokens: 0,
+      completion_tokens: 0,
+      cost_usd: 0,
+      latency_ms: Date.now() - t0,
+      task: opts.task,
+    });
+  }
   return data?.text ?? "";
 }
 

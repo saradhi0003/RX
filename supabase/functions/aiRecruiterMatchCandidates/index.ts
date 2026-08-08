@@ -60,7 +60,11 @@ Deno.serve(withErrorHandling(async (req) => {
   if (jobErr || !job) return errResponse("Job not found", 404);
 
   const aiSettings = await getAISettings();
-  const model = aiSettings?.matching_model || "claude-opus-4-8";
+  // Fallback must be a real model id: "claude-opus-4-8" (the previous value) is
+  // not one, and detectProvider() routes anything claude-* to Anthropic, so an
+  // unset ai_recruiter_settings row produced a provider 400 rather than a
+  // working default. gpt-4o-mini matches the DB default in 001_schema.sql.
+  const model = aiSettings?.matching_model || "gpt-4o-mini";
   const minScore = aiSettings?.minimum_match_score || 50;
 
   // Create run if not provided

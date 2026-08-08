@@ -39,7 +39,9 @@ Deno.serve(withErrorHandling(async (req: Request) => {
   if (!body?.prompt) return errResponse("Missing 'prompt' in request body", 400);
 
   // Enforce the daily cost ceiling before spending more (429 when exceeded).
-  const ceiling = await checkDailyCeiling();
+  // Scoped to the caller's workspace so one tenant cannot exhaust another's budget.
+  const workspaceId = gate.profile?.workspace_id ?? null;
+  const ceiling = await checkDailyCeiling(workspaceId);
   if (!ceiling.ok) {
     return errResponse(
       `LLM daily cost ceiling reached ($${ceiling.spent.toFixed(2)} of $${ceiling.ceiling}). ` +
@@ -48,15 +50,19 @@ Deno.serve(withErrorHandling(async (req: Request) => {
     );
   }
 
+  // Attribution for the cost dashboard. invokeLLM writes the llm_usage row
+  // itself, so the browser must NOT log a second one (see src/lib/llm.js).
+  const llmOpts = { task: body.task ?? "unknown", workspaceId };
+
   const t0 = Date.now();
   let text: string;
   let parsed: unknown = undefined;
 
   if (body.response_format === "json") {
-    parsed = await invokeLLMJson(body.prompt, body.system ?? "", body.model);
+    parsed = await invokeLLMJson(body.prompt, body.system ?? "", body.model, llmOpts);
     text = JSON.stringify(parsed);
   } else {
-    text = await invokeLLM(body.prompt, body.system ?? "", body.model);
+    text = await invokeLLM(body.prompt, body.system ?? "", body.model, llmOpts);
   }
 
   return okResponse({
@@ -64,5 +70,8 @@ Deno.serve(withErrorHandling(async (req: Request) => {
     parsed,
     latency_ms: Date.now() - t0,
     task: body.task ?? "unknown",
+    // Tells the client this call is already recorded in llm_usage, so it can
+    // skip its own insert. Absent on an older deployment → client falls back.
+    usage_logged: true,
   });
 }));
