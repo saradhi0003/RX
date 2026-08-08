@@ -38,7 +38,6 @@ import PlaybookPreview from "@/components/previews/PlaybookPreview";
 // Lazy-load heavy layout tools
 const Assistant = lazy(() => import("@/components/ai/Assistant"));
 const CommandPalette = lazy(() => import("@/components/common/CommandPalette"));
-const QuickActions = lazy(() => import("@/components/common/QuickActions"));
 const KeyboardShortcuts = lazy(() => import("@/components/common/KeyboardShortcuts"));
 const AIQuickActions = lazy(() => import("@/components/common/AIQuickActions"));
 
@@ -607,26 +606,6 @@ export default function Layout({ children, currentPageName }) {
     return () => window.removeEventListener('openAIQuickActions', handleOpenAI);
   }, []);
 
-  const handleQuickAction = React.useCallback((actionId) => {
-    const actionMap = {
-      add_candidate: "Candidates",
-      add_job: "Jobs",
-      add_company: "Companies",
-      add_submission: "Submissions",
-      add_task: "Tasks"
-    };
-    
-    const page = actionMap[actionId];
-    if (page) {
-      navigate(createPageUrl(page));
-      // Trigger add action after navigation
-      setTimeout(() => {
-        const event = new CustomEvent('quickAction', { detail: { action: 'add' } });
-        window.dispatchEvent(event);
-      }, 100);
-    }
-  }, [navigate]); // Added navigate to dependencies
-
   const skipQuickStats = React.useMemo(() => {
     const qp = new URLSearchParams(location.search);
     return qp.get("hide_badge") === "true";
@@ -1113,7 +1092,11 @@ export default function Layout({ children, currentPageName }) {
 
       <Suspense fallback={null}>
         <CommandPalette open={commandPaletteOpen} onClose={() => setCommandPaletteOpen(false)} />
-        <QuickActions onAction={handleQuickAction} />
+        {/* The QuickActions FAB used to render here. It sat at the exact
+            coordinates of the Assistant button, so the two were stacked into
+            what looked like one control until the phone tab bar forced the
+            Assistant upwards. It only dispatched 'openAIQuickActions', which
+            the topbar's AI Actions button and ⌘J both already do. */}
         <AIQuickActions open={aiQuickActionsOpen} onClose={() => setAiQuickActionsOpen(false)} />
         <KeyboardShortcuts open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       </Suspense>
