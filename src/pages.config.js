@@ -1,4 +1,7 @@
-import { lazy } from 'react';
+// Every page is a code-split chunk, so every one of these is a filename that a
+// deploy invalidates for already-open tabs. lazyWithReload recovers instead of
+// dropping the user on the error boundary — see src/lib/lazyWithReload.js.
+import { lazyWithReload as lazy } from '@/lib/lazyWithReload';
 import __Layout from './Layout.jsx';
 
 // Lazy-load all pages for code splitting

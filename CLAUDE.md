@@ -107,6 +107,23 @@ cd mobile && npm run build:web   # expo export — CI parity check
   hatch if a bad worker ever ships. `vercel.json` serves `sw.js` `must-revalidate`
   — keep it that way or a broken worker sticks. Guarded by
   `tests/unit/lib/pwa.test.js` (static, so it runs while Supabase is paused).
+- **Lazy imports must use `lazyWithReload`** ([src/lib/lazyWithReload.js](src/lib/lazyWithReload.js)),
+  not bare `React.lazy` — `pages.config.js` and `Layout.jsx` both do. Vite
+  content-hashes each code-split chunk and the entry bundle hardcodes those
+  names, so a tab open across a deploy asks for a filename the new deployment
+  no longer serves; the import rejects ("Importing a module script failed" on
+  Safari) and the user lands on the ErrorBoundary. The wrapper reloads **once**
+  per deploy, guarded by a `sessionStorage` flag so a genuinely broken chunk
+  surfaces instead of reload-looping. Note the fix only helps from the *next*
+  deploy on — the bundle already in a user's tab is the one that has to fail.
+- **Phone nav is a bottom tab bar**, not the rail:
+  [MobileTabNav](src/components/common/MobileTabNav.jsx) +
+  [styles/mobile-nav.css](src/styles/mobile-nav.css). Under 768px `.rx-rail`
+  and `.rx-flyout` are `display:none` and there is **no hamburger**, so those
+  four tabs are the only way in. Home/Playbooks navigate; Recruiting and
+  Settings open sheets, and the Settings sheet is the catch-all carrying every
+  group without a tab. Adding a `navGroups` group that lands in neither sheet
+  strands it on mobile — `tests/unit/ui/mobileTabNav.test.jsx` fails if so.
 - **List tables are sortable + resizable** (2026-07-11): shared hooks
   `@/hooks/useTableSort` + `@/hooks/useColumnResize` and
   `DataTableProvider`/`SortableHead` now back every data-grid tab (Invoices,

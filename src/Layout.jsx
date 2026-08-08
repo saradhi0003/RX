@@ -7,14 +7,14 @@ import {
   Mail, Clock, CheckCircle, Wallet, Receipt, Zap, AlertTriangle,
   Loader2, Brain, MailPlus, MoreHorizontal, Inbox, Activity, MailCheck, MessageCircle,
   Sparkles, Home, ChevronRight, Video, Calendar as CalendarIcon, ShieldCheck,
-  Menu, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
+import { lazyWithReload as lazy } from "@/lib/lazyWithReload";
 import { PermissionsProvider } from "@/components/common/PermissionsContext";
 import { usePermissions } from "@/components/common/PermissionsContext";
 import { User as UserEntity } from "@/entities/User";
@@ -25,6 +25,7 @@ import AccessBlocker from "@/components/common/AccessBlocker";
 import { getRolesCached, invalidateRolesCache } from "@/components/utils/rolesCache";
 import { getUserCached, invalidateUserCache, getQuickStatsCached, getCachedUser } from "@/lib/appCache";
 import { useDevice } from "@/hooks/useDevice";
+import MobileTabNav from "@/components/common/MobileTabNav";
 import NotificationToast from "@/components/notifications/NotificationToast";
 import RightPreviewPanel from "@/components/common/RightPreviewPanel";
 import CandidatePreviewLoader from "@/components/previews/CandidatePreviewLoader";
@@ -104,7 +105,9 @@ const navigationItems = [
 
 // ── HubSpot-style nav groups ────────────────────────────────────────────────
 // Each group is one icon on the 56px rail. Hover → flyout panel with its items.
-const navGroups = [
+// Exported so the phone tab bar can be driven by (and tested against) the same
+// nav model the rail uses, rather than a second copy that drifts from it.
+export const navGroups = [
   {
     id: "home",
     label: "Home",
@@ -201,7 +204,7 @@ function activeGroupId(pathname) {
 }
 
 // Filter items by permission gate within a group
-function visibleItems(group, { isAdmin, can }) {
+export function visibleItems(group, { isAdmin, can }) {
   if (group.gate === "admin" && !isAdmin) return [];
   return group.items.filter(it => {
     if (!it.gate) return true;
@@ -282,7 +285,7 @@ function getBreadcrumb(pathname) {
 }
 
 // Rail + flyout. Calls usePermissions (must be a child of PermissionsProvider).
-function SidebarRail({ isAdmin, activeGid, hoveredGid, hoveredGroupObj, scheduleOpenGroup, scheduleCloseFlyout, cancelClose, currentPath, isTouch, railOpen, closeRail }) {
+function SidebarRail({ isAdmin, activeGid, hoveredGid, hoveredGroupObj, scheduleOpenGroup, scheduleCloseFlyout, cancelClose, currentPath, isTouch }) {
   const { can } = usePermissions();
   const renderableGroups = navGroups
     .map(g => ({ group: g, items: visibleItems(g, { isAdmin, can }) }))
@@ -306,12 +309,12 @@ function SidebarRail({ isAdmin, activeGid, hoveredGid, hoveredGroupObj, schedule
     <>
       {/* Tap-away backdrop — only on touch, where there is no mouseleave to
           close the flyout with. */}
-      {isTouch && (hoveredGid || railOpen) && (
-        <div className="rx-scrim" onClick={() => { scheduleCloseFlyout(); closeRail?.(); }} aria-hidden="true" />
+      {isTouch && hoveredGid && (
+        <div className="rx-scrim" onClick={scheduleCloseFlyout} aria-hidden="true" />
       )}
 
       <aside
-        className={`rx-rail ${railOpen ? 'open' : ''}`}
+        className="rx-rail"
         {...(isTouch ? {} : { onMouseLeave: scheduleCloseFlyout })}
       >
         {/* Logo */}
@@ -371,10 +374,10 @@ function SidebarRail({ isAdmin, activeGid, hoveredGid, hoveredGroupObj, schedule
                   active={(it.matchUrl || it.url) === currentPath}
                   // FlyoutItem has always accepted this and nothing passed it.
                   // On touch it is required: tapping a destination must dismiss
-                  // the drawer, or the user lands on the page they asked for
+                  // the flyout, or the user lands on the page they asked for
                   // with the nav still covering it. (On desktop the pathname
                   // effect already closes the flyout, so this is harmless.)
-                  onNavigate={() => { scheduleCloseFlyout(); closeRail?.(); }}
+                  onNavigate={scheduleCloseFlyout}
                 />
               ))}
             </div>
@@ -843,33 +846,20 @@ export default function Layout({ children, currentPageName }) {
 
   // ── Device adaptation ──────────────────────────────────────────────────────
   // The rail is a hover-driven flyout, which has no touch equivalent. On a
-  // coarse pointer it becomes tap-to-open; on a phone it also becomes an
-  // off-canvas drawer behind the hamburger.
-  const { isMobile, isTouch } = useDevice();
-  const [railOpen, setRailOpen] = React.useState(false);
-  const closeRail = React.useCallback(() => setRailOpen(false), []);
+  // coarse pointer (tablet) it becomes tap-to-open. On a phone the rail is
+  // hidden entirely and <MobileTabNav> is the navigation — see that component
+  // and styles/mobile-nav.css.
+  const { isTouch } = useDevice();
 
-  // Navigating must dismiss both layers, or the drawer covers the page the user
-  // just asked for.
+  // Navigating must dismiss the flyout, or it covers the page just asked for.
+  React.useEffect(() => { setHoveredGroup(null); }, [location.pathname]);
+
+  // Escape closes the flyout — expected of any transient layer.
   React.useEffect(() => {
-    setHoveredGroup(null);
-    setRailOpen(false);
-  }, [location.pathname]);
-
-  // Leaving mobile with the drawer open would strand it in the `open` class on
-  // a layout where it is no longer positioned off-canvas.
-  React.useEffect(() => { if (!isMobile) setRailOpen(false); }, [isMobile]);
-
-  // Escape closes the topmost layer — expected of any drawer/flyout.
-  React.useEffect(() => {
-    const onKey = (e) => {
-      if (e.key !== "Escape") return;
-      if (hoveredGroup) setHoveredGroup(null);
-      else setRailOpen(false);
-    };
+    const onKey = (e) => { if (e.key === "Escape") setHoveredGroup(null); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [hoveredGroup]);
+  }, []);
 
   // Show loading while checking access
   if (checkingAccess && !me) {
@@ -934,8 +924,6 @@ export default function Layout({ children, currentPageName }) {
              flyout and a scrim would just swallow the next click. */
           .rx-scrim { position:fixed; inset:0; background:rgba(15,23,42,.32); z-index:28; }
 
-          .rx-hamburger { display:none; }
-
           @keyframes rx-page-in { from { opacity:0; } to { opacity:1; } }
           .rx-page-in { animation: rx-page-in 120ms ease both; }
 
@@ -953,26 +941,19 @@ export default function Layout({ children, currentPageName }) {
             .rx-flyout { width:220px; }
           }
 
-          /* ── Phone: the rail becomes an off-canvas drawer opened by the
-                hamburger. It is translated off-screen rather than removed so
-                the flyout stays anchored to it and no layout math changes. ── */
+          /* ── Phone: the rail and its flyout are gone entirely — a hover-driven
+                seven-group rail has no place on 390pt. <MobileTabNav> renders
+                the bottom tab bar that replaces it. ── */
           @media (max-width: 767px) {
-            .rx-hamburger { display:inline-flex; align-items:center; justify-content:center;
-                            width:40px; height:40px; margin-left:-8px; border-radius:9px;
-                            color:#475569; flex-shrink:0; }
-            .rx-hamburger:active { background:#F1F5F9; }
-
-            .rx-rail { position:fixed; top:0; left:0; z-index:30;
-                       transform:translateX(-100%); transition:transform 180ms ease;
-                       padding-left:env(safe-area-inset-left, 0px); }
-            .rx-rail.open { transform:translateX(0); box-shadow:6px 0 24px -12px rgba(15,23,42,.28); }
-
-            /* Full-width sheet beside the open rail. */
-            .rx-flyout { left:56px; width:calc(100vw - 56px); max-width:280px; }
+            .rx-rail, .rx-flyout { display:none; }
 
             .rx-topbar { padding:0 12px; padding-top:env(safe-area-inset-top, 0px);
                          height:calc(52px + env(safe-area-inset-top, 0px));
                          gap:8px; }
+
+            /* Clear the fixed bottom bar (52px + its safe-area padding) so the
+               last row of any list stays reachable instead of sitting under it. */
+            .rx-scroll { padding-bottom:calc(52px + env(safe-area-inset-bottom, 0px)); }
 
             /* The desktop topbar wants ~620px of unshrinkable content. On a
                390pt phone that overflowed and clipped — the search field wrapped
@@ -992,7 +973,11 @@ export default function Layout({ children, currentPageName }) {
 
           /* Installed PWA has no browser chrome, so the OS gesture bar is the
              app's problem to avoid. */
-          @media (display-mode: standalone) {
+          /* Installed PWA has no browser chrome, so the OS gesture bar is the
+             app's problem to avoid. Scoped above the phone breakpoint because
+             below it .rx-scroll already reserves the bar + safe area, and both
+             rules together would double-pad. */
+          @media (display-mode: standalone) and (min-width: 768px) {
             .rx-page-in { padding-bottom:env(safe-area-inset-bottom, 0px); }
           }
         `}</style>
@@ -1008,26 +993,16 @@ export default function Layout({ children, currentPageName }) {
           cancelClose={cancelClose}
           currentPath={location.pathname}
           isTouch={isTouch}
-          railOpen={railOpen}
-          closeRail={closeRail}
         />
+
+        {/* Phone navigation. Renders nothing above 767px, where the rail is
+            the navigation — see styles/mobile-nav.css. */}
+        <MobileTabNav groups={navGroups} isAdmin={isAdmin} visibleItems={visibleItems} />
 
         {/* ── MAIN ── */}
         <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {/* Topbar with breadcrumb */}
           <header className="rx-topbar">
-            {/* Rendered always, shown by CSS only under the phone breakpoint —
-                so the button exists for tests and screen readers regardless of
-                which media query happens to be active. */}
-            <button
-              className="rx-hamburger"
-              onClick={() => setRailOpen(o => !o)}
-              aria-label={railOpen ? "Close navigation menu" : "Open navigation menu"}
-              aria-expanded={railOpen}
-            >
-              {railOpen ? <X style={{ width:20, height:20 }} /> : <Menu style={{ width:20, height:20 }} />}
-            </button>
-
             <nav aria-label="Breadcrumb" className="rx-crumb">
               {breadcrumb.group ? (
                 <>
@@ -1105,7 +1080,7 @@ export default function Layout({ children, currentPageName }) {
           </header>
 
           {/* Page content */}
-          <div className="flex-1 overflow-auto" style={{ background:'#F8FAFC' }}>
+          <div className="flex-1 overflow-auto rx-scroll" style={{ background:'#F8FAFC' }}>
             <div className="rx-page-in">
               {isBlocked ? (
                 <AccessBlocker user={me} />

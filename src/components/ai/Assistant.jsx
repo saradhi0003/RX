@@ -389,20 +389,22 @@ Respond to the user's question with helpful, data-driven insights.`;
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Floating Button. The max-md: offsets lift it above the phone tab bar
+          (52px + safe area), which is fixed to the corner it used to occupy. */}
       {!isOpen && (
         <Button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 z-50"
+          className="fixed bottom-6 max-md:bottom-[calc(64px+env(safe-area-inset-bottom,0px))] right-6 max-md:right-4 h-14 w-14 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 z-50"
           size="icon"
         >
           <Sparkles className="w-6 h-6 text-white" />
         </Button>
       )}
 
-      {/* Chat Panel */}
+      {/* Chat Panel. 420px is wider than a phone, so below md it goes
+          edge-to-edge and sits above the tab bar rather than overhanging. */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 w-[420px] max-h-[650px] z-50 flex flex-col shadow-2xl rounded-xl overflow-hidden border border-slate-200 bg-white">
+        <div className="fixed bottom-6 right-6 w-[420px] max-h-[650px] max-md:inset-x-2 max-md:right-2 max-md:w-auto max-md:bottom-[calc(60px+env(safe-area-inset-bottom,0px))] max-md:max-h-[70vh] z-50 flex flex-col shadow-2xl rounded-xl overflow-hidden border border-slate-200 bg-white">
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 flex items-center justify-between">
             <div className="flex items-center gap-2">
