@@ -20,6 +20,41 @@ const clean = (v) => {
 };
 
 /**
+ * `tasks.status` speaks two vocabularies. The database CHECK allows
+ *   todo | in_progress | done | cancelled
+ * while every screen in the app writes and filters on
+ *   pending | in_progress | completed | cancelled
+ *
+ * Two symptoms came from that single mismatch:
+ *   1. Creating a task failed — TaskForm defaults to "pending", which the CHECK
+ *      rejects outright.
+ *   2. Existing tasks were invisible. All 66 rows are stored as todo/done, so
+ *      the Dashboard's `["pending","in_progress"].includes(status)` matched
+ *      nothing and it reported "All caught up!".
+ *
+ * Translating in both directions fixes both without touching 4 screens, and
+ * without a migration (which here would have to be applied by hand).
+ *
+ * The cleaner end state is one vocabulary — either widen the CHECK or migrate
+ * the rows — at which point these two functions become identity and can go.
+ */
+const TASK_TO_DB = { pending: "todo", completed: "done" };
+const TASK_TO_APP = { todo: "pending", done: "completed" };
+
+/** @param {object} fields */
+export function taskWrite(fields) {
+  const out = { ...fields };
+  if (out.status && TASK_TO_DB[out.status]) out.status = TASK_TO_DB[out.status];
+  return out;
+}
+
+/** @param {object} row */
+export function taskRead(row) {
+  if (!row?.status || !TASK_TO_APP[row.status]) return row;
+  return { ...row, status: TASK_TO_APP[row.status] };
+}
+
+/**
  * `expenses` carries BOTH `title` (NOT NULL) and `name` (nullable) — a leftover
  * from an earlier schema. ExpenseForm only ever writes `name`, so `title` came
  * through NULL and Postgres rejected every expense the same way it rejected

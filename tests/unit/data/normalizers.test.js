@@ -48,3 +48,39 @@ describe("withFullName", () => {
     expect(out).not.toHaveProperty("full_name");
   });
 });
+
+describe("task status translation", () => {
+  it("maps the app's vocabulary to the one the CHECK constraint allows", async () => {
+    const { taskWrite } = await import("@/entities/normalizers");
+    // TaskForm defaults to "pending", which the DB rejects outright.
+    expect(taskWrite({ title: "x", status: "pending" }).status).toBe("todo");
+    expect(taskWrite({ status: "completed" }).status).toBe("done");
+  });
+
+  it("passes through statuses both sides already agree on", async () => {
+    const { taskWrite } = await import("@/entities/normalizers");
+    expect(taskWrite({ status: "in_progress" }).status).toBe("in_progress");
+    expect(taskWrite({ status: "cancelled" }).status).toBe("cancelled");
+  });
+
+  it("leaves a payload with no status alone", async () => {
+    const { taskWrite } = await import("@/entities/normalizers");
+    expect(taskWrite({ title: "x" })).toEqual({ title: "x" });
+  });
+
+  it("translates stored rows back, so existing tasks stop being invisible", async () => {
+    const { taskRead } = await import("@/entities/normalizers");
+    // All 66 live rows are todo/done; the Dashboard filters on pending/in_progress
+    // and reported "All caught up!" because nothing matched.
+    expect(taskRead({ id: 1, status: "todo" }).status).toBe("pending");
+    expect(taskRead({ id: 1, status: "done" }).status).toBe("completed");
+    expect(taskRead({ id: 1, status: "in_progress" }).status).toBe("in_progress");
+  });
+
+  it("round-trips without drift", async () => {
+    const { taskWrite, taskRead } = await import("@/entities/normalizers");
+    for (const s of ["pending", "in_progress", "completed", "cancelled"]) {
+      expect(taskRead({ status: taskWrite({ status: s }).status }).status).toBe(s);
+    }
+  });
+});

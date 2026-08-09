@@ -59,14 +59,20 @@ function applyFilters(query, filters = {}) {
 
 /**
  * @param {string} tableName
- * @param {{beforeWrite?: (fields: object, op: "create"|"update") => object}} [opts]
+ * @param {{beforeWrite?: (fields: object, op: "create"|"update") => object,
+ *          afterRead?: (row: object) => object}} [opts]
  *   `beforeWrite` normalises a payload just before it hits Postgres. It exists
  *   because several tables carry NOT NULL columns the UI never collects
  *   directly (`candidates.full_name` is derived from first+last), and patching
  *   each form would leave CSV import, paste-to-add, the careers form and the AI
  *   quick actions still broken. One hook covers every write path.
+ *
+ *   `afterRead` is its mirror, for columns whose stored vocabulary differs from
+ *   the one the UI speaks (`tasks.status`). Both are needed or a translated
+ *   write becomes invisible to the filter that reads it back.
  */
-export function createEntity(tableName, { beforeWrite = (f) => f } = {}) {
+export function createEntity(tableName, { beforeWrite = (f) => f, afterRead = (r) => r } = {}) {
+  const shape = (row) => (row ? afterRead(normalize(row)) : row);
   return {
     /** list(sortField?, limit?) */
     async list(sortField = "-created_at", limit = 200) {
@@ -77,7 +83,7 @@ export function createEntity(tableName, { beforeWrite = (f) => f } = {}) {
         .order(column, { ascending })
         .limit(limit);
       if (error) throw error;
-      return (data || []).map(normalize);
+      return (data || []).map(shape);
     },
 
     /** filter(conditions, sortField?, limit?) */
@@ -89,7 +95,7 @@ export function createEntity(tableName, { beforeWrite = (f) => f } = {}) {
         .order(column, { ascending })
         .limit(limit);
       if (error) throw error;
-      return (data || []).map(normalize);
+      return (data || []).map(shape);
     },
 
     /** get(id) */
@@ -100,7 +106,7 @@ export function createEntity(tableName, { beforeWrite = (f) => f } = {}) {
         .eq("id", id)
         .single();
       if (error) throw error;
-      return normalize(data);
+      return shape(data);
     },
 
     /** create(fields) */
@@ -112,7 +118,7 @@ export function createEntity(tableName, { beforeWrite = (f) => f } = {}) {
         .select()
         .single();
       if (error) throw error;
-      return normalize(data);
+      return shape(data);
     },
 
     /** update(id, fields) */
@@ -125,7 +131,7 @@ export function createEntity(tableName, { beforeWrite = (f) => f } = {}) {
         .select()
         .single();
       if (error) throw error;
-      return normalize(data);
+      return shape(data);
     },
 
     /** delete(id) */
