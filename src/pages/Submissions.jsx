@@ -56,6 +56,7 @@ import { PermissionsProvider, usePermissions } from "@/components/common/Permiss
 import PermissionGate from "@/components/common/PermissionGate";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import { executeAutomationRules } from "@/components/automation/executeAutomation";
+import { personName } from "@/lib/names";
 
 function SubmissionsPageContent() {
   const { can, isAdmin } = usePermissions();
@@ -484,7 +485,7 @@ function SubmissionsPageContent() {
               const candidate = candidates.find(c => c.id === submission.candidate_id);
               const job = jobs.find(j => j.id === submission.job_id);
               const company = companies.find(c => c.id === job?.company_id);
-              const candName = candidate ? `${candidate.first_name} ${candidate.last_name}` : "Unknown";
+              const candName = personName(candidate);
               const sb = { submitted:{bg:"rgba(59,130,246,.12)",c:"#2563EB"}, under_review:{bg:"rgba(245,158,11,.12)",c:"#D97706"}, interviewing:{bg:"rgba(139,92,246,.12)",c:"#7C3AED"}, offered:{bg:"rgba(16,185,129,.12)",c:"#059669"}, hired:{bg:"rgba(48,161,78,.12)",c:"#16A34A"}, rejected:{bg:"rgba(239,68,68,.12)",c:"#DC2626"}, withdrawn:{bg:"rgba(107,114,128,.12)",c:"#6B7280"} }[submission.status] || {bg:"rgba(0,0,0,.06)",c:"#94A3B8"};
               const avatarPalette = ["#3B82F6,#6366F1","#F59E0B,#EA580C","#8B5CF6,#7C3AED","#10B981,#059669","#EF4444,#DC2626"];
               const p = avatarPalette[(candName?.charCodeAt(0)||0) % avatarPalette.length].split(",");

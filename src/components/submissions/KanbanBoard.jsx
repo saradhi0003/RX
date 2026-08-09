@@ -3,6 +3,7 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { Submission } from "@/entities/Submission";
 import { executeAutomationRules } from "@/components/automation/executeAutomation";
 import { Plus } from "lucide-react";
+import { personName } from "@/lib/names";
 
 const COLUMNS = [
   { id: "submitted",    label: "Submitted",    color: "#3B82F6", bg: "rgba(59,130,246,.08)" },
@@ -40,7 +41,7 @@ function timeAgo(d) {
 
 function KanbanCard({ submission, candidate, job, company, onClick, drag }) {
   const sb = statusBadge[submission.status] || statusBadge.submitted;
-  const candName = candidate ? `${candidate.first_name} ${candidate.last_name}` : "Unknown";
+  const candName = personName(candidate);
   const jobTitle = job?.title || "Unknown Role";
   const compName = company?.name || job?.hiring_manager || "";
   const location = job?.location || "";

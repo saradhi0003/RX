@@ -2,6 +2,7 @@ import React from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock } from "lucide-react";
+import { personName } from "@/lib/names";
 
 export default function SubmissionKanbanCard({ submission, candidate, job, recruiter, onClick }) {
   const statusColors = {
@@ -24,7 +25,7 @@ export default function SubmissionKanbanCard({ submission, candidate, job, recru
         <div className="flex justify-between items-start gap-3">
           <div className="min-w-0">
             <p className="font-semibold text-slate-900 truncate">
-              {candidate ? `${candidate.first_name} ${candidate.last_name}` : "Unknown Candidate"}
+              {personName(candidate, "Unknown Candidate")}
             </p>
             <p className="text-xs text-slate-600 truncate">{job?.title || "—"}</p>
           </div>

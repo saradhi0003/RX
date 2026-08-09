@@ -84,3 +84,34 @@ describe("task status translation", () => {
     }
   });
 });
+
+describe("personName (read-side display)", () => {
+  it("prefers the split name", async () => {
+    const { personName } = await import("@/lib/names");
+    expect(personName({ first_name: "Ada", last_name: "Lovelace" })).toBe("Ada Lovelace");
+  });
+
+  it("falls back to full_name — the 446 rows that rendered 'null null'", async () => {
+    const { personName } = await import("@/lib/names");
+    expect(personName({ first_name: null, last_name: null, full_name: "Amelia Gabrovic" }))
+      .toBe("Amelia Gabrovic");
+  });
+
+  it("uses email before giving up", async () => {
+    const { personName } = await import("@/lib/names");
+    expect(personName({ email: "a@b.c" })).toBe("a@b.c");
+  });
+
+  it("returns the fallback for a missing record", async () => {
+    const { personName } = await import("@/lib/names");
+    expect(personName(null)).toBe("Unknown");
+    expect(personName(undefined, "Unknown Candidate")).toBe("Unknown Candidate");
+  });
+
+  it("never renders the string 'null'", async () => {
+    const { personName } = await import("@/lib/names");
+    for (const p of [{ first_name: null }, { last_name: undefined }, {}]) {
+      expect(personName(p)).not.toMatch(/null|undefined/);
+    }
+  });
+});
