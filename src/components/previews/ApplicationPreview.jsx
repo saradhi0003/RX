@@ -2,7 +2,7 @@ import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Briefcase, User, Star } from "lucide-react";
-import { Application, Job, Candidate } from "@/entities/all";
+import { Submission, Job, Candidate } from "@/entities/all";
 
 export default function ApplicationPreview({ id }) {
   const [app, setApp] = React.useState(null);
@@ -12,7 +12,7 @@ export default function ApplicationPreview({ id }) {
   React.useEffect(() => {
     let mounted = true;
     (async () => {
-      const r = await Application.filter({ id }, "-created_date", 1);
+      const r = await Submission.filter({ id }, "-created_date", 1);
       const a = r?.[0] || null;
       if (!mounted) return;
       setApp(a);

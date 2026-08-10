@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { Application } from "@/entities/Application";
 import { Candidate } from "@/entities/Candidate";
 import { Company } from "@/entities/Company";
 import { DashboardConfig } from "@/entities/DashboardConfig";
@@ -59,13 +58,13 @@ const MetricCard = memo(({ label, value, sub, trend, trendUp, onClick, loading }
 const PipelineFunnelBar = memo(({ stages, loading }) => {
   const max = Math.max(...stages.map(s => s.count), 1);
   const COLORS = {
-    Applied: "#2563EB", Screened: "#F97316", Interview: "#16A34A",
+    Applied: "#2563EB", Interview: "#16A34A",
     Offer: "#7C3AED", Placed: "#0891B2",
   };
   return (
     <div className="space-y-3">
       {loading
-        ? Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-6 bg-slate-100 rounded animate-pulse" />)
+        ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-6 bg-slate-100 rounded animate-pulse" />)
         : stages.map(s => (
             <div key={s.label} className="flex items-center gap-3">
               <span className="w-[72px] text-[13px] text-[#475569] font-medium shrink-0">{s.label}</span>
@@ -121,8 +120,11 @@ export default function Dashboard() {
   const [candidates, setCandidates] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [companies, setCompanies] = useState([]);
+  // Sourced from `submissions` (migration 026) — kept as `applications` here
+  // since every stat/tile on this page already reads that name. A parallel
+  // `submissions` fetch used to sit alongside this one holding the identical
+  // underlying data under a second name; folded into one.
   const [applications, setApplications] = useState([]);
-  const [submissions, setSubmissions] = useState([]);
   const [activeTab, setActiveTab] = useState("overview");
   const [modal, setModal] = useState({ open: false, title: "", columns: [], rows: [] });
   const [config, setConfig] = useState(null);
@@ -153,7 +155,6 @@ export default function Dashboard() {
         setJobs(cached.jobs);
         setCompanies(cached.companies);
         setApplications(cached.applications);
-        setSubmissions(cached.submissions);
         setMyTasksToday(cached.tasks);
         setStats(cached.stats);
         setLoading(false);
@@ -178,15 +179,18 @@ export default function Dashboard() {
       const candFilter = listFilterFor("Candidate");
       const jobFilter = listFilterFor("Job");
       const compFilter = listFilterFor("Company");
-      const appFilter = listFilterFor("Application");
+      // `Application` used to be a second, disconnected pipeline table nothing
+      // ever wrote to (migration 026 unified onto `submissions`) — its scope
+      // matters too: non-admin recruiters are scoped by `recruiter_id` under
+      // the "Submission" permission key, not the generic created_by fallback
+      // "Application" resolved to, so the filter has to move with the entity.
       const subFilter = listFilterFor("Submission");
       let taskFilter = !admin && meUser?.email ? { created_by: meUser.email } : null;
 
-      const [candidatesData, jobsData, companiesData, applicationsData, submissionsData, tasks] = await Promise.all([
+      const [candidatesData, jobsData, companiesData, applicationsData, tasks] = await Promise.all([
         candFilter ? Candidate.filter(candFilter, '-created_date', 100).catch(() => []) : Candidate.list('-created_date', 100).catch(() => []),
         jobFilter ? Job.filter(jobFilter, '-created_date', 50).catch(() => []) : Job.list('-created_date', 50).catch(() => []),
         compFilter ? Company.filter(compFilter, '-created_date', 50).catch(() => []) : Company.list('-created_date', 50).catch(() => []),
-        appFilter ? Application.filter(appFilter, '-created_date', 50).catch(() => []) : Application.list('-created_date', 50).catch(() => []),
         subFilter ? Submission.filter(subFilter, '-created_date', 50).catch(() => []) : Submission.list('-created_date', 50).catch(() => []),
         taskFilter ? Task.filter(taskFilter, '-created_date', 50).catch(() => []) : Task.list('-created_date', 50).catch(() => [])
       ]);
@@ -195,13 +199,11 @@ export default function Dashboard() {
       const safeJ = jobsData || [];
       const safeCo = companiesData || [];
       const safeA = applicationsData || [];
-      const safeS = submissionsData || [];
 
       setCandidates(safeC);
       setJobs(safeJ);
       setCompanies(safeCo);
       setApplications(safeA);
-      setSubmissions(safeS);
 
       const activeJobs = safeJ.filter(j => j.status === "open").length;
       const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
@@ -225,14 +227,13 @@ export default function Dashboard() {
       setMyTasksToday(my);
 
       // Save to cross-navigation cache
-      setDashboardCache({ candidates: safeC, jobs: safeJ, companies: safeCo, applications: safeA, submissions: safeS, tasks: my, stats: newStats });
+      setDashboardCache({ candidates: safeC, jobs: safeJ, companies: safeCo, applications: safeA, tasks: my, stats: newStats });
     } catch (err) {
       console.error("Dashboard load error:", err);
       setCandidates([]);
       setJobs([]);
       setCompanies([]);
       setApplications([]);
-      setSubmissions([]);
       setMyTasksToday([]);
     }
     setLoading(false);
@@ -329,16 +330,34 @@ export default function Dashboard() {
   };
 
   // Pipeline stage data
+  //
+  // "Applied"/"Screened" used to read `candidates.status`, which only ever
+  // holds "active"/"inactive" (a candidate-profile flag, not a job-pipeline
+  // stage) — so "Applied" was really just active-candidate headcount, and
+  // "Screened" compared against a status ("screened") no code in this app has
+  // ever written. The real application-stage vocabulary lives on
+  // `applications.status`, confirmed against every Application.create/update
+  // call site: "applied" (Careers.jsx, candidate self-apply) and "sourced"
+  // (CandidateDetails.jsx, recruiter adds to a job) both mean "entered the
+  // pipeline" — counting the whole table covers both without having to name
+  // every non-terminal status. Interview/Offer already read `applications`
+  // correctly; left unchanged.
+  //
+  // "Screened" is still missing on purpose: nothing in this codebase ever
+  // sets a "screening"/"screened" status on an application, so there is no
+  // real event to count. Showing 0 here would be indistinguishable from a
+  // working stage that simply has no data — that's worse than one that's
+  // visibly absent, so the bar is left out until that stage is actually wired
+  // up somewhere (or the funnel is redefined to drop it).
   const pipelineStages = useMemo(() => [
-    { label: "Applied",   count: candidates.filter(c => c.status === "active").length },
-    { label: "Screened",  count: candidates.filter(c => c.status === "screened").length },
+    { label: "Applied",   count: applications.length },
     { label: "Interview", count: applications.filter(a => a.status === "interviewing").length },
     { label: "Offer",     count: applications.filter(a => a.status === "offered").length },
     { label: "Placed",    count: stats.thisMonthPlacements },
-  ], [candidates, applications, stats.thisMonthPlacements]);
+  ], [applications, stats.thisMonthPlacements]);
 
   const pipelineMax = useMemo(() => Math.max(...pipelineStages.map(s => s.count), 1), [pipelineStages]);
-  const PIPE_COLORS = useMemo(() => ({ Applied: "#2563EB", Screened: "#F97316", Interview: "#16A34A", Offer: "#7C3AED", Placed: "#0891B2" }), []);
+  const PIPE_COLORS = useMemo(() => ({ Applied: "#2563EB", Interview: "#16A34A", Offer: "#7C3AED", Placed: "#0891B2" }), []);
 
   const statusChartData = useMemo(() => Object.entries(
     candidates.reduce((a, c) => { a[c.status] = (a[c.status]||0)+1; return a; }, {})
@@ -665,7 +684,6 @@ export default function Dashboard() {
                   candidates={candidates}
                   jobs={jobs}
                   applications={applications}
-                  submissions={submissions}
                 />
               </div>
             )}

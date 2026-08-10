@@ -9,7 +9,6 @@ import { Submission } from "@/entities/Submission";
 import { Task } from "@/entities/Task";
 import { Timesheet } from "@/entities/Timesheet";
 import { LeaveRequest } from "@/entities/LeaveRequest";
-import { Application } from "@/entities/Application";
 import { Recruiter } from "@/entities/Recruiter";
 
 export default function TransferOwnershipModal({
@@ -21,9 +20,14 @@ export default function TransferOwnershipModal({
   onTransferred     // callback after success
 }) {
   const [loadingCounts, setLoadingCounts] = useState(false);
-  const [counts, setCounts] = useState({ submissions: 0, tasks: 0, timesheets: 0, leaves: 0, applications: 0 });
+  // "Applications" used to be a separate bucket here, scoped by a
+  // `submitted_by` column `applications` never actually had — that filter
+  // was failing outright. `submissions` (scoped by recruiter_id, below)
+  // already covers the same real pipeline data; migration 026 makes it the
+  // one canonical table.
+  const [counts, setCounts] = useState({ submissions: 0, tasks: 0, timesheets: 0, leaves: 0 });
   const [processing, setProcessing] = useState(false);
-  const [include, setInclude] = useState({ submissions: true, tasks: true, timesheets: true, leaves: true, applications: true });
+  const [include, setInclude] = useState({ submissions: true, tasks: true, timesheets: true, leaves: true });
 
   const otherRecruiters = useMemo(() => recruiters.filter(r => r.id !== recruiter?.id), [recruiters, recruiter]);
   const defaultRec = otherRecruiters[0]?.id || null;
@@ -37,19 +41,17 @@ export default function TransferOwnershipModal({
     setTargetUserEmail(adminUser?.email || otherRecruiters[0]?.email || "");
     const load = async () => {
       setLoadingCounts(true);
-      const [subs, tasks, ts, lv, apps] = await Promise.all([
+      const [subs, tasks, ts, lv] = await Promise.all([
         Submission.filter({ recruiter_id: recruiter.id }),
         Task.filter({ assigned_to: recruiter.email }),
         Timesheet.filter({ user_id: recruiter.email }),
-        LeaveRequest.filter({ user_id: recruiter.email }),
-        Application.filter({ submitted_by: recruiter.email })
+        LeaveRequest.filter({ user_id: recruiter.email })
       ]);
       setCounts({
         submissions: subs.length,
         tasks: tasks.length,
         timesheets: ts.length,
-        leaves: lv.length,
-        applications: apps.length
+        leaves: lv.length
       });
       setLoadingCounts(false);
     };
@@ -93,12 +95,6 @@ export default function TransferOwnershipModal({
         await LeaveRequest.update(l.id, { user_id: targetUserEmail });
       }
     }
-    if (include.applications && targetUserEmail) {
-      const apps = await Application.filter({ submitted_by: recruiter.email });
-      for (const a of apps) {
-        await Application.update(a.id, { submitted_by: targetUserEmail });
-      }
-    }
     // Delete the recruiter
     await Recruiter.delete(recruiter.id);
     setProcessing(false);
@@ -133,7 +129,7 @@ export default function TransferOwnershipModal({
               </Select>
             </div>
             <div>
-              <Label>Target User Email (Tasks, Timesheets, Leave, Applications)</Label>
+              <Label>Target User Email (Tasks, Timesheets, Leave)</Label>
               <Select value={targetUserEmail} onValueChange={(v)=>setTargetUserEmail(v)}>
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select user" />
@@ -168,10 +164,6 @@ export default function TransferOwnershipModal({
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox checked={include.leaves} onCheckedChange={(v)=>setInclude({...include, leaves: !!v})} />
                   Leave Requests <span className="ml-2 text-slate-500">({counts.leaves})</span>
-                </label>
-                <label className="flex items-center gap-2 text-sm">
-                  <Checkbox checked={include.applications} onCheckedChange={(v)=>setInclude({...include, applications: !!v})} />
-                  Applications <span className="ml-2 text-slate-500">({counts.applications})</span>
                 </label>
               </div>
             )}

@@ -23,7 +23,7 @@ import {
   LineChart as ReLineChart, Line
 } from "recharts";
 import { InvokeLLM } from "@/integrations/Core";
-import { Candidate, Job, Application, Submission } from "@/entities/all";
+import { Candidate, Job, Submission } from "@/entities/all";
 import { addNotification } from "@/components/notifications/NotificationToast";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
@@ -32,20 +32,22 @@ export default function TalentPipelineAnalytics({
   candidates: candidatesProp,
   jobs: jobsProp,
   applications: applicationsProp,
-  submissions: submissionsProp,
 } = {}) {
   const hasExternalData =
     candidatesProp !== undefined ||
     jobsProp !== undefined ||
-    applicationsProp !== undefined ||
-    submissionsProp !== undefined;
+    applicationsProp !== undefined;
 
   const [loading, setLoading] = useState(!hasExternalData);
   const [analyzing, setAnalyzing] = useState(false);
   const [candidates, setCandidates] = useState(candidatesProp || []);
   const [jobs, setJobs] = useState(jobsProp || []);
+  // Sourced from `submissions` (migration 026) — kept as `applications` here
+  // since every stat/chart in this file already reads that name. A parallel
+  // `submissions` fetch used to sit alongside this one, fully unread by any
+  // chart or calculation below — dead weight from the same disconnected
+  // second table the rest of this refactor removes.
   const [applications, setApplications] = useState(applicationsProp || []);
-  const [submissions, setSubmissions] = useState(submissionsProp || []);
   const [insights, setInsights] = useState(null);
 
   useEffect(() => {
@@ -53,27 +55,24 @@ export default function TalentPipelineAnalytics({
       setCandidates(candidatesProp || []);
       setJobs(jobsProp || []);
       setApplications(applicationsProp || []);
-      setSubmissions(submissionsProp || []);
       setLoading(false);
     } else {
       loadData();
     }
-  }, [candidatesProp, jobsProp, applicationsProp, submissionsProp]);
+  }, [candidatesProp, jobsProp, applicationsProp]);
 
   const loadData = async () => {
     if (hasExternalData) return;
     setLoading(true);
     try {
-      const [cands, jbs, apps, subs] = await Promise.all([
+      const [cands, jbs, apps] = await Promise.all([
         Candidate.list("-created_date", 500),
         Job.list("-created_date", 200),
-        Application.list("-created_date", 500),
         Submission.list("-created_date", 500)
       ]);
       setCandidates(cands || []);
       setJobs(jbs || []);
       setApplications(apps || []);
-      setSubmissions(subs || []);
     } catch (error) {
       console.error("Error loading data:", error);
       addNotification({ type: "error", title: "Error", message: "Failed to load data" });

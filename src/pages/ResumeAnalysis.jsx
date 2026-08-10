@@ -18,7 +18,7 @@ import {
   GitCompare,
   Target
 } from "lucide-react";
-import { Candidate, Job, Application } from "@/entities/all";
+import { Candidate, Job, Submission } from "@/entities/all";
 import { InvokeLLM } from "@/integrations/Core";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -46,7 +46,9 @@ export default function ResumeAnalysis() {
       const [candidatesData, jobsData, applicationsData] = await Promise.all([
         Candidate.list("-created_date"),
         Job.list("-created_date"),
-        Application.list("-created_date")
+        // The candidate→job pipeline lives in `submissions` (migration 026);
+        // `applications` was a second, disconnected, unwritten table.
+        Submission.list("-created_date")
       ]);
       
       setCandidates(candidatesData);

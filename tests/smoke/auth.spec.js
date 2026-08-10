@@ -8,9 +8,14 @@ test.describe("Auth", () => {
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
 
     await page.goto("/login");
-    await expect(page.locator("img[alt='Recruiter X']")).toBeVisible();
+    // Logo img is alt="" (decorative — the adjacent "Talent Stack" text names
+    // the brand), so assert on that text instead of a long-gone alt value.
+    // The split layout renders it twice (marketing pane + form pane).
+    await expect(page.getByText("Talent Stack").first()).toBeVisible();
     await expect(page.getByLabel(/email/i)).toBeVisible();
-    await expect(page.getByLabel(/password/i)).toBeVisible();
+    // Anchored: a loose /password/i also matches the "Show password" toggle
+    // button's aria-label, which didn't exist when this test was written.
+    await expect(page.getByLabel(/^password$/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /sign in/i })).toBeVisible();
     // Demo accounts are gone for launch.
     await expect(page.getByText(/try a demo account/i)).toHaveCount(0);

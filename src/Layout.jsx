@@ -18,7 +18,7 @@ import { lazyWithReload as lazy } from "@/lib/lazyWithReload";
 import { PermissionsProvider } from "@/components/common/PermissionsContext";
 import { usePermissions } from "@/components/common/PermissionsContext";
 import { User as UserEntity } from "@/entities/User";
-import { Candidate, Job, Application, Task } from "@/entities/all";
+import { Candidate, Job, Submission, Task } from "@/entities/all";
 import { AuditLog } from "@/entities/AuditLog";
 import { Role } from "@/entities/Role";
 import AccessBlocker from "@/components/common/AccessBlocker";
@@ -624,7 +624,7 @@ export default function Layout({ children, currentPageName }) {
         const [jobsData, candidatesData, applicationsData] = await Promise.all([
           Job.filter({ status: 'open' }, '', 50).catch(() => []),
           Candidate.filter({ status: 'active' }, '-created_date', 30).catch(() => []),
-          Application.filter({ status: 'hired' }, '-created_date', 20).catch(() => [])
+          Submission.filter({ status: 'hired' }, '-created_date', 20).catch(() => [])
         ]);
         const activeJobs = (jobsData || []).length;
         const newCandidates = (candidatesData || []).filter(c => new Date(c.created_date) >= sevenDaysAgo).length;

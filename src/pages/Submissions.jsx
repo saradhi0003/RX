@@ -95,24 +95,36 @@ function SubmissionsPageContent() {
   const loadSubmissions = useCallback(async () => {
     setLoading(true);
     try {
-      const [submissionsData, candidatesData, jobsData, companiesData, viewsData] = await Promise.all([
+      const [submissionsData, jobsData, companiesData, viewsData] = await Promise.all([
         Submission.list("-submitted_date", 200),
-        Candidate.list("-updated_date", 200),
         Job.list("-updated_date", 100),
         Company.list("-updated_date", 100),
         SubmissionView.list().catch(() => [])
       ]);
-      
+
+      // Candidate.list("-updated_date", 200) used to fetch a blind top-200
+      // slice, which missed most candidates once the table grew past 200 rows
+      // (71% of submissions pointed outside that window) — every one of those
+      // rendered "Unknown" downstream. Fetch exactly the candidates these
+      // submissions reference instead, so growth in the candidates table can
+      // never reintroduce the miss.
+      const candidateIds = [...new Set(
+        (submissionsData || []).map(s => s.candidate_id).filter(Boolean)
+      )];
+      const candidatesData = candidateIds.length
+        ? await Candidate.filter({ id: { $in: candidateIds } }, "-updated_date", candidateIds.length).catch(() => [])
+        : [];
+
       // Filter submissions to only show past 1 month
       const oneMonthAgo = new Date();
       oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-      
+
       const recentSubmissions = (submissionsData || []).filter(submission => {
         if (!submission.submitted_date) return true; // Include if no date
         const submittedDate = new Date(submission.submitted_date);
         return submittedDate >= oneMonthAgo;
       });
-      
+
       setSubmissions(recentSubmissions);
       setCandidates(candidatesData || []);
       setJobs(jobsData || []);

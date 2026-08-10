@@ -15,7 +15,7 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { InvokeLLM } from "@/integrations/Core";
-import { Application } from "@/entities/all";
+import { Submission } from "@/entities/all";
 import ScoreDisplay from "./ScoreDisplay";
 
 export default function BulkScoring({ jobs, candidates, applications, onUpdate }) {
@@ -106,7 +106,7 @@ export default function BulkScoring({ jobs, candidates, applications, onUpdate }
         });
 
         if (response && response.match_score !== undefined) {
-          await Application.update(application.id, {
+          await Submission.update(application.id, {
             match_score: response.match_score,
             score_details: response
           });

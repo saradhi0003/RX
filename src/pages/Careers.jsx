@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Job, Candidate, Application } from "@/entities/all";
+import { Job, Candidate, Submission } from "@/entities/all";
 import { UploadFile } from "@/integrations/Core";
 
 function ApplyModal({ job, onClose, onApplied }) {
@@ -30,10 +30,14 @@ function ApplyModal({ job, onClose, onApplied }) {
       status: "active",
       source: "website"
     });
-    await Application.create({
+    // The candidate→job pipeline lives in `submissions` (migration 026) —
+    // `applications` used to be a second, disconnected table that the
+    // Dashboard and several other pages never actually read.
+    await Submission.create({
       candidate_id: cand.id,
       job_id: job.id,
-      status: "applied",
+      company_id: job.company_id || undefined,
+      status: "submitted",
       notes: form.notes || ""
     });
     setBusy(false);

@@ -25,7 +25,7 @@ import {
   Download
 } from "lucide-react";
 import { InvokeLLMJson } from "@/integrations/Core";
-import { Candidate, Job, Company, Application, Submission, Task } from "@/entities/all";
+import { Candidate, Job, Company, Submission, Task } from "@/entities/all";
 import { User } from "@/entities/User";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import ReactMarkdown from "react-markdown";
@@ -62,11 +62,13 @@ export default function Assistant({ currentPageName }) {
     try {
       const me = await User.me().catch(() => null);
       
-      const [candidates, jobs, companies, applications, submissions, tasks] = await Promise.all([
+      const [candidates, jobs, companies, submissions, tasks] = await Promise.all([
         Candidate.list("-updated_date", 50).catch(() => []),
         Job.list("-updated_date", 50).catch(() => []),
         Company.list("-updated_date", 30).catch(() => []),
-        Application.list("-updated_date", 50).catch(() => []),
+        // The candidate→job pipeline lives in `submissions` (migration 026) —
+        // `applications` was a second, disconnected table this used to fetch
+        // separately and report as an unrelated count.
         Submission.list("-updated_date", 50).catch(() => []),
         Task.list("-updated_date", 50).catch(() => [])
       ]);
@@ -80,8 +82,7 @@ export default function Assistant({ currentPageName }) {
           jobs: jobs.length,
           openJobs: jobs.filter(j => j.status === "open").length,
           companies: companies.length,
-          applications: applications.length,
-          pendingApplications: applications.filter(a => a.status === "submitted").length,
+          pendingApplications: submissions.filter(s => s.status === "submitted").length,
           submissions: submissions.length,
           tasks: tasks.length,
           myTasks: me ? tasks.filter(t => t.assigned_to === me.email && t.status !== "completed").length : 0,

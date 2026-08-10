@@ -21,13 +21,12 @@ import {
   BrainCircuit,
   Building2,
   ListChecks,
-  ClipboardList,
   Plus
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import CandidateForm from "./CandidateForm";
-import { Candidate, Job, Application, Submission, Task, Company, Resume } from "@/entities/all";
+import { Candidate, Job, Submission, Task, Company, Resume } from "@/entities/all";
 import { InvokeLLM } from "@/integrations/Core";
 import ScoreDisplay from "../ai/ScoreDisplay";
 import {
@@ -91,8 +90,14 @@ const getStatusColor = (status) => {
 export default function CandidateDetails({ candidate, onBack, onUpdate }) {
   const [showEditForm, setShowEditForm] = useState(false);
   const [jobs, setJobs] = useState([]);
+  // Sourced from `submissions` (migration 026) — kept as `applications` here
+  // since that's the label this panel and its scoring/apply UI already use
+  // throughout, matching the "Applications" nav item. The separate
+  // `applications` table this used to read is a disconnected, unwritten
+  // duplicate; the "Submissions" panel that used to sit below this one read
+  // the exact same underlying data, so it's been folded into this one rather
+  // than kept as a second, now-100%-redundant table.
   const [applications, setApplications] = useState([]);
-  const [submissions, setSubmissions] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [resumes, setResumes] = useState([]);
   const [companies, setCompanies] = useState([]);
@@ -133,13 +138,11 @@ export default function CandidateDetails({ candidate, onBack, onUpdate }) {
       const [
         jobsData,
         applicationsData,
-        submissionsData,
         tasksData,
         resumesData,
         companiesData
       ] = await Promise.all([
         Job.list(),
-        Application.filter({ candidate_id: candidate.id }),
         Submission.filter({ candidate_id: candidate.id }),
         Task.filter({ related_entity: "candidate", related_id: candidate.id }),
         Resume.filter({ candidate_id: candidate.id }),
@@ -147,7 +150,6 @@ export default function CandidateDetails({ candidate, onBack, onUpdate }) {
       ]);
       setJobs(jobsData);
       setApplications(applicationsData);
-      setSubmissions(submissionsData);
       setTasks(tasksData);
       setResumes(resumesData);
       setCompanies(companiesData);
@@ -184,10 +186,12 @@ export default function CandidateDetails({ candidate, onBack, onUpdate }) {
       if (existingApp) {
         alert("Candidate has already applied to this job.");
       } else {
-        await Application.create({
+        const job = jobs.find(j => j.id === selectedJob);
+        await Submission.create({
           candidate_id: candidate.id,
           job_id: selectedJob,
-          status: 'sourced', // Default status for new application
+          company_id: job?.company_id || undefined,
+          status: 'submitted', // Entry-of-pipeline status in submissions' vocabulary
         });
         await loadAssociatedData(); // Reload data to include the new application
         setSelectedJob(""); // Reset selected job
@@ -237,7 +241,7 @@ export default function CandidateDetails({ candidate, onBack, onUpdate }) {
       });
 
       if (response && response.match_score !== undefined) {
-        await Application.update(application.id, {
+        await Submission.update(application.id, {
           match_score: response.match_score,
           score_details: response
         });
@@ -370,7 +374,6 @@ export default function CandidateDetails({ candidate, onBack, onUpdate }) {
       <RelatedQuickLinks
         items={[
           { id: "section-applications", label: "Applications", count: applications.length },
-          { id: "section-submissions", label: "Submissions", count: submissions.length },
           { id: "section-tasks", label: "Tasks", count: tasks.length },
           { id: "section-resumes", label: "Resumes", count: resumes.length },
         ]}
@@ -501,13 +504,6 @@ export default function CandidateDetails({ candidate, onBack, onUpdate }) {
                 </div>
                 <div className="p-3 rounded border">
                   <div className="flex items-center gap-2 text-sm mb-1">
-                    <ClipboardList className="w-4 h-4 text-slate-500" />
-                    Submissions
-                  </div>
-                  <div className="text-2xl font-bold">{submissions.length}</div>
-                </div>
-                <div className="p-3 rounded border">
-                  <div className="flex items-center gap-2 text-sm mb-1">
                     <ListChecks className="w-4 h-4 text-slate-500" />
                     Tasks
                   </div>
@@ -548,32 +544,6 @@ export default function CandidateDetails({ candidate, onBack, onUpdate }) {
                 </div>
               )}
 
-              {/* Recent Submissions (linked) */}
-              {submissions.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-slate-500">Recent Submissions:</p>
-                  {submissions.slice(0, 3).map(s => {
-                    const job = jobs.find(j => j.id === s.job_id);
-                    return (
-                      <div key={s.id} className="text-sm flex items-center justify-between">
-                        <div className="min-w-0">
-                          <Link
-                            to={createPageUrl("Submissions")}
-                            className="font-medium text-blue-600 hover:underline truncate"
-                            title="Open Submissions"
-                          >
-                            {job?.title || "Submission"} • {s.status?.replace("_"," ")}
-                          </Link>
-                          <div className="text-xs text-slate-500">
-                            Submitted {new Date(s.submitted_date || s.created_date).toLocaleDateString()}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
               {/* Open Tasks (linked) */}
               {tasks.length > 0 && (
                 <div className="space-y-3">
@@ -604,7 +574,6 @@ export default function CandidateDetails({ candidate, onBack, onUpdate }) {
             candidate={candidate}
             applications={applications}
             jobs={jobs}
-            submissions={submissions}
             tasks={tasks}
             resumes={resumes}
           />
@@ -714,41 +683,6 @@ export default function CandidateDetails({ candidate, onBack, onUpdate }) {
                 }) : (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center h-24 text-slate-500">No applications yet.</TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div id="section-submissions" className="mt-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Submissions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Job</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Submitted</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {submissions.length > 0 ? submissions.map(s => {
-                  const job = jobs.find(j => j.id === s.job_id);
-                  return (
-                    <TableRow key={s.id}>
-                      <TableCell>{job?.title || "—"}</TableCell>
-                      <TableCell><Badge variant="outline">{s.status}</Badge></TableCell>
-                      <TableCell>{new Date(s.submitted_date || s.created_date).toLocaleDateString()}</TableCell>
-                    </TableRow>
-                  );
-                }) : (
-                  <TableRow>
-                    <TableCell colSpan={3} className="text-center h-24 text-slate-500">No submissions.</TableCell>
                   </TableRow>
                 )}
               </TableBody>

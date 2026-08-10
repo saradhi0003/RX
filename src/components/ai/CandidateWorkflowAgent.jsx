@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Application } from "@/entities/Application";
 import { Candidate } from "@/entities/Candidate";
 import { Submission } from "@/entities/Submission";
 import { Task } from "@/entities/Task";
@@ -43,12 +42,14 @@ export default function CandidateWorkflowAgent() {
   const analyzeWorkflows = async () => {
     setAnalyzing(true);
     try {
-      // Load candidates and applications
-      const [candidates, applications, tasks, submissions] = await Promise.all([
+      // Load candidates and applications (the pipeline lives in `submissions`
+      // as of migration 026 — `applications` was a second, disconnected,
+      // unwritten table, and this fetch never actually read the separate
+      // `submissions` result it used to also pull down)
+      const [candidates, applications, tasks] = await Promise.all([
         Candidate.list("-updated_date", 500),
-        Application.list("-updated_date", 500),
-        Task.list("-created_date", 500),
-        Submission.list("-updated_date", 500)
+        Submission.list("-updated_date", 500),
+        Task.list("-created_date", 500)
       ]);
 
       const candidateContext = candidates.slice(0, 100).map(c => ({

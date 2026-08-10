@@ -15,7 +15,6 @@ import CandidateForm from "@/components/candidates/CandidateForm";
 import CandidateScreening from "@/components/ai/CandidateScreening";
 import CandidateOutreach from "@/components/ai/CandidateOutreach";
 import InterviewAssistant from "@/components/ai/InterviewAssistant";
-import { Application } from "@/entities/Application";
 import { Candidate } from "@/entities/Candidate";
 import { Job } from "@/entities/Job";
 import { Resume } from "@/entities/Resume";
@@ -31,8 +30,10 @@ export default function CandidateDetails() {
   const [record, setRecord] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
+  // Sourced from `submissions` (migration 026) — `applications` was a second,
+  // disconnected table nothing else ever wrote to; the separate "Submissions"
+  // tile that used to sit beside this one read the identical underlying data.
   const [apps, setApps] = React.useState([]);
-  const [subs, setSubs] = React.useState([]);
   const [tasks, setTasks] = React.useState([]);
   const [resumes, setResumes] = React.useState([]);
   const [jobs, setJobs] = React.useState([]);
@@ -66,16 +67,14 @@ export default function CandidateDetails() {
 
       setRecord(rec);
       
-      const [a, s, t, r, j] = await Promise.all([
-        Application.filter({ candidate_id: id }, "-created_date"),
+      const [a, t, r, j] = await Promise.all([
         Submission.filter({ candidate_id: id }, "-created_date"),
         Task.filter({ related_entity: "candidate", related_id: id }, "-created_date"),
         Resume.filter({ candidate_id: id }, "-created_date"),
         Job.list("-created_date", 50)
       ]);
-      
+
       setApps(a || []);
-      setSubs(s || []);
       setTasks(t || []);
       setResumes(r || []);
       setJobs(j || []);
@@ -146,17 +145,6 @@ export default function CandidateDetails() {
         ],
         rows: apps.map(x => ({ job_id: x.job_id, status: x.status, created_date: new Date(x.created_date).toLocaleString() })),
       });
-    } else if (key === "submissions") {
-      setModal({
-        open: true,
-        title: "Submissions",
-        columns: [
-          { key: "job_id", label: "Job Id" },
-          { key: "status", label: "Status" },
-          { key: "submitted_date", label: "Submitted" },
-        ],
-        rows: subs.map(x => ({ job_id: x.job_id, status: x.status, submitted_date: x.submitted_date ? new Date(x.submitted_date).toLocaleString() : "—" })),
-      });
     } else if (key === "tasks") {
       setModal({
         open: true,
@@ -191,8 +179,7 @@ export default function CandidateDetails() {
     experience_years: record.experience_years,
     current_title: record.current_title,
     work_authorization: record.work_authorization,
-    has_applications: apps.length > 0,
-    has_submissions: subs.length > 0
+    has_applications: apps.length > 0
   } : null;
 
   if (loading) {
@@ -262,7 +249,6 @@ export default function CandidateDetails() {
 
   const related = [
     { id: "applications", key: "applications", label: "Applications", count: apps.length },
-    { id: "submissions", key: "submissions", label: "Submissions", count: subs.length },
     { id: "tasks", key: "tasks", label: "Tasks", count: tasks.length },
     { id: "resumes", key: "resumes", label: "Resumes", count: resumes.length },
   ];
