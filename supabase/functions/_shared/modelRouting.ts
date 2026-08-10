@@ -44,3 +44,50 @@ export function detectProvider(model: string): Provider {
   ) return "openai-compatible";
   return "openai";
 }
+
+// ── Fallback chain ──────────────────────────────────────────────────────────
+// Cost-ordered: DeepSeek cheapest → Alibaba cheapest → Anthropic cheapest.
+// The local fleet is never a *fallback* — it is only ever the explicit primary
+// (a `local/` id). If local inference is wanted it must be asked for; silently
+// rerouting a paid request to a laptop behind a tunnel would trade a working
+// paid call for an maybe-down free one.
+export const FALLBACK_MODELS = [
+  "deepseek-chat",
+  "qwen-turbo",
+  "claude-3-5-haiku-20241022",
+] as const;
+
+/** Which API keys the runtime actually has — gates fallback candidates. */
+export interface ProviderAvailability {
+  deepseek: boolean;
+  dashscope: boolean;
+  anthropic: boolean;
+}
+
+/**
+ * Whether `model`'s provider has credentials. Models without a key check here
+ * (OpenAI family, the local fleet) are assumed configured — their own call
+ * path produces the precise error if not.
+ */
+export function providerConfigured(model: string, avail: ProviderAvailability): boolean {
+  const lower = String(model || "").toLowerCase();
+  if (lower.startsWith("deepseek")) return avail.deepseek;
+  if (lower.startsWith("qwen") || lower.startsWith("alibaba")) return avail.dashscope;
+  if (lower.startsWith("claude")) return avail.anthropic;
+  return true;
+}
+
+/**
+ * Ordered list of models to try after `primaryModel` fails. Skips the primary
+ * itself and any candidate whose provider has no credentials — trying those
+ * would just burn the timeout budget on a guaranteed "key not configured".
+ */
+export function fallbackCandidates(
+  primaryModel: string,
+  avail: ProviderAvailability,
+): string[] {
+  const primary = String(primaryModel || "").toLowerCase();
+  return FALLBACK_MODELS.filter(
+    (m) => m !== primary && providerConfigured(m, avail),
+  );
+}

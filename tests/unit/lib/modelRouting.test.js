@@ -3,6 +3,9 @@ import {
   detectProvider,
   isLocalModel,
   stripLocalPrefix,
+  fallbackCandidates,
+  providerConfigured,
+  FALLBACK_MODELS,
 } from "../../../supabase/functions/_shared/modelRouting.ts";
 
 describe("modelRouting — local fleet prefix", () => {
@@ -59,5 +62,62 @@ describe("modelRouting — local fleet prefix", () => {
     expect(isLocalModel("local-model-v2")).toBe(false);
     // The prefix is anchored, so this is a cloud id that merely mentions it.
     expect(isLocalModel("openai/local/thing")).toBe(false);
+  });
+});
+
+describe("modelRouting — fallback chain", () => {
+  const allKeys = { deepseek: true, dashscope: true, anthropic: true };
+
+  it("is cost-ordered: DeepSeek → Qwen → Anthropic", () => {
+    expect(FALLBACK_MODELS).toEqual([
+      "deepseek-chat",
+      "qwen-turbo",
+      "claude-3-5-haiku-20241022",
+    ]);
+  });
+
+  it("offers the full chain behind a local primary", () => {
+    expect(fallbackCandidates("local/google/gemma-4-12b-qat", allKeys)).toEqual([
+      "deepseek-chat",
+      "qwen-turbo",
+      "claude-3-5-haiku-20241022",
+    ]);
+  });
+
+  it("skips the primary itself", () => {
+    expect(fallbackCandidates("deepseek-chat", allKeys)).toEqual([
+      "qwen-turbo",
+      "claude-3-5-haiku-20241022",
+    ]);
+  });
+
+  it("skips candidates whose provider has no credentials", () => {
+    // Only Anthropic configured — the two OpenAI-compatible candidates drop out.
+    expect(
+      fallbackCandidates("local/google/gemma-4-12b-qat", {
+        deepseek: false,
+        dashscope: false,
+        anthropic: true,
+      }),
+    ).toEqual(["claude-3-5-haiku-20241022"]);
+  });
+
+  it("returns an empty chain when no fallback provider is configured", () => {
+    expect(
+      fallbackCandidates("local/google/gemma-4-12b-qat", {
+        deepseek: false,
+        dashscope: false,
+        anthropic: false,
+      }),
+    ).toEqual([]);
+  });
+
+  it("matches providerConfigured to the key each family needs", () => {
+    expect(providerConfigured("deepseek-chat", { deepseek: false })).toBe(false);
+    expect(providerConfigured("qwen-turbo", { dashscope: false })).toBe(false);
+    expect(providerConfigured("claude-3-5-haiku-20241022", { anthropic: false })).toBe(false);
+    // Unchecked families are assumed configured — their call path reports the precise error.
+    expect(providerConfigured("gpt-4o-mini", {})).toBe(true);
+    expect(providerConfigured("local/google/gemma-4-12b-qat", {})).toBe(true);
   });
 });

@@ -65,6 +65,7 @@ const result = await callLLM(system, user);
 ```
 
 Provider selection is automatic by model name prefix:
+- `local/*` or `lmstudio/*` → LM Studio fleet via the tunnel (prefix stripped before sending; zero-cost, never matched by the family heuristics below)
 - `claude-*` → Anthropic
 - `deepseek-*` → DeepSeek (OpenAI-compatible)
 - `qwen-*` / `alibaba-*` → Alibaba DashScope (OpenAI-compatible)
@@ -72,17 +73,22 @@ Provider selection is automatic by model name prefix:
 - `llama*`, `mistral*`, `phi*` → Ollama
 - anything else → OpenAI
 
-Default fallback model is `deepseek-chat`. Cheapest options per provider:
+**Local-first with automatic fallback.** Settings default to `local/google/gemma-4-12b-qat` (free). If the primary call fails — tunnel down, key expired, provider 5xx — `_shared/llm.ts` walks the cost-ordered chain from `_shared/modelRouting.ts` (`fallbackCandidates`): `deepseek-chat` → `qwen-turbo` → `claude-3-5-haiku-20241022`, skipping providers with no key. The model that actually served is logged in `llm_usage`.
+
+Cheapest options per provider:
+- Local: any `local/<lmstudio-model-id>` — $0
 - DeepSeek: `deepseek-chat`
 - Alibaba: `qwen-turbo`
 - Anthropic: `claude-3-5-haiku-20241022`
+
+Local tunnel setup: run `./scripts/tunnel-lmstudio.sh` (needs LM Studio server on :1234 + cloudflared), then set `OPENAI_COMPATIBLE_BASE_URL` (tunnel URL) and `OPENAI_COMPATIBLE_API_KEY` (gateway secret from `.lmstudio-tunnel.local`) as Edge Function secrets. `healthCheck` probes the tunnel as `checks.local_fleet`.
 
 The generic OpenAI-compatible endpoint reads `openai_compatible_base_url` / `openai_compatible_model` from `ai_recruiter_settings` first, then falls back to `OPENAI_COMPATIBLE_BASE_URL` / `OPENAI_COMPATIBLE_DEFAULT_MODEL` env secrets.
 
 ## Secrets
 
 Server secrets are set in Supabase Edge Function secrets, not in `VITE_*` env vars.  
-Common secrets: `LLM_PROVIDER`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `POSTMARK_SERVER_TOKEN`, `CHANNEL_BOT_SECRET`, `CRON_SECRET`, `INTERNAL_FUNCTION_TOKEN`.
+Common secrets: `LLM_PROVIDER`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, `DASHSCOPE_API_KEY`, `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_API_KEY`, `POSTMARK_SERVER_TOKEN`, `CHANNEL_BOT_SECRET`, `CRON_SECRET`, `INTERNAL_FUNCTION_TOKEN`.
 
 ## Token-saving lookups
 

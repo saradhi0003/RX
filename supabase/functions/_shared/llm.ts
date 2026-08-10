@@ -19,7 +19,12 @@ import {
   readOpenAICompatibleApiKey,
 } from "./env.ts";
 import { estimateCost } from "./pricing.ts";
-import { detectProvider, isLocalModel, stripLocalPrefix } from "./modelRouting.ts";
+import {
+  detectProvider,
+  isLocalModel,
+  stripLocalPrefix,
+  fallbackCandidates,
+} from "./modelRouting.ts";
 
 export interface LLMMessage {
   role: "system" | "user" | "assistant";
@@ -79,7 +84,41 @@ export async function invokeLLM(
     );
   }
   const resolvedModel = model || (await getSetting("llm_default_model")) || "deepseek-chat";
-  const result = await callProvider(systemPrompt, userPrompt, resolvedModel);
+
+  // Enterprise-grade resilience: if the primary model fails (tunnel down, key
+  // expired, provider 5xx), walk the cost-ordered fallback chain
+  // (DeepSeek → Qwen → Anthropic), skipping providers with no credentials.
+  // The first success wins; the usage log below records which model actually
+  // served, so fallback spend is still visible against the daily ceiling.
+  const candidates = [
+    resolvedModel,
+    ...fallbackCandidates(resolvedModel, {
+      deepseek: hasDeepSeek(),
+      dashscope: hasDashScope(),
+      anthropic: hasAnthropic(),
+    }),
+  ];
+  let result: LLMResult | null = null;
+  let lastError: unknown = null;
+  for (const candidate of candidates) {
+    try {
+      result = await callProvider(systemPrompt, userPrompt, candidate);
+      if (candidate !== resolvedModel) {
+        console.warn(
+          `[llm] primary "${resolvedModel}" failed — served by fallback "${candidate}" (task=${opts.task || "unknown"})`,
+        );
+      }
+      break;
+    } catch (err) {
+      lastError = err;
+      console.warn(
+        `[llm] model "${candidate}" failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  if (!result) {
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
 
   // Cost logging is best-effort; it must never break the caller.
   try {

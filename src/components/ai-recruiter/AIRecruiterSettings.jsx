@@ -4,8 +4,30 @@ import { refreshAIRecruiterSettings } from "@/lib/aiRecruiterSettings";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles, Laptop } from "lucide-react";
+
+const LOCAL_DEFAULT_MODEL = "local/google/gemma-4-12b-qat";
+
+// Suggestions for the model inputs — free text is allowed, since the local
+// fleet changes as models are loaded/unloaded in LM Studio.
+const MODEL_SUGGESTIONS = [
+  "local/google/gemma-4-12b-qat",
+  "local/qwen/qwen2.5-coder-14b",
+  "local/openai/gpt-oss-20b",
+  "local/llama3.1-8b",
+  "openai-compatible",
+  "deepseek-chat",
+  "deepseek-reasoner",
+  "qwen-turbo",
+  "qwen-plus",
+  "qwen-max",
+  "claude-3-5-haiku-20241022",
+  "claude-haiku-4-5-20251001",
+  "claude-sonnet-4-6",
+  "gpt-4o-mini",
+  "gpt-4o",
+  "llama3.2",
+];
 
 export default function AIRecruiterSettings() {
   const [settings, setSettings] = useState(/** @type {any} */ (null));
@@ -23,11 +45,11 @@ export default function AIRecruiterSettings() {
         setSettings(rows[0]);
       } else {
         const created = await AIRecruiterSettingsEntity.create({
-          default_model: "deepseek-chat",
-          matching_model: "deepseek-chat",
-          drafting_model: "deepseek-chat",
-          parsing_model: "gpt-4o-mini",
-          insights_model: "deepseek-chat",
+          default_model: LOCAL_DEFAULT_MODEL,
+          matching_model: LOCAL_DEFAULT_MODEL,
+          drafting_model: LOCAL_DEFAULT_MODEL,
+          parsing_model: LOCAL_DEFAULT_MODEL,
+          insights_model: LOCAL_DEFAULT_MODEL,
           openai_compatible_base_url: "",
           openai_compatible_model: "",
           max_candidates: 50,
@@ -61,6 +83,17 @@ export default function AIRecruiterSettings() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const applyLocalDefaults = () => {
+    setSettings((prev) => ({
+      ...prev,
+      default_model: LOCAL_DEFAULT_MODEL,
+      matching_model: LOCAL_DEFAULT_MODEL,
+      drafting_model: LOCAL_DEFAULT_MODEL,
+      insights_model: LOCAL_DEFAULT_MODEL,
+      parsing_model: LOCAL_DEFAULT_MODEL,
+    }));
   };
 
   const applyCheapestDefaults = () => {
@@ -97,11 +130,25 @@ export default function AIRecruiterSettings() {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">LLM Models</h3>
-            <Button type="button" variant="outline" size="sm" onClick={applyCheapestDefaults}>
-              <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-              Use cheapest defaults
-            </Button>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={applyLocalDefaults}>
+                <Laptop className="w-3.5 h-3.5 mr-1.5" />
+                Use local (free)
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={applyCheapestDefaults}>
+                <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+                Use cheapest cloud
+              </Button>
+            </div>
           </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            Free text — any model id works. Prefix with <code>local/</code> to route through your
+            LM Studio tunnel (e.g. <code>local/google/gemma-4-12b-qat</code>). If a call fails, the
+            server automatically falls back: DeepSeek → Qwen → Claude Haiku.
+          </p>
+          <datalist id="llm-model-suggestions">
+            {MODEL_SUGGESTIONS.map((m) => <option key={m} value={m} />)}
+          </datalist>
           <div className="space-y-3">
             {[
               { label: "Default Model",  key: "default_model" },
@@ -113,25 +160,12 @@ export default function AIRecruiterSettings() {
               <div key={key}>
                 <label className="block text-sm font-medium mb-1">{label}</label>
                 {hint && <p className="text-xs text-muted-foreground mb-1">{hint}</p>}
-                <Select value={settings[key]} onValueChange={(v) => set(key, v)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gpt-4o-mini">gpt-4o-mini</SelectItem>
-                    <SelectItem value="gpt-4o">gpt-4o</SelectItem>
-                    <SelectItem value="claude-haiku-4-5-20251001">claude-haiku</SelectItem>
-                    <SelectItem value="claude-3-5-haiku-20241022">claude-3-5-haiku (Anthropic cheapest)</SelectItem>
-                    <SelectItem value="claude-sonnet-4-6">claude-sonnet</SelectItem>
-                    <SelectItem value="deepseek-chat">deepseek-chat (cheapest)</SelectItem>
-                    <SelectItem value="deepseek-reasoner">deepseek-reasoner</SelectItem>
-                    <SelectItem value="qwen-max">qwen-max (Alibaba)</SelectItem>
-                    <SelectItem value="qwen-plus">qwen-plus (Alibaba)</SelectItem>
-                    <SelectItem value="qwen-turbo">qwen-turbo (Alibaba cheapest)</SelectItem>
-                    <SelectItem value="llama3.2">llama3.2 (local)</SelectItem>
-                    <SelectItem value="openai-compatible">openai-compatible (local/tunnel)</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input
+                  list="llm-model-suggestions"
+                  placeholder={LOCAL_DEFAULT_MODEL}
+                  value={settings[key] || ""}
+                  onChange={(e) => set(key, e.target.value)}
+                />
               </div>
             ))}
           </div>
@@ -141,8 +175,9 @@ export default function AIRecruiterSettings() {
         <section className="border-t pt-5">
           <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">OpenAI-Compatible Endpoint</h3>
           <p className="text-sm text-muted-foreground mb-3">
-            For local Qwen, vLLM, llama.cpp server, or any hosted /v1-compatible API.
-            API keys are set as Supabase Edge Function secrets (OPENAI_COMPATIBLE_API_KEY).
+            For the local LM Studio fleet, run <code>./scripts/tunnel-lmstudio.sh</code> and paste the
+            tunnel URL here (also set OPENAI_COMPATIBLE_BASE_URL + OPENAI_COMPATIBLE_API_KEY as Supabase
+            Edge Function secrets). Works for vLLM, llama.cpp server, or any hosted /v1-compatible API too.
           </p>
           <div className="space-y-3">
             <div>

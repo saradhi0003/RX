@@ -72,9 +72,10 @@ export async function getModelForTask(task) {
   const model = settings[keyMap[bucket]] || settings.default_model;
   if (model) return model;
 
-  // Hard fallbacks if the settings row is completely empty.
-  if (bucket === "parsing") return "gpt-4o-mini";
-  return "deepseek-chat";
+  // Hard fallbacks if the settings row is completely empty. Local-first: the
+  // server-side fallback chain in _shared/llm.ts degrades to DeepSeek → Qwen →
+  // Anthropic automatically when the tunnel is unreachable.
+  return "local/google/gemma-4-12b-qat";
 }
 
 /**

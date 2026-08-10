@@ -76,11 +76,11 @@ describe("aiRecruiterSettings", () => {
     expect(await getModelForTask("weird_custom_thing")).toBe("deepseek-chat");
   });
 
-  it("uses hardcoded defaults when settings row is empty", async () => {
+  it("uses local-first hardcoded defaults when settings row is empty", async () => {
     mockList.mockResolvedValue([{}]);
     const { getModelForTask } = await loadModule();
-    expect(await getModelForTask("parsing")).toBe("gpt-4o-mini");
-    expect(await getModelForTask("chat")).toBe("deepseek-chat");
+    expect(await getModelForTask("parsing")).toBe("local/google/gemma-4-12b-qat");
+    expect(await getModelForTask("chat")).toBe("local/google/gemma-4-12b-qat");
   });
 
   it("returns the runtime OpenAI-compatible config", async () => {
