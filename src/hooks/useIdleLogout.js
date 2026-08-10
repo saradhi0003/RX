@@ -65,6 +65,27 @@ function clearStamp() {
 }
 
 /**
+ * Call on a genuine new sign-in (Supabase's `SIGNED_IN` auth event) — never
+ * on a page reload of an already-live session.
+ *
+ * The stamp is a bare, global localStorage key with no session identity
+ * attached, so without this the hook cannot tell "reloading mid-session" from
+ * "a brand new login on a browser that has a stale stamp from a *previous*,
+ * already-expired session" — both look identical to the arm-on-mount check
+ * below. That ambiguity signed out real users the instant they logged in: if
+ * a prior session idled out (or the tab was simply closed for 20+ minutes)
+ * the stamp stayed on disk, and the very next successful sign-in read it,
+ * saw it was "expired", and immediately terminated the session it belonged
+ * to before the user did anything. A fresh SIGNED_IN event is the one signal
+ * that unambiguously means "this session has no history yet" — clearing the
+ * stamp here lets the hook's own "opening the app is activity" write below
+ * start the clock cleanly instead of inheriting a stranger's idle time.
+ */
+export function resetIdleClock() {
+  clearStamp();
+}
+
+/**
  * @param {boolean} enabled - true while a session is live (drives arm/disarm).
  * @param {Function} [onTimeout] - optional side effect to run after the sign-out.
  */

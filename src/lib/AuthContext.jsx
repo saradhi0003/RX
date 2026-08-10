@@ -1,7 +1,7 @@
 import { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { mfaStatus } from "@/lib/mfa";
-import { useIdleLogout } from "@/hooks/useIdleLogout";
+import { useIdleLogout, resetIdleClock } from "@/hooks/useIdleLogout";
 
 const AuthContext = createContext();
 
@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }) => {
       // the admin-approval gate applies to verified signups too.
       let effectiveProfile = profile;
       if (!profile && error?.code === "PGRST116") {
-        const { data: created } = await supabase
+        const { data: created, error: insertError } = await supabase
           .from("user_profiles")
           .insert({
             id: authUser.id,
@@ -51,6 +51,21 @@ export const AuthProvider = ({ children }) => {
           })
           .select()
           .single();
+        if (insertError) {
+          // The fallback below used to run unconditionally on any failure —
+          // a NOT NULL/RLS/trigger error on the insert (migration 029 fixed
+          // exactly this: a trigger forcing workspace_id to NULL against a
+          // NOT NULL column, silently failing every self-bootstrap since
+          // migration 024) left `created` undefined, and the in-memory
+          // fallback object made React believe the user was "invited" while
+          // the database had no row at all — every other reader of
+          // user_profiles (appCache, entities/User, Role) saw a genuinely
+          // empty result instead of a real profile, with no consistent
+          // account of what that should mean. Surfacing it is what makes a
+          // future regression in this insert visible instead of silently
+          // reintroducing the same bug.
+          console.error("user_profiles bootstrap insert failed — the account has no real profile row:", insertError.message);
+        }
         effectiveProfile = created || { status: "invited", role: "recruiter" };
       }
 
@@ -89,7 +104,15 @@ export const AuthProvider = ({ children }) => {
       else setIsLoadingAuth(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // A genuine new sign-in, not a reload restoring an already-live session
+      // (that fires INITIAL_SESSION/TOKEN_REFRESHED instead). Without this,
+      // useIdleLogout's persisted activity stamp — a bare localStorage key
+      // with no session identity — can belong to a *previous*, already-idled-
+      // out session on this browser, and this fresh login would read it, see
+      // "expired", and be signed straight back out before doing anything.
+      if (event === "SIGNED_IN") resetIdleClock();
+
       if (session?.user) {
         loadUserWithProfile(session.user);
       } else {

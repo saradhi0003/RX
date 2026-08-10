@@ -29,6 +29,26 @@ export async function getUserCached() {
         supabase.from("user_profiles").select("*").eq("id", authUser.id).single(),
         supabase.from("app_settings").select("value").eq("key", "roles_definitions").maybeSingle(),
       ]);
+
+      // PGRST116 ("0 rows") is the one error .single() throws that genuinely
+      // means "no profile yet" — everything else (a JWT that hasn't finished
+      // propagating right after sign-in, a network blip, RLS hiccup) is a
+      // fetch failure, not a verdict. Treating both the same used to build a
+      // `user` object with no `status` field at all (spreading `...null` from
+      // profileRes.data drops it silently) and then CACHE that broken object
+      // for the full 5-minute TTL — so a real, approved user who merely hit
+      // a timing race on first load got treated as unrecognized for 5
+      // minutes straight, on every subsequent read, not just once. Layout's
+      // isBlocked gate correctly fails closed on an unknown status, which
+      // means an unrelated fetch hiccup here was enough to force a
+      // just-logged-in, fully-approved user straight back out via
+      // AccessBlocker's auto-logout. Bail out without writing the cache so
+      // the next call retries instead of serving the poisoned result.
+      if (profileRes.error && profileRes.error.code !== "PGRST116") {
+        userCache.promise = null;
+        return { user: null, role: null };
+      }
+
       const profile = profileRes.data;
       const roleDefs = Array.isArray(rolesRes.data?.value) ? rolesRes.data.value : [];
       const roleName = profile?.role || "recruiter";

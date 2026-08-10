@@ -758,7 +758,15 @@ export default function Layout({ children, currentPageName }) {
   // Removed global entity monkey-patching—handle task automation in service mutations instead
 
   const isAdmin = (me?.role === "admin") || ((myRole?.name || "").toLowerCase() === "admin");
-  const isBlocked = !!me && ((me.is_locked === true) || (!isAdmin && me.status && me.status !== "active"));
+  // `me.status &&` used to guard this: if status was falsy (undefined — the
+  // shape `appCache.getUserCached()` produces for a signed-in user whose
+  // user_profiles row doesn't exist yet, since spreading `...null` drops the
+  // field entirely) the whole check short-circuited to false and an
+  // unapproved user reached the full app shell. auth_is_approved() (the RLS
+  // side of this same gate) already treats anything other than status='active'
+  // — including NULL — as unapproved; the UI must fail the same way; a proven
+  // "active" status is the only thing that should let a non-admin through.
+  const isBlocked = !!me && ((me.is_locked === true) || (!isAdmin && me.status !== "active"));
 
   React.useEffect(() => {
     const patch = async () => {
