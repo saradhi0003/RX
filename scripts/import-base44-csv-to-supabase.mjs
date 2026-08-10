@@ -139,7 +139,10 @@ function legacyNotes(row, baseNotes = "") {
 function candidateStatus(row) {
   if (String(row.archive).toLowerCase() === "true") return "inactive";
   const status = clean(row.status);
-  return ["active", "passive", "inactive", "placed", "blacklisted"].includes(status) ? status : "active";
+  // Full candidate vocabulary per migration 028 — without the staffing
+  // statuses an import silently flattened e.g. "our_bench" to "active".
+  return ["active", "passive", "inactive", "placed", "blacklisted",
+          "on_bench", "our_bench", "do_not_contact", "screened"].includes(status) ? status : "active";
 }
 
 function jobStatus(row) {

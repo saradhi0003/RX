@@ -142,18 +142,14 @@ Be thorough, honest, and constructive.`,
 
       // Save screening results.
       //
-      // Two fields used to ride along here and made this update fail outright,
-      // so nothing was ever saved — not even the score:
-      //   screening_date  — no such column on `candidates`
-      //   status:"screened" — `candidates_status_check` allows only
-      //                       active/passive/inactive/placed/blacklisted
-      // The screening itself is already recorded by score + details; the
-      // status change needs the candidate status vocabulary reconciled first
-      // (the UI offers screened/do_not_contact/our_bench/on_bench, none of
-      // which the constraint accepts) rather than being smuggled in here.
+      // `screening_date` is deliberately absent: there is no such column on
+      // `candidates`, and including it made this whole UPDATE fail — so the
+      // score and details were never saved either. (`status: "screened"` was
+      // the second half of that failure; migration 028 makes it valid.)
       await Candidate.update(candidate.id, {
         screening_score: response.fit_score,
-        screening_details: response
+        screening_details: response,
+        status: "screened"
       });
 
       setScore(response.fit_score);

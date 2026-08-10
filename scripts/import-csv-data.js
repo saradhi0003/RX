@@ -242,7 +242,11 @@ function transformCandidate(row) {
     linkedin_url: clean(row.linkedin_url),
     resume_url: clean(row.resume_url),
     source: pickEnum(row.source, ["manual","linkedin","referral","job_board","channel","email","imported"], "imported"),
-    status: pickEnum(row.status, ["active","passive","inactive","placed","blacklisted"], "active"),
+    // Full candidate vocabulary per migration 028 — the first five are the
+    // original 001_schema enum, the rest are the staffing statuses the app
+    // actually uses. Without them an import silently flattened e.g. an
+    // "our_bench" row to "active".
+    status: pickEnum(row.status, ["active","passive","inactive","placed","blacklisted","on_bench","our_bench","do_not_contact","screened"], "active"),
     bench_match_score: parseNum(row.bench_match_score),
     screening_score: parseNum(row.screening_score),
     screening_details: parseJSONField(row.screening_details),
