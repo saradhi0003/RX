@@ -58,13 +58,13 @@ const MetricCard = memo(({ label, value, sub, trend, trendUp, onClick, loading }
 const PipelineFunnelBar = memo(({ stages, loading }) => {
   const max = Math.max(...stages.map(s => s.count), 1);
   const COLORS = {
-    Applied: "#2563EB", Interview: "#16A34A",
+    Applied: "#2563EB", Screened: "#F97316", Interview: "#16A34A",
     Offer: "#7C3AED", Placed: "#0891B2",
   };
   return (
     <div className="space-y-3">
       {loading
-        ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-6 bg-slate-100 rounded animate-pulse" />)
+        ? Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-6 bg-slate-100 rounded animate-pulse" />)
         : stages.map(s => (
             <div key={s.label} className="flex items-center gap-3">
               <span className="w-[72px] text-[13px] text-[#475569] font-medium shrink-0">{s.label}</span>
@@ -334,30 +334,24 @@ export default function Dashboard() {
   // "Applied"/"Screened" used to read `candidates.status`, which only ever
   // holds "active"/"inactive" (a candidate-profile flag, not a job-pipeline
   // stage) — so "Applied" was really just active-candidate headcount, and
-  // "Screened" compared against a status ("screened") no code in this app has
-  // ever written. The real application-stage vocabulary lives on
-  // `applications.status`, confirmed against every Application.create/update
-  // call site: "applied" (Careers.jsx, candidate self-apply) and "sourced"
-  // (CandidateDetails.jsx, recruiter adds to a job) both mean "entered the
-  // pipeline" — counting the whole table covers both without having to name
-  // every non-terminal status. Interview/Offer already read `applications`
-  // correctly; left unchanged.
-  //
-  // "Screened" is still missing on purpose: nothing in this codebase ever
-  // sets a "screening"/"screened" status on an application, so there is no
-  // real event to count. Showing 0 here would be indistinguishable from a
-  // working stage that simply has no data — that's worse than one that's
-  // visibly absent, so the bar is left out until that stage is actually wired
-  // up somewhere (or the funnel is redefined to drop it).
+  // "Screened" compared against "screened", a value nothing writes. The real
+  // stage vocabulary lives on the pipeline row's own status, which as of
+  // migration 026 means `submissions.status`:
+  //   submitted → under_review → interviewing → offered → hired
+  //             ↘ rejected / withdrawn
+  // "Applied" counts every row because entering the pipeline at all is the
+  // top of the funnel, whichever door it came through (careers form, recruiter
+  // add-to-job, inbound email).
   const pipelineStages = useMemo(() => [
     { label: "Applied",   count: applications.length },
+    { label: "Screened",  count: applications.filter(a => a.status === "under_review").length },
     { label: "Interview", count: applications.filter(a => a.status === "interviewing").length },
     { label: "Offer",     count: applications.filter(a => a.status === "offered").length },
     { label: "Placed",    count: stats.thisMonthPlacements },
   ], [applications, stats.thisMonthPlacements]);
 
   const pipelineMax = useMemo(() => Math.max(...pipelineStages.map(s => s.count), 1), [pipelineStages]);
-  const PIPE_COLORS = useMemo(() => ({ Applied: "#2563EB", Interview: "#16A34A", Offer: "#7C3AED", Placed: "#0891B2" }), []);
+  const PIPE_COLORS = useMemo(() => ({ Applied: "#2563EB", Screened: "#F97316", Interview: "#16A34A", Offer: "#7C3AED", Placed: "#0891B2" }), []);
 
   const statusChartData = useMemo(() => Object.entries(
     candidates.reduce((a, c) => { a[c.status] = (a[c.status]||0)+1; return a; }, {})

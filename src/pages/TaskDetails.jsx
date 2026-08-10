@@ -6,7 +6,7 @@ import { Calendar, Link as LinkIcon, User as UserIcon, Briefcase, Building2 } fr
 import StatusPath from "@/components/common/StatusPath";
 import RelatedQuickLinks from "@/components/common/RelatedQuickLinks";
 import DataListModal from "@/components/common/DataListModal";
-import { Task, Candidate, Job, Company, Submission, Application } from "@/entities/all";
+import { Task, Candidate, Job, Company, Submission } from "@/entities/all";
 import { Button } from "@/components/ui/button";
 import { Save, Edit } from "lucide-react";
 import TaskForm from "@/components/tasks/TaskForm";

@@ -124,8 +124,12 @@ export default function AutomationRuleForm({ open, rule, templates, onClose, onS
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {/* "Application" removed — `submissions` is the one
+                      canonical pipeline table (migration 026), so a rule
+                      triggered on `applications` could never fire.
+                      executeAutomation still accepts the name, so rules
+                      saved before this keep working. */}
                   <SelectItem value="Submission">Submission</SelectItem>
-                  <SelectItem value="Application">Application</SelectItem>
                   <SelectItem value="Task">Task</SelectItem>
                 </SelectContent>
               </Select>

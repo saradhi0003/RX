@@ -7,7 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { X, Plus, Save, GripVertical, Trash2 } from "lucide-react";
 
-const ENTITIES = ["Candidate","Job","Company","Application","Submission","Task"];
+// "Application" is deliberately absent: migration 026 made `submissions` the
+// one canonical pipeline table and `applications` is permanently empty, so a
+// widget built against it would always render 0. WidgetRenderer still maps the
+// name, so dashboards saved before this keep rendering instead of crashing.
+const ENTITIES = ["Candidate","Job","Company","Submission","Task"];
 const WIDGET_TYPES = ["kpi","bar","pie","line","stacked"];
 
 const uid = () => Math.random().toString(36).slice(2,10);

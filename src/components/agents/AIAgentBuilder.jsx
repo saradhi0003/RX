@@ -14,7 +14,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { X, Plus, Trash2, Save, Brain } from "lucide-react";
 
-const ENTITIES = ["Candidate", "Job", "Company", "Application", "Submission", "Task"];
+// "Application" omitted — `submissions` is the one canonical pipeline table
+// (migration 026); an agent scoped to `applications` would never see a row.
+const ENTITIES = ["Candidate", "Job", "Company", "Submission", "Task"];
 const TRIGGER_TYPES = [
   { value: "entity_trigger", label: "Entity Event" },
   { value: "scheduled", label: "Scheduled" },

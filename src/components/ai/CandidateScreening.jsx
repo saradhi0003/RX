@@ -140,12 +140,20 @@ Be thorough, honest, and constructive.`,
         }
       });
 
-      // Save screening results
+      // Save screening results.
+      //
+      // Two fields used to ride along here and made this update fail outright,
+      // so nothing was ever saved — not even the score:
+      //   screening_date  — no such column on `candidates`
+      //   status:"screened" — `candidates_status_check` allows only
+      //                       active/passive/inactive/placed/blacklisted
+      // The screening itself is already recorded by score + details; the
+      // status change needs the candidate status vocabulary reconciled first
+      // (the UI offers screened/do_not_contact/our_bench/on_bench, none of
+      // which the constraint accepts) rather than being smuggled in here.
       await Candidate.update(candidate.id, {
         screening_score: response.fit_score,
-        screening_date: new Date().toISOString(),
-        screening_details: response,
-        status: "screened"
+        screening_details: response
       });
 
       setScore(response.fit_score);

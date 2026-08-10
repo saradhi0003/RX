@@ -25,7 +25,7 @@ import { InboundEmail } from "@/entities/InboundEmail";
 import { Job } from "@/entities/Job";
 import { Candidate } from "@/entities/Candidate";
 import { Company } from "@/entities/Company";
-import { Application } from "@/entities/Application";
+import { Submission } from "@/entities/Submission";
 import { InvokeLLM, UploadFile, ExtractDataFromUploadedFile, SendEmail } from "@/integrations/Core";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import PageHeader from "@/components/common/PageHeader";
@@ -574,10 +574,16 @@ Respond with:
 
       const matchScore = Math.min(100, Math.max(0, scoreResult.match_score || 0));
 
-      const application = await Application.create({
+      // The candidate→job pipeline lives in `submissions` (migration 026).
+      // Note the status: "sourced" was never a valid submissions status —
+      // `submissions_status_check` accepts only submitted/under_review/
+      // interviewing/offered/hired/rejected/withdrawn — so it has to map onto
+      // the real vocabulary rather than carry over verbatim.
+      const application = await Submission.create({
         candidate_id: candidate.id,
         job_id: job.id,
-        status: "sourced",
+        company_id: job.company_id || undefined,
+        status: "submitted",
         match_score: matchScore,
         score_details: scoreResult,
         notes: `Auto-created from email. Match score: ${matchScore}/100`

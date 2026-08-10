@@ -18,7 +18,7 @@ import {
   Loader2,
   RefreshCw
 } from "lucide-react";
-import { Application } from "@/entities/Application";
+import { Submission } from "@/entities/Submission";
 import { Candidate } from "@/entities/Candidate";
 import { Company } from "@/entities/Company";
 import { Job } from "@/entities/Job";
@@ -30,6 +30,7 @@ import EmailBlastModal from "@/components/jobs/EmailBlastModal";
 import RelatedQuickLinks from "@/components/common/RelatedQuickLinks";
 import RecommendedCandidates from "@/components/ai/RecommendedCandidates";
 import ContextualSuggestions from "@/components/playbooks/ContextualSuggestions";
+import { personName } from "@/lib/names";
 
 export default function JobDetails() {
   const navigate = useNavigate();
@@ -57,7 +58,10 @@ export default function JobDetails() {
       try {
         const [jobData, appsData] = await Promise.all([
           Job.get(jobId),
-          Application.filter({ job_id: jobId })
+          // `submissions` is the canonical pipeline table (migration 026);
+          // `applications` held 0 rows, so this card always said "No
+          // applications yet" no matter how many candidates were submitted.
+          Submission.filter({ job_id: jobId })
         ]);
 
         setJob(jobData);
@@ -428,7 +432,7 @@ Make questions specific to the role, not generic. Focus on skills, experience, a
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="font-medium">
-                              {candidate ? `${candidate.first_name} ${candidate.last_name}` : "Unknown"}
+                              {personName(candidate)}
                             </div>
                             <div className="text-xs text-slate-500">{app.status}</div>
                           </div>
