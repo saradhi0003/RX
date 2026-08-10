@@ -24,6 +24,7 @@ import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import WidgetRenderer from "@/components/dashboard/WidgetRenderer";
 import BuilderModal from "@/components/dashboard/BuilderModal";
 import DataListModal from "@/components/common/DataListModal";
+import TalentPipelineAnalytics from "@/components/ai/TalentPipelineAnalytics";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip
 } from "recharts";
@@ -651,6 +652,22 @@ export default function Dashboard() {
                    {widgets.map(w => <WidgetRenderer key={w.id} widget={w} refreshKey={refreshKey} />)}
                  </div>
               )
+            )}
+
+            {/* Full AI Insights */}
+            {!loading && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#9333EA]" />
+                  <h2 className="text-[15px] font-semibold text-[#1E293B]">AI Pipeline Analysis</h2>
+                </div>
+                <TalentPipelineAnalytics
+                  candidates={candidates}
+                  jobs={jobs}
+                  applications={applications}
+                  submissions={submissions}
+                />
+              </div>
             )}
           </>
         )}

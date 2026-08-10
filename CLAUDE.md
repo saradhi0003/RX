@@ -107,16 +107,37 @@ cd mobile && npm run build:web   # expo export — CI parity check
   hatch if a bad worker ever ships. `vercel.json` serves `sw.js` `must-revalidate`
   — keep it that way or a broken worker sticks. Guarded by
   `tests/unit/lib/pwa.test.js` (static, so it runs while Supabase is paused).
-- **Local models via LM Studio are browser-only, dev-only.** `VITE_LLM_PROVIDER=
+- **Local models via LM Studio are browser-direct by default.** `VITE_LLM_PROVIDER=
   lmstudio` makes the SPA call LM Studio directly ([src/lib/llmRouter.js](src/lib/llmRouter.js));
-  **Edge Functions cannot reach it** — they run in Supabase's cloud and `localhost`
-  is your laptop, so resume parsing, the aiRecruiter\* chain, inbound-email/Telegram
-  classification and the follow-up cron all stay on the cloud provider. Reaching
-  those would need a public tunnel. With **LM Link** a single endpoint covers every
-  linked device, so the router selects a *model* (which implies the device), never a
-  host. It ranks by parameter count parsed from the model id rather than hardcoded
-  family names — a family list is a guess about someone's disk, a size is stated in
-  the id.
+  Edge Functions cannot reach `localhost` from Supabase's cloud, so resume parsing,
+  the aiRecruiter\* chain, inbound-email/Telegram classification and the follow-up
+  cron stay on the cloud provider **unless you publish the fleet** (below).
+  With **LM Link** a single endpoint covers every linked device, so the router
+  selects a *model* (which implies the device), never a host. It ranks by parameter
+  count parsed from the model id rather than hardcoded family names — a family list
+  is a guess about someone's disk, a size is stated in the id.
+- **Reaching the fleet from Edge Functions (2026-08-09):**
+  `./scripts/tunnel-lmstudio.sh` starts
+  [scripts/lmstudio-gateway.mjs](scripts/lmstudio-gateway.mjs) (checks
+  `Authorization: Bearer <secret>`, allowlists the inference paths, binds
+  127.0.0.1) and points `cloudflared` at **the gateway, never at LM Studio** —
+  a bare `cloudflared tunnel --url localhost:1234` is world-readable, and
+  trycloudflare hostnames hit Certificate Transparency logs within seconds, so
+  the URL is not a secret. The secret lives in `.lmstudio-tunnel.local`
+  (untracked via the existing `*.local` rule) and becomes
+  `OPENAI_COMPATIBLE_API_KEY`. **Never expose it via a `VITE_*` var.**
+  `scripts/tunnel-qwen.sh` is a deprecated shim — the version it replaced
+  published the fleet with `OPENAI_COMPATIBLE_API_KEY=not-needed`.
+- **Prefix a model id with `local/` to route it to that tunnel** —
+  `local/llama3.2-3b`. The prefix is load-bearing, not cosmetic:
+  `detectProvider()` reads family names, so a locally-served
+  `qwen2.5-coder-14b` would be sent to Alibaba's DashScope, egressing candidate
+  PII and billing for it. It also keeps the run priced at $0 in `llm_usage`
+  (`pricing.ts` `local/`), so free inference can't consume the daily ceiling
+  that gates the paid providers. Logic is in
+  [_shared/modelRouting.ts](supabase/functions/_shared/modelRouting.ts) — split
+  out of `llm.ts` because that file's `npm:` imports are invisible to Vitest;
+  covered by `tests/unit/lib/modelRouting.test.js`.
 - **Lazy imports must use `lazyWithReload`** ([src/lib/lazyWithReload.js](src/lib/lazyWithReload.js)),
   not bare `React.lazy` — `pages.config.js` and `Layout.jsx` both do. Vite
   content-hashes each code-split chunk and the entry bundle hardcodes those

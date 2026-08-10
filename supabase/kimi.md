@@ -64,7 +64,20 @@ const { callLLM } = await import("../_shared/llm.ts");
 const result = await callLLM(system, user);
 ```
 
-Provider selection via `LLM_PROVIDER` env var (default `openai`). Fallback chain is handled internally.
+Provider selection is automatic by model name prefix:
+- `claude-*` → Anthropic
+- `deepseek-*` → DeepSeek (OpenAI-compatible)
+- `qwen-*` / `alibaba-*` → Alibaba DashScope (OpenAI-compatible)
+- `openai-compatible` → generic OpenAI-compatible endpoint
+- `llama*`, `mistral*`, `phi*` → Ollama
+- anything else → OpenAI
+
+Default fallback model is `deepseek-chat`. Cheapest options per provider:
+- DeepSeek: `deepseek-chat`
+- Alibaba: `qwen-turbo`
+- Anthropic: `claude-3-5-haiku-20241022`
+
+The generic OpenAI-compatible endpoint reads `openai_compatible_base_url` / `openai_compatible_model` from `ai_recruiter_settings` first, then falls back to `OPENAI_COMPATIBLE_BASE_URL` / `OPENAI_COMPATIBLE_DEFAULT_MODEL` env secrets.
 
 ## Secrets
 

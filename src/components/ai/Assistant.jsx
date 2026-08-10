@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,8 +29,10 @@ import { Candidate, Job, Company, Application, Submission, Task } from "@/entiti
 import { User } from "@/entities/User";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import ReactMarkdown from "react-markdown";
+import { createPageUrl } from "@/utils";
 
 export default function Assistant({ currentPageName }) {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
@@ -37,7 +40,7 @@ export default function Assistant({ currentPageName }) {
   const [contextLoaded, setContextLoaded] = useState(false);
   const [context, setContext] = useState(null);
   const [suggestedActions, setSuggestedActions] = useState([]);
-  const [executingAction, setExecutingAction] = useState(null);
+  const [pendingAction, setPendingAction] = useState(null);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -203,17 +206,26 @@ export default function Assistant({ currentPageName }) {
     setLoading(true);
 
     try {
-      // Determine if this is an action request or a query
-      const isActionRequest = checkIfActionRequest(userMessage);
+      // First, classify the user's intent.
+      const intent = await classifyIntent(userMessage, context);
 
-      if (isActionRequest) {
-        // Execute action with confirmation
-        const actionResult = await executeAIAction(userMessage, context);
-        setMessages([...newMessages, { 
-          role: "assistant", 
-          content: actionResult.message,
-          actions: actionResult.actions,
-          data: actionResult.data
+      if (intent.type === "action") {
+        // Stage a confirmation card; the user must approve before we write.
+        setMessages([...newMessages, {
+          role: "assistant",
+          content: intent.summary,
+          pendingAction: intent.action,
+          actions: [{
+            title: "Ready to execute",
+            description: "Review the details above and click Confirm to proceed.",
+            priority: "medium"
+          }]
+        }]);
+      } else if (intent.type === "navigate") {
+        navigate(intent.target);
+        setMessages([...newMessages, {
+          role: "assistant",
+          content: `Navigating to **${intent.label}**...`
         }]);
       } else {
         // Regular Q&A with enhanced context
@@ -234,17 +246,6 @@ export default function Assistant({ currentPageName }) {
                     entity: { type: "string" }
                   }
                 }
-              },
-              data_references: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    entity: { type: "string" },
-                    id: { type: "string" },
-                    label: { type: "string" }
-                  }
-                }
               }
             },
             required: ["message"]
@@ -254,15 +255,11 @@ export default function Assistant({ currentPageName }) {
         setMessages([...newMessages, {
           role: "assistant",
           content: response.message,
-          suggested_actions: response.suggested_actions,
-          data_references: response.data_references
+          suggested_actions: response.suggested_actions
         }]);
       }
     } catch (error) {
       console.error("Error:", error);
-      // Showing only "try rephrasing" hid every real cause — a missing key, a
-      // provider 4xx, a spend ceiling — behind advice that could not fix any of
-      // them. The proxy returns an actionable reason; surface it.
       const reason = error?.message ? String(error.message) : "";
       setMessages([...newMessages, {
         role: "assistant",
@@ -274,80 +271,133 @@ export default function Assistant({ currentPageName }) {
     setLoading(false);
   };
 
-  const checkIfActionRequest = (message) => {
-    const actionKeywords = [
-      "create", "add", "update", "change", "modify", "delete", "remove",
-      "find", "search", "show me", "list", "get me",
-      "send email", "email", "notify",
-      "assign", "schedule", "set",
-      "calculate", "analyze and create", "generate report"
-    ];
-    return actionKeywords.some(keyword => message.toLowerCase().includes(keyword));
-  };
+  const classifyIntent = async (message, ctx) => {
+    const schema = {
+      type: "object",
+      properties: {
+        intent: {
+          type: "string",
+          enum: ["query", "create_task", "create_candidate", "navigate", "not_supported"]
+        },
+        summary: { type: "string" },
+        task_title: { type: "string" },
+        task_description: { type: "string" },
+        task_priority: { type: "string", enum: ["low", "medium", "high", "urgent"] },
+        task_due_date: { type: "string" },
+        candidate_first_name: { type: "string" },
+        candidate_last_name: { type: "string" },
+        candidate_email: { type: "string" },
+        candidate_phone: { type: "string" },
+        candidate_current_title: { type: "string" },
+        candidate_skills: { type: "array", items: { type: "string" } },
+        navigate_target: { type: "string" },
+        navigate_label: { type: "string" }
+      },
+      required: ["intent", "summary"]
+    };
 
-  const executeAIAction = async (message, ctx) => {
-    try {
-      // Use AI to interpret the action and generate execution plan
-      const actionPlan = await InvokeLLMJson({
-        task: "analysis",
-        prompt: `You are an AI agent that can execute actions on a recruitment system.
+    const system = `You are an intent classifier for a recruiting assistant. Supported actions:
+- create_task: user wants a new task created
+- create_candidate: user wants to add a candidate from text they will paste or have pasted
+- navigate: user wants to go to a page (Candidates, Jobs, Tasks, Companies, Submissions, Dashboard)
+- query: anything else (analysis, search, questions)
+- not_supported: destructive operations (delete, update, send email) or unclear requests
 
-**User Request:** ${message}
+Today is ${new Date().toISOString().slice(0, 10)}. Infer reasonable defaults: task priority medium, due today if not specified.
+Return a concise summary explaining what you understood.`;
 
-**Available Context:**
-${JSON.stringify(ctx.stats, null, 2)}
+    const parsed = await InvokeLLMJson({
+      task: "classification",
+      prompt: `User request: "${message}"\n\nCurrent page: ${ctx?.page || "Dashboard"}`,
+      system,
+      response_json_schema: schema
+    });
 
-**Available Actions:**
-1. SEARCH - Search for candidates, jobs, companies (no write)
-2. ANALYZE - Analyze data and provide insights (no write)
-3. RECOMMEND - Recommend matches, candidates, etc (no write)
-4. SUMMARIZE - Summarize data (no write)
-
-**Your Task:**
-Interpret the user's request and provide an analysis or recommendation. 
-DO NOT suggest creating/updating/deleting data - just provide insights from existing data.
-
-Return a helpful response based on the available data.`,
-        response_json_schema: {
-          type: "object",
-          properties: {
-            action_type: { 
-              type: "string", 
-              enum: ["search", "analyze", "recommend", "summarize", "not_supported"]
-            },
-            message: { type: "string" },
-            insights: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  title: { type: "string" },
-                  description: { type: "string" },
-                  priority: { type: "string", enum: ["high", "medium", "low"] }
-                }
-              }
-            },
-            next_steps: {
-              type: "array",
-              items: { type: "string" }
-            }
-          },
-          required: ["action_type", "message"]
-        }
-      });
-
+    if (parsed.intent === "create_task") {
       return {
-        message: actionPlan.message,
-        actions: actionPlan.insights,
-        data: actionPlan.next_steps
-      };
-    } catch (error) {
-      return {
-        message: "I can help you analyze and find insights from your data. What specific information would you like to know?",
-        actions: [],
-        data: []
+        type: "action",
+        action: { kind: "create_task", data: parsed },
+        summary: parsed.summary || `Create task: **${parsed.task_title || "(no title)"}**`
       };
     }
+    if (parsed.intent === "create_candidate") {
+      return {
+        type: "action",
+        action: { kind: "create_candidate", data: parsed },
+        summary: parsed.summary || `Add candidate: **${parsed.candidate_first_name || ""} ${parsed.candidate_last_name || ""}**`.trim()
+      };
+    }
+    if (parsed.intent === "navigate") {
+      const target = resolveNavigation(parsed.navigate_target || message);
+      return { type: "navigate", target: target.url, label: target.label };
+    }
+    return { type: "query" };
+  };
+
+  const resolveNavigation = (text) => {
+    const lower = text.toLowerCase();
+    if (lower.includes("candidate")) return { url: createPageUrl("Candidates"), label: "Candidates" };
+    if (lower.includes("job")) return { url: createPageUrl("Jobs"), label: "Jobs" };
+    if (lower.includes("company") || lower.includes("connection")) return { url: createPageUrl("Companies"), label: "Connections" };
+    if (lower.includes("task")) return { url: createPageUrl("Tasks"), label: "Tasks" };
+    if (lower.includes("submission") || lower.includes("application")) return { url: createPageUrl("Submissions"), label: "Applications" };
+    return { url: createPageUrl("Dashboard"), label: "Dashboard" };
+  };
+
+  const confirmAction = async (message, action) => {
+    setLoading(true);
+    try {
+      if (action.kind === "create_task") {
+        const data = action.data;
+        const task = await Task.create({
+          title: data.task_title || "New task",
+          description: data.task_description || "",
+          priority: data.task_priority || "medium",
+          status: "pending",
+          due_date: data.task_due_date || new Date().toISOString().slice(0, 10),
+          assigned_to: context?.user?.email || ""
+        });
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: `✅ Created task **${task.title}**. [View Tasks](${createPageUrl("Tasks")})`
+        }]);
+        addNotification({ type: "success", title: "Task created", message: task.title });
+      } else if (action.kind === "create_candidate") {
+        const data = action.data;
+        if (!data.candidate_email) {
+          throw new Error("I need at least an email address to create a candidate.");
+        }
+        const candidate = await Candidate.create({
+          first_name: data.candidate_first_name || "",
+          last_name: data.candidate_last_name || "",
+          email: data.candidate_email,
+          phone: data.candidate_phone || "",
+          current_title: data.candidate_current_title || "",
+          skills: Array.isArray(data.candidate_skills) ? data.candidate_skills : []
+        });
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: `✅ Added candidate **${candidate.first_name || ""} ${candidate.last_name || ""}** (${candidate.email}). [View Candidates](${createPageUrl("Candidates")})`
+        }]);
+        addNotification({ type: "success", title: "Candidate added", message: candidate.email });
+      }
+    } catch (error) {
+      console.error("Action execution failed:", error);
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: `⚠️ Could not complete the action:\n\n\`\`\`\n${error.message}\n\`\`\``
+      }]);
+    }
+    setPendingAction(null);
+    setLoading(false);
+  };
+
+  const cancelAction = () => {
+    setPendingAction(null);
+    setMessages(prev => [...prev, {
+      role: "assistant",
+      content: "Action cancelled. What else can I help you with?"
+    }]);
   };
 
   const buildEnhancedPrompt = (userMessage, ctx, conversationHistory) => {
@@ -376,7 +426,7 @@ ${userMessage}
 **Your Capabilities:**
 - Provide detailed analysis and insights
 - Search and reference specific records
-- Suggest relevant actions (but cannot execute writes)
+- Suggest relevant actions
 - Give recommendations based on data
 - Answer questions about the recruitment pipeline
 
@@ -511,6 +561,30 @@ Respond to the user's question with helpful, data-driven insights.`;
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Pending action confirmation */}
+                  {message.pendingAction && (
+                    <div className="mt-3 flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => confirmAction(message, message.pendingAction)}
+                        disabled={loading}
+                        className="bg-green-600 hover:bg-green-700 text-white text-xs h-8"
+                      >
+                        <CheckCircle2 className="w-3 h-3 mr-1" />
+                        Confirm
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={cancelAction}
+                        disabled={loading}
+                        className="text-xs h-8"
+                      >
+                        Cancel
+                      </Button>
                     </div>
                   )}
 

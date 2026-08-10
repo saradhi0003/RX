@@ -34,6 +34,40 @@ export const hasOllama = () => Boolean(get("OLLAMA_BASE_URL"));
 export const getOllamaBaseUrl = () =>
   get("OLLAMA_BASE_URL") || "http://host.docker.internal:11434";
 
+/* ── OpenAI-compatible providers (DeepSeek, Alibaba/DashScope, local Qwen, etc.) ── */
+export const hasDeepSeek = () => Boolean(get("DEEPSEEK_API_KEY"));
+export const getDeepSeekKey = () => getRequiredEnv("DEEPSEEK_API_KEY");
+export const getDeepSeekBaseUrl = () =>
+  get("DEEPSEEK_BASE_URL") || "https://api.deepseek.com/v1";
+
+export const hasDashScope = () => Boolean(get("DASHSCOPE_API_KEY"));
+export const getDashScopeKey = () => getRequiredEnv("DASHSCOPE_API_KEY");
+export const getDashScopeBaseUrl = () =>
+  get("DASHSCOPE_BASE_URL") || "https://dashscope.aliyuncs.com/compatible-mode/v1";
+
+export const hasOpenAICompatible = () =>
+  Boolean(get("OPENAI_COMPATIBLE_API_KEY") && get("OPENAI_COMPATIBLE_BASE_URL"));
+export const getOpenAICompatibleEnv = () => ({
+  baseURL: getRequiredEnv("OPENAI_COMPATIBLE_BASE_URL"),
+  apiKey: getRequiredEnv("OPENAI_COMPATIBLE_API_KEY"),
+  defaultModel: get("OPENAI_COMPATIBLE_DEFAULT_MODEL") || "",
+});
+
+/**
+ * Soft reads of the same two vars, for the `local/…` fleet path in llm.ts.
+ * That path has to tell "no tunnel configured" apart from "tunnel configured
+ * but no secret" — the throwing getters above collapse both into one message,
+ * and the second case is the one that looks like an outage when it is really a
+ * missing `supabase secrets set`.
+ *
+ * These point at the LM Studio gateway published by
+ * `./scripts/tunnel-lmstudio.sh`; the "API key" is that gateway's shared
+ * secret, not a provider credential.
+ */
+export const readOpenAICompatibleBaseUrl = () => get("OPENAI_COMPATIBLE_BASE_URL");
+export const readOpenAICompatibleApiKey = () => get("OPENAI_COMPATIBLE_API_KEY");
+export const getOpenAICompatibleDefaultModel = () => get("OPENAI_COMPATIBLE_DEFAULT_MODEL");
+
 /* ── LiveKit (video calls) ── */
 export const hasLiveKit = () =>
   Boolean(get("LIVEKIT_URL") && get("LIVEKIT_API_KEY") && get("LIVEKIT_API_SECRET"));
@@ -65,6 +99,12 @@ export function envPresence(): Record<string, boolean> {
     OPENAI_API_KEY: hasOpenAI(),
     ANTHROPIC_API_KEY: hasAnthropic(),
     OLLAMA_BASE_URL: hasOllama(),
+    DEEPSEEK_API_KEY: hasDeepSeek(),
+    DEEPSEEK_BASE_URL: Boolean(get("DEEPSEEK_BASE_URL")),
+    DASHSCOPE_API_KEY: hasDashScope(),
+    DASHSCOPE_BASE_URL: Boolean(get("DASHSCOPE_BASE_URL")),
+    OPENAI_COMPATIBLE_API_KEY: Boolean(get("OPENAI_COMPATIBLE_API_KEY")),
+    OPENAI_COMPATIBLE_BASE_URL: Boolean(get("OPENAI_COMPATIBLE_BASE_URL")),
     LIVEKIT_URL: Boolean(get("LIVEKIT_URL")),
     LIVEKIT_API_KEY: Boolean(get("LIVEKIT_API_KEY")),
     LIVEKIT_API_SECRET: Boolean(get("LIVEKIT_API_SECRET")),

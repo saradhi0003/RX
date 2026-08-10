@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { AIRecruiterSettings as AIRecruiterSettingsEntity } from "@/entities/AIRecruiterSettings";
+import { refreshAIRecruiterSettings } from "@/lib/aiRecruiterSettings";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 
 export default function AIRecruiterSettings() {
   const [settings, setSettings] = useState(/** @type {any} */ (null));
@@ -22,10 +23,13 @@ export default function AIRecruiterSettings() {
         setSettings(rows[0]);
       } else {
         const created = await AIRecruiterSettingsEntity.create({
-          default_model: "gpt-4o-mini",
-          matching_model: "gpt-4o-mini",
-          drafting_model: "gpt-4o",
+          default_model: "deepseek-chat",
+          matching_model: "deepseek-chat",
+          drafting_model: "deepseek-chat",
           parsing_model: "gpt-4o-mini",
+          insights_model: "deepseek-chat",
+          openai_compatible_base_url: "",
+          openai_compatible_model: "",
           max_candidates: 50,
           minimum_match_score: 50,
           require_human_approval: true,
@@ -49,6 +53,7 @@ export default function AIRecruiterSettings() {
     setSaved(false);
     try {
       await AIRecruiterSettingsEntity.update(settings.id, settings);
+      await refreshAIRecruiterSettings();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -56,6 +61,17 @@ export default function AIRecruiterSettings() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const applyCheapestDefaults = () => {
+    setSettings((prev) => ({
+      ...prev,
+      default_model: "deepseek-chat",
+      matching_model: "deepseek-chat",
+      drafting_model: "deepseek-chat",
+      insights_model: "deepseek-chat",
+      parsing_model: "gpt-4o-mini",
+    }));
   };
 
   /** @param {string} key @param {any} val */
@@ -79,15 +95,24 @@ export default function AIRecruiterSettings() {
       <div className="space-y-6">
         {/* Models */}
         <section>
-          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">LLM Models</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">LLM Models</h3>
+            <Button type="button" variant="outline" size="sm" onClick={applyCheapestDefaults}>
+              <Sparkles className="w-3.5 h-3.5 mr-1.5" />
+              Use cheapest defaults
+            </Button>
+          </div>
           <div className="space-y-3">
             {[
+              { label: "Default Model",  key: "default_model" },
               { label: "Matching Model", key: "matching_model" },
               { label: "Drafting Model", key: "drafting_model" },
-              { label: "Parsing Model",  key: "parsing_model" },
-            ].map(({ label, key }) => (
+              { label: "Parsing Model",  key: "parsing_model", hint: "JSON extraction — keep on a strong model" },
+              { label: "Insights Model",   key: "insights_model" },
+            ].map(({ label, key, hint }) => (
               <div key={key}>
                 <label className="block text-sm font-medium mb-1">{label}</label>
+                {hint && <p className="text-xs text-muted-foreground mb-1">{hint}</p>}
                 <Select value={settings[key]} onValueChange={(v) => set(key, v)}>
                   <SelectTrigger>
                     <SelectValue />
@@ -96,12 +121,47 @@ export default function AIRecruiterSettings() {
                     <SelectItem value="gpt-4o-mini">gpt-4o-mini</SelectItem>
                     <SelectItem value="gpt-4o">gpt-4o</SelectItem>
                     <SelectItem value="claude-haiku-4-5-20251001">claude-haiku</SelectItem>
+                    <SelectItem value="claude-3-5-haiku-20241022">claude-3-5-haiku (Anthropic cheapest)</SelectItem>
                     <SelectItem value="claude-sonnet-4-6">claude-sonnet</SelectItem>
+                    <SelectItem value="deepseek-chat">deepseek-chat (cheapest)</SelectItem>
+                    <SelectItem value="deepseek-reasoner">deepseek-reasoner</SelectItem>
+                    <SelectItem value="qwen-max">qwen-max (Alibaba)</SelectItem>
+                    <SelectItem value="qwen-plus">qwen-plus (Alibaba)</SelectItem>
+                    <SelectItem value="qwen-turbo">qwen-turbo (Alibaba cheapest)</SelectItem>
                     <SelectItem value="llama3.2">llama3.2 (local)</SelectItem>
+                    <SelectItem value="openai-compatible">openai-compatible (local/tunnel)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             ))}
+          </div>
+        </section>
+
+        {/* OpenAI-Compatible Endpoint (local Qwen / vLLM / tunnel / hosted proxy) */}
+        <section className="border-t pt-5">
+          <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">OpenAI-Compatible Endpoint</h3>
+          <p className="text-sm text-muted-foreground mb-3">
+            For local Qwen, vLLM, llama.cpp server, or any hosted /v1-compatible API.
+            API keys are set as Supabase Edge Function secrets (OPENAI_COMPATIBLE_API_KEY).
+          </p>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Base URL</label>
+              <Input
+                type="url"
+                placeholder="https://your-tunnel.example.com/v1"
+                value={settings.openai_compatible_base_url || ""}
+                onChange={(e) => set("openai_compatible_base_url", e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Model ID</label>
+              <Input
+                placeholder="qwen2.5-14b-instruct"
+                value={settings.openai_compatible_model || ""}
+                onChange={(e) => set("openai_compatible_model", e.target.value)}
+              />
+            </div>
           </div>
         </section>
 

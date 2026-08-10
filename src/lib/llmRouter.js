@@ -59,19 +59,19 @@ const TIERS = {
 export const ROUTES = {
   // Strict-JSON extraction — the failure mode is malformed output, not dull
   // prose, so bias to the largest thing available.
-  parsing: { tier: "heavy", prefer: ["gpt-oss", "qwen", "gemma"] },
-  scoring: { tier: "heavy", prefer: ["gpt-oss", "qwen", "gemma"] },
+  parsing: { tier: "heavy", prefer: ["gpt-oss", "qwen", "deepseek", "gemma"] },
+  scoring: { tier: "heavy", prefer: ["gpt-oss", "qwen", "deepseek", "gemma"] },
 
   // Long, reasoning-heavy work.
-  matching: { tier: "heavy", prefer: ["gpt-oss", "qwen", "gemma"] },
-  analysis: { tier: "heavy", prefer: ["gpt-oss", "qwen", "gemma"] },
+  matching: { tier: "heavy", prefer: ["gpt-oss", "qwen", "deepseek", "gemma"] },
+  analysis: { tier: "heavy", prefer: ["gpt-oss", "qwen", "deepseek", "gemma"] },
 
   // Short structured labels — a mid model is plenty and much faster.
-  classification: { tier: "balanced", prefer: ["qwen", "gemma", "llama"] },
+  classification: { tier: "balanced", prefer: ["qwen", "deepseek", "gemma", "llama"] },
 
   // Prose. Tone matters more than structure.
-  drafting: { tier: "balanced", prefer: ["gemma", "llama", "qwen"] },
-  chat: { tier: "balanced", prefer: ["llama", "gemma", "qwen"] },
+  drafting: { tier: "balanced", prefer: ["deepseek", "gemma", "llama", "qwen"] },
+  chat: { tier: "balanced", prefer: ["deepseek", "llama", "gemma", "qwen"] },
 
   default: { tier: "balanced", prefer: [] },
 };

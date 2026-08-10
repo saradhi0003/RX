@@ -7,6 +7,12 @@
 // the instruction and the tolerant parse that backs it up.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
+vi.mock("@/lib/aiRecruiterSettings", () => ({
+  getModelForTask: vi.fn(async () => "deepseek-chat"),
+  getOpenAICompatibleConfig: vi.fn(async () => ({ baseUrl: "", model: "" })),
+  refreshAIRecruiterSettings: vi.fn(async () => {}),
+}));
+
 const MODELS = { object: "list", data: [{ id: "qwen2.5-14b-instruct" }, { id: "llama-3.1-8b-instruct" }] };
 
 /** Serve /models from the fleet and /chat/completions with `reply`. */
@@ -143,5 +149,82 @@ describe("invokeLLMJson parsing", () => {
     mockLMStudio("I'm sorry, I can't help with that.");
     const { invokeLLMJson } = await loadLLM();
     await expect(invokeLLMJson({ prompt: "x" })).rejects.toThrow(/I'm sorry/);
+  });
+});
+
+describe("openai-compatible provider", () => {
+  const BASE_URL = "https://qwen.example.com/v1";
+  const MODEL = "qwen2.5-14b-instruct";
+
+  function mockOpenAICompatible(reply) {
+    const fetchMock = vi.fn(async (url, init) => {
+      return {
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: reply } }],
+          usage: { prompt_tokens: 12, completion_tokens: 5 },
+        }),
+        __body: JSON.parse(init.body),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  async function loadOpenAICompatible() {
+    vi.resetModules();
+    vi.stubEnv("VITE_LLM_PROVIDER", "openai-compatible");
+    vi.stubEnv("VITE_OPENAI_COMPATIBLE_BASE_URL", BASE_URL);
+    vi.stubEnv("VITE_OPENAI_COMPATIBLE_MODEL", MODEL);
+    return import("@/lib/llm");
+  }
+
+  it("posts to the configured base URL and model", async () => {
+    const fetchMock = mockOpenAICompatible("hello from qwen");
+    const { invokeLLM } = await loadOpenAICompatible();
+
+    const text = await invokeLLM({ prompt: "hi", task: "chat" });
+
+    expect(text).toBe("hello from qwen");
+    const call = fetchMock.mock.calls.find(([u]) => String(u).endsWith("/chat/completions"));
+    expect(call[0]).toBe(`${BASE_URL}/chat/completions`);
+    const body = JSON.parse(call[1].body);
+    expect(body.model).toBe(MODEL);
+    expect(body.messages).toEqual([{ role: "user", content: "hi" }]);
+    expect(body.stream).toBe(false);
+  });
+
+  it("adds the JSON instruction in invokeLLMJson", async () => {
+    const fetchMock = mockOpenAICompatible('{"ok":true}');
+    const { invokeLLMJson } = await loadOpenAICompatible();
+
+    await invokeLLMJson({ prompt: "extract", system: "You extract data.", task: "resume_parse" });
+
+    const call = fetchMock.mock.calls.find(([u]) => String(u).endsWith("/chat/completions"));
+    const body = JSON.parse(call[1].body);
+    const system = body.messages.find((m) => m.role === "system");
+    expect(system.content).toContain("You extract data.");
+    expect(system.content).toContain("valid JSON only");
+  });
+
+  it("errors when VITE_OPENAI_COMPATIBLE_BASE_URL is missing", async () => {
+    vi.resetModules();
+    vi.stubEnv("VITE_LLM_PROVIDER", "openai-compatible");
+    vi.stubEnv("VITE_OPENAI_COMPATIBLE_BASE_URL", "");
+    const { invokeLLM } = await import("@/lib/llm");
+
+    await expect(invokeLLM({ prompt: "hi" })).rejects.toThrow(/VITE_OPENAI_COMPATIBLE_BASE_URL/);
+  });
+
+  it("surfaces an HTTP error with the model that failed", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      text: async () => "model not found",
+    })));
+    const { invokeLLM } = await loadOpenAICompatible();
+
+    await expect(invokeLLM({ prompt: "hi", task: "chat" })).rejects.toThrow(new RegExp(MODEL));
   });
 });

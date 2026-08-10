@@ -14,6 +14,9 @@ import { withErrorHandling, okResponse } from "../_shared/errorHandler.ts";
 import {
   hasOpenAI, getOpenAIKey,
   hasAnthropic, getAnthropicKey,
+  hasDeepSeek, getDeepSeekKey, getDeepSeekBaseUrl,
+  hasDashScope, getDashScopeKey, getDashScopeBaseUrl,
+  readOpenAICompatibleBaseUrl, readOpenAICompatibleApiKey,
   hasLiveKit, getLiveKitEnv,
   hasPostmark, getPostmarkToken,
   hasResend, getResendKey,
@@ -51,7 +54,7 @@ const notConfigured = (what: string): Check =>
   ({ ok: false, message: `${what} not configured`, latency_ms: 0, optional: true });
 
 Deno.serve(withErrorHandling(async (_req) => {
-  const [database, ai_settings, storage, openai, anthropic, livekit, email] =
+  const [database, ai_settings, storage, openai, anthropic, deepseek, dashscope, local_fleet, livekit, email] =
     await Promise.all([
 
       // ── Database connectivity ──
@@ -98,6 +101,57 @@ Deno.serve(withErrorHandling(async (_req) => {
           })
         : Promise.resolve(notConfigured("ANTHROPIC_API_KEY")),
 
+      // ── DeepSeek: OpenAI-compatible models endpoint ──
+      hasDeepSeek()
+        ? probe(async (signal) => {
+            const res = await fetch(`${getDeepSeekBaseUrl()}/models`, {
+              headers: { Authorization: `Bearer ${getDeepSeekKey()}` }, signal,
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return "key valid — models listed";
+          })
+        : Promise.resolve(notConfigured("DEEPSEEK_API_KEY")),
+
+      // ── Alibaba / DashScope: OpenAI-compatible models endpoint ──
+      hasDashScope()
+        ? probe(async (signal) => {
+            const res = await fetch(`${getDashScopeBaseUrl()}/models`, {
+              headers: { Authorization: `Bearer ${getDashScopeKey()}` }, signal,
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return "key valid — models listed";
+          })
+        : Promise.resolve(notConfigured("DASHSCOPE_API_KEY")),
+
+      // ── Local LM Studio fleet, via the cloudflared tunnel ──
+      // A quick tunnel gets a new hostname every restart, so the stored URL
+      // goes stale routinely and the failure otherwise surfaces deep inside an
+      // unrelated feature ("resume parsing broke"). Listing models proves all
+      // three links at once: tunnel up, gateway secret accepted, LM Studio
+      // answering.
+      //
+      // Marked optional even when configured, unlike the cloud providers: this
+      // one is a laptop behind an ephemeral hostname, and a closed lid must not
+      // take a production health endpoint to 503. The failure still shows up in
+      // `checks.local_fleet` with a message naming the cause.
+      readOpenAICompatibleBaseUrl()
+        ? probe(async (signal) => {
+            const res = await fetch(`${readOpenAICompatibleBaseUrl()}/models`, {
+              headers: { Authorization: `Bearer ${readOpenAICompatibleApiKey()}` }, signal,
+            });
+            if (res.status === 401) {
+              throw new Error(
+                "gateway rejected the secret — OPENAI_COMPATIBLE_API_KEY does not match .lmstudio-tunnel.local",
+              );
+            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json().catch(() => null);
+            const count = Array.isArray(json?.data) ? json.data.length : 0;
+            if (!count) throw new Error("reachable but no models loaded");
+            return `${count} model${count === 1 ? "" : "s"} reachable`;
+          }, true)
+        : Promise.resolve(notConfigured("OPENAI_COMPATIBLE_BASE_URL")),
+
       // ── LiveKit: mint a token locally (no network; proves keys usable) ──
       hasLiveKit()
         ? probe(async () => {
@@ -131,7 +185,7 @@ Deno.serve(withErrorHandling(async (_req) => {
     ]);
 
   const checks: Record<string, Check> = {
-    database, ai_settings, storage, openai, anthropic, livekit, email,
+    database, ai_settings, storage, openai, anthropic, deepseek, dashscope, local_fleet, livekit, email,
   };
 
   // Overall status: required checks must pass; optional (unconfigured) ones

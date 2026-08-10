@@ -65,7 +65,19 @@ const text = await invokeLLM({ prompt, system, task: "my_task" });
 const data = await invokeLLMJson({ prompt, system });
 ```
 
-`invokeLLM` has automatic provider fallback. `invokeLLMStream` does **not** fall back.
+Model resolution:
+- If `opts.model` is provided, it is used directly.
+- Otherwise `invokeLLM` resolves the model from `ai_recruiter_settings` based on `task`:
+  - `parsing` tasks → `parsing_model`
+  - `matching` tasks → `matching_model`
+  - `drafting` tasks → `drafting_model`
+  - `insights` tasks (`pipeline_analysis`, etc.) → `insights_model`
+  - everything else → `default_model`
+- Cheapest defaults: `deepseek-chat` for most tasks, `gpt-4o-mini` for parsing.
+
+Local/tunnel Qwen: set `VITE_LLM_PROVIDER=openai-compatible` and configure the endpoint in AI Recruiter Settings (or via `VITE_OPENAI_COMPATIBLE_BASE_URL` / `VITE_OPENAI_COMPATIBLE_MODEL`).
+
+`invokeLLMStream` does **not** fall back when streaming.
 
 ## File uploads
 

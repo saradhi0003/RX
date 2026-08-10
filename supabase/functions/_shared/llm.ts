@@ -1,11 +1,41 @@
 import OpenAI from "npm:openai@^4";
 import Anthropic from "npm:@anthropic-ai/sdk@^0.39";
-import { getSetting } from "./supabaseClient.ts";
-import { hasOpenAI, getOpenAIKey, hasAnthropic, getAnthropicKey, getOllamaBaseUrl } from "./env.ts";
+import { getSetting, getAISettings } from "./supabaseClient.ts";
+import {
+  hasOpenAI,
+  getOpenAIKey,
+  hasAnthropic,
+  getAnthropicKey,
+  getOllamaBaseUrl,
+  hasDeepSeek,
+  getDeepSeekKey,
+  getDeepSeekBaseUrl,
+  hasDashScope,
+  getDashScopeKey,
+  getDashScopeBaseUrl,
+  hasOpenAICompatible,
+  getOpenAICompatibleEnv,
+  readOpenAICompatibleBaseUrl,
+  readOpenAICompatibleApiKey,
+} from "./env.ts";
+import { estimateCost } from "./pricing.ts";
+import { detectProvider, isLocalModel, stripLocalPrefix } from "./modelRouting.ts";
 
 export interface LLMMessage {
   role: "system" | "user" | "assistant";
   content: string;
+}
+
+interface Usage {
+  prompt_tokens: number;
+  completion_tokens: number;
+}
+
+interface LLMResult {
+  text: string;
+  model: string;
+  provider: string;
+  usage: Usage;
 }
 
 // ── Daily cost ceiling (StockAnalysis *_COST_CEILING pattern) ───────────────
@@ -38,7 +68,8 @@ const MAX_PROMPT_CHARS = Number(Deno.env.get("LLM_MAX_PROMPT_CHARS") || "48000")
 export async function invokeLLM(
   userPrompt: string,
   systemPrompt: string,
-  model?: string | null
+  model?: string | null,
+  opts: { task?: string; userEmail?: string; sessionId?: string } = {}
 ): Promise<string> {
   const totalChars = (userPrompt?.length || 0) + (systemPrompt?.length || 0);
   if (totalChars > MAX_PROMPT_CHARS) {
@@ -47,37 +78,56 @@ export async function invokeLLM(
       "Truncate the context before calling the LLM.",
     );
   }
-  const resolvedModel = model || (await getSetting("llm_default_model")) || "claude-opus-4-8";
-  const provider = detectProvider(resolvedModel);
+  const resolvedModel = model || (await getSetting("llm_default_model")) || "deepseek-chat";
+  const result = await callProvider(systemPrompt, userPrompt, resolvedModel);
 
-  if (provider === "anthropic") {
-    return callAnthropic(systemPrompt, userPrompt, resolvedModel);
+  // Cost logging is best-effort; it must never break the caller.
+  try {
+    const cost_usd = estimateCost(result.model, result.usage.prompt_tokens, result.usage.completion_tokens);
+    const { supabase } = await import("./supabaseClient.ts");
+    await supabase.from("llm_usage").insert({
+      provider: result.provider,
+      model: result.model,
+      prompt_tokens: result.usage.prompt_tokens,
+      completion_tokens: result.usage.completion_tokens,
+      cost_usd,
+      latency_ms: 0,
+      task: opts.task || "unknown",
+      user_email: opts.userEmail || null,
+      session_id: opts.sessionId || null,
+    });
+  } catch {
+    // Intentionally silent — logging must never break callers.
   }
-  if (provider === "ollama") {
-    return callOllama(systemPrompt, userPrompt, resolvedModel);
-  }
-  return callOpenAI(systemPrompt, userPrompt, resolvedModel);
+
+  return result.text;
 }
 
 /** Like invokeLLM but instructs the model to respond with valid JSON and parses it */
 export async function invokeLLMJson<T = unknown>(
   userPrompt: string,
   systemPrompt: string,
-  model?: string | null
+  model?: string | null,
+  opts: { task?: string; userEmail?: string; sessionId?: string } = {}
 ): Promise<T> {
   const jsonSystemPrompt = `${systemPrompt}\n\nIMPORTANT: Respond with valid JSON only. No markdown fences, no prose.`;
-  const raw = await invokeLLM(userPrompt, jsonSystemPrompt, model);
+  const raw = await invokeLLM(userPrompt, jsonSystemPrompt, model, opts);
   const cleaned = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/, "").trim();
   return JSON.parse(cleaned) as T;
 }
 
-function detectProvider(model: string): "openai" | "anthropic" | "ollama" {
-  if (model.startsWith("claude")) return "anthropic";
-  if (model.startsWith("llama") || model.startsWith("mistral") || model.startsWith("phi")) return "ollama";
-  return "openai";
+// Provider selection lives in modelRouting.ts so `npm test` can cover it —
+// this module's npm: imports are invisible to Vitest.
+
+async function callProvider(system: string, user: string, model: string): Promise<LLMResult> {
+  const provider = detectProvider(model);
+  if (provider === "anthropic") return callAnthropic(system, user, model);
+  if (provider === "ollama") return callOllama(system, user, model);
+  if (provider === "openai-compatible") return callOpenAICompatible(system, user, model);
+  return callOpenAI(system, user, model);
 }
 
-async function callOpenAI(system: string, user: string, model: string): Promise<string> {
+async function callOpenAI(system: string, user: string, model: string): Promise<LLMResult> {
   const apiKey = hasOpenAI() ? getOpenAIKey() : await getSetting("openai_key");
   if (!apiKey) throw new Error("OpenAI API key not configured");
 
@@ -90,10 +140,18 @@ async function callOpenAI(system: string, user: string, model: string): Promise<
     ],
     temperature: 0.3,
   });
-  return res.choices[0]?.message?.content ?? "";
+  return {
+    text: res.choices[0]?.message?.content ?? "",
+    model,
+    provider: "openai",
+    usage: {
+      prompt_tokens: res.usage?.prompt_tokens || 0,
+      completion_tokens: res.usage?.completion_tokens || 0,
+    },
+  };
 }
 
-async function callAnthropic(system: string, user: string, model: string): Promise<string> {
+async function callAnthropic(system: string, user: string, model: string): Promise<LLMResult> {
   const apiKey = hasAnthropic() ? getAnthropicKey() : await getSetting("anthropic_key");
   if (!apiKey) throw new Error("Anthropic API key not configured");
 
@@ -105,10 +163,19 @@ async function callAnthropic(system: string, user: string, model: string): Promi
     messages: [{ role: "user", content: user }],
   });
   const block = res.content[0];
-  return block.type === "text" ? block.text : "";
+  const text = block.type === "text" ? block.text : "";
+  return {
+    text,
+    model,
+    provider: "anthropic",
+    usage: {
+      prompt_tokens: res.usage?.input_tokens || 0,
+      completion_tokens: res.usage?.output_tokens || 0,
+    },
+  };
 }
 
-async function callOllama(system: string, user: string, model: string): Promise<string> {
+async function callOllama(system: string, user: string, model: string): Promise<LLMResult> {
   const base = getOllamaBaseUrl();
   const res = await fetch(`${base}/api/chat`, {
     method: "POST",
@@ -124,5 +191,112 @@ async function callOllama(system: string, user: string, model: string): Promise<
   });
   if (!res.ok) throw new Error(`Ollama request failed: ${res.status}`);
   const json = await res.json();
-  return json.message?.content ?? "";
+  return {
+    text: json.message?.content ?? "",
+    model,
+    provider: "ollama",
+    usage: {
+      prompt_tokens: json.prompt_eval_count || 0,
+      completion_tokens: json.eval_count || 0,
+    },
+  };
+}
+
+async function callOpenAICompatible(system: string, user: string, model: string): Promise<LLMResult> {
+  let baseURL: string;
+  let apiKey: string;
+  let resolvedModel = model;
+
+  // What goes in llm_usage. For the local fleet this stays `local/…` even
+  // though the wire carries the bare id, so pricing.ts prices it at zero
+  // instead of guessing from the family name.
+  let reportedModel = model;
+
+  const lower = model.toLowerCase();
+  if (isLocalModel(lower)) {
+    // The LM Studio fleet, reached through scripts/tunnel-lmstudio.sh. The
+    // "API key" is the gateway's shared secret; the gateway 401s without it.
+    const aiSettings = await getAISettings();
+    baseURL = readOpenAICompatibleBaseUrl() || aiSettings?.openai_compatible_base_url || "";
+    apiKey = readOpenAICompatibleApiKey();
+    if (!baseURL) {
+      throw new Error(
+        `Model "${model}" targets the local fleet, but no tunnel is configured. ` +
+        "Run ./scripts/tunnel-lmstudio.sh and set OPENAI_COMPATIBLE_BASE_URL " +
+        "(plus OPENAI_COMPATIBLE_API_KEY) as Edge Function secrets.",
+      );
+    }
+    if (!apiKey) {
+      // Failing here rather than sending an empty bearer keeps the cause
+      // legible: an unauthenticated call would come back as a bare 401 from
+      // the gateway and read like the tunnel was down.
+      throw new Error(
+        `Model "${model}" targets the local fleet, but OPENAI_COMPATIBLE_API_KEY is not set. ` +
+        "It must equal the gateway secret in .lmstudio-tunnel.local.",
+      );
+    }
+    resolvedModel = stripLocalPrefix(model);
+  } else if (lower.startsWith("deepseek")) {
+    if (!hasDeepSeek()) throw new Error("DEEPSEEK_API_KEY not configured");
+    baseURL = getDeepSeekBaseUrl();
+    apiKey = getDeepSeekKey();
+  } else if (lower.startsWith("qwen") || lower.startsWith("alibaba")) {
+    if (!hasDashScope()) throw new Error("DASHSCOPE_API_KEY not configured");
+    baseURL = getDashScopeBaseUrl();
+    apiKey = getDashScopeKey();
+  } else if (lower.includes("-compatible")) {
+    // Generic OpenAI-compatible endpoint: model id and base URL may be stored
+    // in ai_recruiter_settings, with env vars as fallback.
+    const aiSettings = await getAISettings();
+    const settingsBaseURL = aiSettings?.openai_compatible_base_url || "";
+    const settingsModel = aiSettings?.openai_compatible_model || "";
+
+    let defaultModelFromEnv = "";
+    if (hasOpenAICompatible()) {
+      const env = getOpenAICompatibleEnv();
+      baseURL = settingsBaseURL || env.baseURL;
+      apiKey = env.apiKey;
+      defaultModelFromEnv = env.defaultModel;
+    } else if (settingsBaseURL) {
+      // Settings-only config with no explicit API key secret. This is useful for
+      // endpoints that do their own auth (e.g., a hosted proxy or tunnel).
+      baseURL = settingsBaseURL;
+      apiKey = "not-needed";
+    } else {
+      throw new Error(
+        `No OpenAI-compatible endpoint configured for model "${model}". ` +
+        "Set OPENAI_COMPATIBLE_API_KEY + OPENAI_COMPATIBLE_BASE_URL as Edge Function secrets, " +
+        "or set openai_compatible_base_url in ai_recruiter_settings.",
+      );
+    }
+    resolvedModel = settingsModel || defaultModelFromEnv || model;
+  } else {
+    throw new Error(
+      `No OpenAI-compatible API key configured for model "${model}". ` +
+      "Set DEEPSEEK_API_KEY, DASHSCOPE_API_KEY, or OPENAI_COMPATIBLE_API_KEY.",
+    );
+  }
+
+  // Cloud paths bill against whatever they actually called; only the local
+  // fleet keeps its prefixed id so the pricing table can zero it out.
+  if (!isLocalModel(model)) reportedModel = resolvedModel;
+
+  const client = new OpenAI({ apiKey, baseURL });
+  const res = await client.chat.completions.create({
+    model: resolvedModel,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+    temperature: 0.3,
+  });
+  return {
+    text: res.choices[0]?.message?.content ?? "",
+    model: reportedModel,
+    provider: isLocalModel(model) ? "lmstudio-tunnel" : "openai-compatible",
+    usage: {
+      prompt_tokens: res.usage?.prompt_tokens || 0,
+      completion_tokens: res.usage?.completion_tokens || 0,
+    },
+  };
 }

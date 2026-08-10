@@ -14,6 +14,7 @@
 | `import-csv-data.js` / `import-base44-csv-to-supabase.mjs` | CSV/Base44 data import |
 | `disconnect-base44.js` | Base44 disconnection tasks |
 | `deploy-livekit.sh` | LiveKit deployment |
+| `tunnel-qwen.sh` | Start a Cloudflare Tunnel for local LM Studio / Qwen |
 | `verify_020_approval_gate.sql` | Verify migration 020 policies |
 
 ## Conventions
@@ -28,3 +29,10 @@
 - Before writing a new script, check if an existing one solves 80% of the problem.
 - For one-off operations, prefer a script with `--dry-run` flag.
 - For migrations, prefer `supabase/migrations/*.sql` over scripts unless complex data transformation is required.
+
+## Common tasks (cookbook)
+
+### Expose a local Qwen/LM Studio endpoint
+1. Load a model in LM Studio and start the server (port 1234).
+2. Run `./scripts/tunnel-qwen.sh` on the host machine.
+3. Copy the printed env vars into `.env.local` and Supabase secrets.

@@ -22,7 +22,26 @@ Server-side logic and the place API keys live. Called from the app via
   `notified_at` stays NULL so the next sign-in retries. Needs
   `SMTP_HOST/PORT/USER/PASS/SENDER` secrets (see AUTH_SETUP.md §5).
 - **_shared/** — `supabaseClient.ts`, `llm.ts`, `classifier.ts`, `errorHandler.ts`,
-  `pii.ts`, `env.ts`, **`auth.ts`**.
+  `pii.ts`, `env.ts`, **`auth.ts`**, `pricing.ts`, `modelRouting.ts`.
+
+## Model routing — the `local/` prefix
+`modelRouting.ts` decides which provider serves a model id. It is a separate
+module from `llm.ts` so `npm test` can cover it: `llm.ts` imports the OpenAI and
+Anthropic SDKs via Deno `npm:` specifiers, which Vitest cannot resolve.
+
+`detectProvider()` reads **family names** (`qwen*` → DashScope, `llama*` →
+Ollama, `claude*` → Anthropic). A family name says what a model *is*, never
+where it is served from — so a locally-served `qwen2.5-coder-14b` would be sent
+to Alibaba's cloud, egressing prompt content (candidate PII) and billing for it.
+Prefix a model id with **`local/`** (or `lmstudio/`) to force it to the LM Studio
+fleet published by `./scripts/tunnel-lmstudio.sh`; the prefix is checked before
+every heuristic. The bare id goes on the wire, but `llm_usage` records the
+prefixed form so `pricing.ts` zeroes it — otherwise free local calls burn the
+daily ceiling that gates the paid providers.
+
+`OPENAI_COMPATIBLE_API_KEY` on that path is the **gateway's shared secret**, not
+a provider credential. `healthCheck` probes the tunnel as `local_fleet`,
+deliberately `optional` so a closed laptop lid can't 503 a production endpoint.
 
 ## ⚠ Approval gate — `_shared/auth.ts`
 `verify_jwt` proves the caller is *authenticated*, not *approved*. Since the

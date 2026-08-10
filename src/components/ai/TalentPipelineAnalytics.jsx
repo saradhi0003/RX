@@ -28,20 +28,40 @@ import { addNotification } from "@/components/notifications/NotificationToast";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8", "#82ca9d"];
 
-export default function TalentPipelineAnalytics() {
-  const [loading, setLoading] = useState(true);
+export default function TalentPipelineAnalytics({
+  candidates: candidatesProp,
+  jobs: jobsProp,
+  applications: applicationsProp,
+  submissions: submissionsProp,
+} = {}) {
+  const hasExternalData =
+    candidatesProp !== undefined ||
+    jobsProp !== undefined ||
+    applicationsProp !== undefined ||
+    submissionsProp !== undefined;
+
+  const [loading, setLoading] = useState(!hasExternalData);
   const [analyzing, setAnalyzing] = useState(false);
-  const [candidates, setCandidates] = useState([]);
-  const [jobs, setJobs] = useState([]);
-  const [applications, setApplications] = useState([]);
-  const [submissions, setSubmissions] = useState([]);
+  const [candidates, setCandidates] = useState(candidatesProp || []);
+  const [jobs, setJobs] = useState(jobsProp || []);
+  const [applications, setApplications] = useState(applicationsProp || []);
+  const [submissions, setSubmissions] = useState(submissionsProp || []);
   const [insights, setInsights] = useState(null);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (hasExternalData) {
+      setCandidates(candidatesProp || []);
+      setJobs(jobsProp || []);
+      setApplications(applicationsProp || []);
+      setSubmissions(submissionsProp || []);
+      setLoading(false);
+    } else {
+      loadData();
+    }
+  }, [candidatesProp, jobsProp, applicationsProp, submissionsProp]);
 
   const loadData = async () => {
+    if (hasExternalData) return;
     setLoading(true);
     try {
       const [cands, jbs, apps, subs] = await Promise.all([

@@ -19,11 +19,16 @@
  */
 
 import { resolveModel, LMSTUDIO_BASE_URL } from "@/lib/llmRouter";
+import { getModelForTask, getOpenAICompatibleConfig } from "@/lib/aiRecruiterSettings";
 
 // @ts-ignore
 const provider = import.meta.env.VITE_LLM_PROVIDER || "anthropic";
 // @ts-ignore
 const ollamaBase = import.meta.env.VITE_OLLAMA_BASE_URL || "http://localhost:11434";
+// @ts-ignore
+const openaiCompatibleBase = import.meta.env.VITE_OPENAI_COMPATIBLE_BASE_URL || "";
+// @ts-ignore
+const openaiCompatibleModel = import.meta.env.VITE_OPENAI_COMPATIBLE_MODEL || "";
 
 /**
  * Thrown when the server-side spend ceiling rejects a call (HTTP 429 from an
@@ -69,15 +74,19 @@ async function callProxy(opts) {
     if (status === 429 || /cost ceiling/i.test(msg)) throw new LLMBudgetError(msg);
     throw new Error(msg);
   }
-  logUsage({
-    provider: "proxy",
-    model: opts.model || "auto",
-    prompt_tokens: 0,
-    completion_tokens: 0,
-    cost_usd: 0,
-    latency_ms: Date.now() - t0,
-    task: opts.task,
-  });
+  // The proxy now logs usage server-side with real token/cost data.
+  // Skip the client-side duplicate unless the proxy explicitly failed to log.
+  if (!data?.usage_logged) {
+    logUsage({
+      provider: "proxy",
+      model: opts.model || "auto",
+      prompt_tokens: data?.usage?.prompt_tokens || 0,
+      completion_tokens: data?.usage?.completion_tokens || 0,
+      cost_usd: data?.cost_usd || 0,
+      latency_ms: Date.now() - t0,
+      task: opts.task,
+    });
+  }
   return data?.text ?? "";
 }
 
@@ -269,16 +278,152 @@ async function callOllamaStream({ prompt, system, model = "llama3.2", temperatur
   return full;
 }
 
+// ── Generic OpenAI-compatible endpoint (local Qwen / vLLM / hosted endpoint) ─
+// No API key is read from the browser: the endpoint is assumed to be either
+// localhost (dev) or a hosted proxy that does its own auth. Use this for Qwen
+// served by vLLM, llama.cpp server, or any other /v1-compatible API.
+
+function openaiCompatibleMessages({ prompt, system, response_format }) {
+  const sys = response_format === "json" ? `${system || ""}${JSON_ONLY_SUFFIX}`.trim() : system;
+  const messages = [];
+  if (sys) messages.push({ role: "system", content: sys });
+  messages.push({ role: "user", content: prompt });
+  return messages;
+}
+
+function openaiCompatibleUnreachable(cause) {
+  return new Error(
+    `Cannot reach OpenAI-compatible endpoint at ${openaiCompatibleBase}. ` +
+    `Check VITE_OPENAI_COMPATIBLE_BASE_URL and that the server is running.`,
+    { cause },
+  );
+}
+
+async function resolveOpenAICompatibleConfig() {
+  const runtime = await getOpenAICompatibleConfig();
+  return {
+    baseUrl: openaiCompatibleBase || runtime.baseUrl || "",
+    model: openaiCompatibleModel || runtime.model || "",
+  };
+}
+
+async function callOpenAICompatible(opts) {
+  const { baseUrl, model } = await resolveOpenAICompatibleConfig();
+  if (!baseUrl) {
+    throw new Error(
+      "OpenAI-compatible base URL is not set. Set VITE_OPENAI_COMPATIBLE_BASE_URL " +
+      "in .env.local, or configure it in AI Recruiter Settings."
+    );
+  }
+  const { temperature = 0.3, task } = opts;
+  const resolvedModel = opts.model || model || "default";
+  const messages = openaiCompatibleMessages(opts);
+
+  const t0 = Date.now();
+  let res;
+  try {
+    res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: resolvedModel, messages, temperature, stream: false }),
+    });
+  } catch (cause) {
+    throw openaiCompatibleUnreachable(cause);
+  }
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`OpenAI-compatible error ${res.status} (model "${resolvedModel}"): ${detail.slice(0, 300)}`);
+  }
+
+  const json = await res.json();
+  const text = json.choices?.[0]?.message?.content ?? "";
+  const usage = json.usage || {};
+
+  logUsage({
+    provider: "openai-compatible",
+    model: resolvedModel,
+    prompt_tokens: usage.prompt_tokens || 0,
+    completion_tokens: usage.completion_tokens || 0,
+    cost_usd: 0,
+    latency_ms: Date.now() - t0,
+    task,
+  });
+  return text;
+}
+
+async function callOpenAICompatibleStream(opts, onChunk) {
+  const { baseUrl, model } = await resolveOpenAICompatibleConfig();
+  if (!baseUrl) {
+    throw new Error(
+      "OpenAI-compatible base URL is not set. Set VITE_OPENAI_COMPATIBLE_BASE_URL " +
+      "in .env.local, or configure it in AI Recruiter Settings."
+    );
+  }
+  const { temperature = 0.3, task } = opts;
+  const resolvedModel = opts.model || model || "default";
+  const messages = openaiCompatibleMessages(opts);
+
+  let res;
+  try {
+    res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: resolvedModel, messages, temperature, stream: true }),
+    });
+  } catch (cause) {
+    throw openaiCompatibleUnreachable(cause);
+  }
+  if (!res.ok) throw new Error(`OpenAI-compatible stream error ${res.status} ${res.statusText}`);
+
+  const reader = res.body?.getReader();
+  const decoder = new TextDecoder();
+  let full = "";
+  let buffer = "";
+  if (!reader) return full;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split("\n");
+    buffer = parts.pop() || "";
+    for (const line of parts) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const payload = trimmed.slice(5).trim();
+      if (payload === "[DONE]") continue;
+      try {
+        const delta = JSON.parse(payload).choices?.[0]?.delta?.content || "";
+        if (delta) {
+          full += delta;
+          onChunk(delta, full);
+        }
+      } catch { /* partial JSON — the next chunk completes it */ }
+    }
+  }
+  return full;
+}
+
+async function resolveProxyOpts(opts) {
+  if (opts?.model) return opts;
+  const model = await getModelForTask(opts?.task);
+  return { ...opts, model };
+}
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 /**
  * Main entry — routes cloud providers through llmProxy so keys stay server-side.
- * VITE_LLM_PROVIDER=lmstudio (or =ollama) for local development.
+ * VITE_LLM_PROVIDER=lmstudio (or =ollama or =openai-compatible) for local development.
+ *
+ * If `opts.model` is omitted, the model is resolved from ai_recruiter_settings
+ * based on `opts.task` (cloud/proxy path only).
  */
 export async function invokeLLM(opts) {
   if (provider === "lmstudio") return callLMStudio(opts);
   if (provider === "ollama") return callOllama(opts);
-  return callProxy(opts);
+  if (provider === "openai-compatible") return callOpenAICompatible(opts);
+  return callProxy(await resolveProxyOpts(opts));
 }
 
 /**
@@ -288,7 +433,8 @@ export async function invokeLLM(opts) {
 export async function invokeLLMStream(opts, onChunk) {
   if (provider === "lmstudio") return callLMStudioStream(opts, onChunk);
   if (provider === "ollama") return callOllamaStream(opts, onChunk);
-  const text = await callProxy(opts);
+  if (provider === "openai-compatible") return callOpenAICompatibleStream(opts, onChunk);
+  const text = await callProxy(await resolveProxyOpts(opts));
   onChunk(text, text);
   return text;
 }

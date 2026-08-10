@@ -20,7 +20,7 @@ For cross-cutting changes, read the two or three relevant nested files **in para
 Recruiter X (brand: **TalentStack**) is an AI-assisted recruiting CRM.
 - **Frontend:** Vite 6 + React 18 SPA, Tailwind + shadcn/ui.
 - **Backend:** Supabase (Postgres, Auth, RLS, Edge Functions/Deno, Storage).
-- **LLM:** tri-provider abstraction (OpenAI / Anthropic / Ollama) via `src/lib/llm.js` and `supabase/functions/llmProxy`.
+- **LLM:** multi-provider abstraction (OpenAI / Anthropic / DeepSeek / Alibaba DashScope / local Qwen / Ollama / LM Studio) via `src/lib/llm.js` and `supabase/functions/llmProxy`. Cheapest defaults are `deepseek-chat`, `qwen-turbo`, and `claude-3-5-haiku-20241022`. Runtime model routing is configured in `ai_recruiter_settings`.
 - **Comms:** Postmark email, Telegram/Slack/WhatsApp bots.
 - **Live deploy:** Vercel (`rx-self.vercel.app`).
 

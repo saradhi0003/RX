@@ -2,14 +2,15 @@
 /**
  * llmProxy — Server-side LLM gateway.
  *
- * Keeps OPENAI_API_KEY / ANTHROPIC_API_KEY out of the browser. The client
- * calls this with the same shape it used to send to OpenAI directly, and the
- * function forwards using the existing _shared/llm.ts helpers.
+ * Keeps all LLM API keys out of the browser. Supports OpenAI, Anthropic,
+ * DeepSeek, Alibaba/DashScope, Ollama, and any OpenAI-compatible endpoint.
+ * The client calls this with the same shape it used to send to OpenAI directly,
+ * and the function forwards using the existing _shared/llm.ts helpers.
  *
  * Deploy:
  *   supabase functions deploy llmProxy
- *   supabase secrets set OPENAI_API_KEY=sk-...
- *   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+ *   supabase secrets set OPENAI_API_KEY=sk-... ANTHROPIC_API_KEY=sk-ant-... \
+ *     DEEPSEEK_API_KEY=sk-... DASHSCOPE_API_KEY=sk-...
  *
  * Auth:
  *   Requires the caller to be authenticated (Authorization: Bearer <jwt>).
@@ -51,12 +52,16 @@ Deno.serve(withErrorHandling(async (req: Request) => {
   const t0 = Date.now();
   let text: string;
   let parsed: unknown = undefined;
+  const opts = {
+    task: body.task ?? "unknown",
+    userEmail: gate.user?.email ?? undefined,
+  };
 
   if (body.response_format === "json") {
-    parsed = await invokeLLMJson(body.prompt, body.system ?? "", body.model);
+    parsed = await invokeLLMJson(body.prompt, body.system ?? "", body.model, opts);
     text = JSON.stringify(parsed);
   } else {
-    text = await invokeLLM(body.prompt, body.system ?? "", body.model);
+    text = await invokeLLM(body.prompt, body.system ?? "", body.model, opts);
   }
 
   return okResponse({
@@ -64,5 +69,6 @@ Deno.serve(withErrorHandling(async (req: Request) => {
     parsed,
     latency_ms: Date.now() - t0,
     task: body.task ?? "unknown",
+    usage_logged: true,
   });
 }));
