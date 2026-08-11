@@ -80,7 +80,12 @@ TUNNEL_PID=$!
 # cloudflared prints the hostname a second or two after boot; poll the log.
 PUBLIC_URL=""
 for _ in $(seq 1 100); do
-  PUBLIC_URL="$(grep -oE 'https://[a-zA-Z0-9_-]+\.trycloudflare\.com' "${TUNNEL_LOG}" | head -1 || true)"
+  # `api.trycloudflare.com` is the control-plane endpoint cloudflared itself
+  # calls, and it appears in this same log — matching it and treating it as the
+  # tunnel hostname publishes a URL that answers 405 to everything. Exclude it
+  # explicitly rather than relying on the real hostname appearing first.
+  PUBLIC_URL="$(grep -oE 'https://[a-zA-Z0-9_-]+\.trycloudflare\.com' "${TUNNEL_LOG}" \
+                  | grep -v '^https://api\.trycloudflare\.com$' | head -1 || true)"
   [[ -n "${PUBLIC_URL}" ]] && break
   if ! kill -0 "${TUNNEL_PID}" 2>/dev/null; then
     echo "❌ cloudflared exited. Log:"; cat "${TUNNEL_LOG}"; exit 1

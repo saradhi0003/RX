@@ -95,15 +95,48 @@ recycle() {
   local logfile; logfile="$(mktemp -t rx-tunnel)"
   nohup "$REPO_ROOT/scripts/tunnel-lmstudio.sh" >"$logfile" 2>&1 &
 
+  # Read the hostname off tunnel-lmstudio.sh's own "Tunnel live:" banner, not
+  # off any trycloudflare.com string in the log. cloudflared's control-plane
+  # endpoint `api.trycloudflare.com` appears in that same output, and a loose
+  # match happily picked it up and published it as the tunnel — a URL that
+  # answers 405 to everything, which is how a "recovered" tunnel ended up
+  # pointing Supabase at Cloudflare's API for ~2h.
   local url=""
   for _ in $(seq 1 150); do
-    url="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$logfile" 2>/dev/null | head -1)"
+    url="$(grep -oE 'Tunnel live: +https://[a-zA-Z0-9_-]+\.trycloudflare\.com' "$logfile" 2>/dev/null \
+             | grep -oE 'https://[a-zA-Z0-9_-]+\.trycloudflare\.com' | head -1)"
     [[ -n "$url" ]] && break
     grep -q '❌' "$logfile" 2>/dev/null && { log "RECYCLE FAILED: $(grep '❌' "$logfile" | head -1)"; return 1; }
     sleep 1
   done
   [[ -z "$url" ]] && { log "RECYCLE FAILED: no tunnel URL after 150s"; return 1; }
+  if [[ "$url" == "https://api.trycloudflare.com" ]]; then
+    log "RECYCLE FAILED: parsed the control-plane endpoint, not a tunnel hostname"
+    return 1
+  fi
   log "new hostname: $url"
+
+  # Prove the hostname actually serves OUR gateway before it goes anywhere near
+  # the secret. A wrong URL in OPENAI_COMPATIBLE_BASE_URL breaks every
+  # server-side LLM call until a human notices, so publishing an unverified one
+  # is worse than staying down: at least a down tunnel fails over to cloud.
+  #
+  # Retried, not one-shot: a brand-new hostname is not resolvable immediately
+  # even from this machine (observed ~1-3 min of curl exit 6 / HTTP 000 while
+  # `host` already answered). A single probe would reject a perfectly good
+  # tunnel and abort every recycle.
+  local secret; secret="$(cat "$REPO_ROOT/.lmstudio-tunnel.local" 2>/dev/null)"
+  local probe="000"
+  for _ in $(seq 1 12); do
+    probe="$(curl -s -o /dev/null -w '%{http_code}' -m 20 "$url/v1/models" -H "Authorization: Bearer $secret" 2>/dev/null)"
+    [[ "$probe" == "200" ]] && break
+    sleep 15
+  done
+  if [[ "$probe" != "200" ]]; then
+    log "RECYCLE FAILED: $url did not serve the gateway (last HTTP $probe) — secret left untouched"
+    return 1
+  fi
+  log "verified $url serves the gateway (HTTP 200)"
 
   require_token
   if ! supabase secrets set --project-ref "$PROJECT_REF" \
