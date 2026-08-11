@@ -19,6 +19,7 @@ import {
   readOpenAICompatibleApiKey,
 } from "./env.ts";
 import { estimateCost } from "./pricing.ts";
+import { DEFAULT_WORKSPACE_ID } from "./auth.ts";
 import {
   detectProvider,
   isLocalModel,
@@ -74,7 +75,7 @@ export async function invokeLLM(
   userPrompt: string,
   systemPrompt: string,
   model?: string | null,
-  opts: { task?: string; userEmail?: string; sessionId?: string } = {}
+  opts: { task?: string; userEmail?: string; sessionId?: string; workspaceId?: string } = {}
 ): Promise<string> {
   const totalChars = (userPrompt?.length || 0) + (systemPrompt?.length || 0);
   if (totalChars > MAX_PROMPT_CHARS) {
@@ -124,7 +125,7 @@ export async function invokeLLM(
   try {
     const cost_usd = estimateCost(result.model, result.usage.prompt_tokens, result.usage.completion_tokens);
     const { supabase } = await import("./supabaseClient.ts");
-    await supabase.from("llm_usage").insert({
+    const { error: usageError } = await supabase.from("llm_usage").insert({
       provider: result.provider,
       model: result.model,
       prompt_tokens: result.usage.prompt_tokens,
@@ -134,9 +135,25 @@ export async function invokeLLM(
       task: opts.task || "unknown",
       user_email: opts.userEmail || null,
       session_id: opts.sessionId || null,
+      // REQUIRED. llm_usage.workspace_id is NOT NULL with no default, and the
+      // service-role client this module uses has no auth.uid() — so
+      // stamp_workspace_id()'s auth_workspace_id() lookup returns NULL and
+      // every insert died on the constraint. The bare `catch {}` below then
+      // swallowed it, so nothing was written to llm_usage for ~a month while
+      // llmProxy kept reporting usage_logged:true. That also silently
+      // disabled the spend guard: checkDailyCeiling() sums this table, so an
+      // empty table reads as $0 spent and the ceiling can never trigger.
+      // This is the service-role rule in functions/CLAUDE.md — any INSERT
+      // into a tenant table must set workspace_id explicitly.
+      workspace_id: opts.workspaceId || DEFAULT_WORKSPACE_ID,
     });
-  } catch {
-    // Intentionally silent — logging must never break callers.
+    if (usageError) {
+      // Still non-fatal, but no longer invisible — a broken spend ledger is
+      // exactly the kind of thing that must not fail quietly.
+      console.error("[llm] usage logging failed:", usageError.message);
+    }
+  } catch (err) {
+    console.error("[llm] usage logging threw:", err instanceof Error ? err.message : String(err));
   }
 
   return result.text;
@@ -147,7 +164,7 @@ export async function invokeLLMJson<T = unknown>(
   userPrompt: string,
   systemPrompt: string,
   model?: string | null,
-  opts: { task?: string; userEmail?: string; sessionId?: string } = {}
+  opts: { task?: string; userEmail?: string; sessionId?: string; workspaceId?: string } = {}
 ): Promise<T> {
   const jsonSystemPrompt = `${systemPrompt}\n\nIMPORTANT: Respond with valid JSON only. No markdown fences, no prose.`;
   const raw = await invokeLLM(userPrompt, jsonSystemPrompt, model, opts);

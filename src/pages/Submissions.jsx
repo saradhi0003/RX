@@ -95,25 +95,37 @@ function SubmissionsPageContent() {
   const loadSubmissions = useCallback(async () => {
     setLoading(true);
     try {
-      const [submissionsData, jobsData, companiesData, viewsData] = await Promise.all([
+      const [submissionsData, viewsData] = await Promise.all([
         Submission.list("-submitted_date", 200),
-        Job.list("-updated_date", 100),
-        Company.list("-updated_date", 100),
         SubmissionView.list().catch(() => [])
       ]);
 
-      // Candidate.list("-updated_date", 200) used to fetch a blind top-200
-      // slice, which missed most candidates once the table grew past 200 rows
-      // (71% of submissions pointed outside that window) — every one of those
-      // rendered "Unknown" downstream. Fetch exactly the candidates these
-      // submissions reference instead, so growth in the candidates table can
-      // never reintroduce the miss.
-      const candidateIds = [...new Set(
-        (submissionsData || []).map(s => s.candidate_id).filter(Boolean)
-      )];
-      const candidatesData = candidateIds.length
-        ? await Candidate.filter({ id: { $in: candidateIds } }, "-updated_date", candidateIds.length).catch(() => [])
-        : [];
+      // Every related record is fetched BY ID rather than as a blind
+      // "most-recently-updated N" slice. Those windows silently drop whatever
+      // falls outside them, and the tables have long outgrown the limits:
+      // 890 candidates vs a 200 window, 276 jobs vs a 100 window. The misses
+      // then render as "Unknown"/"Unknown Role" — not missing data (all 98
+      // submissions resolve to a real candidate AND a real job in the DB),
+      // purely a fetch that never asked for the right rows. Fetching by id
+      // also means future growth can't reintroduce it.
+      const idsOf = (key) => [...new Set((submissionsData || []).map((s) => s[key]).filter(Boolean))];
+      const byId = (Entity, ids) =>
+        ids.length ? Entity.filter({ id: { $in: ids } }, "-updated_date", ids.length).catch(() => []) : Promise.resolve([]);
+
+      const candidateIds = idsOf("candidate_id");
+      const jobIds = idsOf("job_id");
+
+      const [candidatesData, jobsData] = await Promise.all([
+        byId(Candidate, candidateIds),
+        byId(Job, jobIds),
+      ]);
+
+      // Companies hang off the jobs, so their ids are only known once jobs are.
+      const companyIds = [...new Set([
+        ...(jobsData || []).map((j) => j.company_id).filter(Boolean),
+        ...(submissionsData || []).map((s) => s.company_id).filter(Boolean),
+      ])];
+      const companiesData = await byId(Company, companyIds);
 
       // Filter submissions to only show past 1 month
       const oneMonthAgo = new Date();

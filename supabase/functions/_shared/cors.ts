@@ -12,7 +12,15 @@
  *   const headers = { ...corsHeadersFor(origin), "Content-Type": "application/json" };
  */
 
+// `rx-self.vercel.app` is the domain `main` actually auto-deploys to (see
+// CLAUDE.md) and was missing here, so with ALLOWED_ORIGINS unset every browser
+// call from production died at the CORS preflight — no Access-Control-Allow-
+// Origin header, so the request never reached the function at all. That took
+// down every browser-initiated Edge Function feature at once (AI Insights, the
+// assistant, resume parsing), which reads as "the AI is broken" rather than as
+// a config problem. The custom domains stay listed for when they cut over.
 const DEFAULT_ORIGINS = [
+  "https://rx-self.vercel.app",
   "https://app.talentstack.org",
   "https://recruiterx.app",
   "https://www.recruiterx.app",

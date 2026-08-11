@@ -55,6 +55,10 @@ Deno.serve(withErrorHandling(async (req: Request) => {
   const opts = {
     task: body.task ?? "unknown",
     userEmail: gate.user?.email ?? undefined,
+    // Attribute spend to the caller's own workspace rather than letting it
+    // fall back to the default one — llm_usage.workspace_id is NOT NULL and
+    // the service-role client can't resolve it from auth.uid().
+    workspaceId: gate.profile?.workspace_id ?? undefined,
   };
 
   if (body.response_format === "json") {
