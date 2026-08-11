@@ -128,6 +128,25 @@ cd mobile && npm run build:web   # expo export — CI parity check
   `OPENAI_COMPATIBLE_API_KEY`. **Never expose it via a `VITE_*` var.**
   `scripts/tunnel-qwen.sh` is a deprecated shim — the version it replaced
   published the fleet with `OPENAI_COMPATIBLE_API_KEY=not-needed`.
+- **Quick tunnels die on their own, silently — run
+  [scripts/tunnel-supervisor.sh](scripts/tunnel-supervisor.sh)** alongside the
+  tunnel (observed dying twice in one ~2h session). The failure mode is the
+  nasty one: the local `cloudflared` process stays alive and healthy-looking
+  while the **public hostname stops resolving**, so `pgrep` says fine while
+  every Edge Function call fails DNS. Nothing looks broken either, because
+  `_shared/llm.ts`'s fallback chain quietly reroutes `local/…` to DeepSeek —
+  the only symptom is a `deepseek-chat` row in `llm_usage` where a `local/…`
+  row belongs, i.e. **you silently start paying for inference that was free**.
+  The supervisor polls `healthCheck`'s `local_fleet` — deliberately *not* a
+  local curl, since the question is whether *Supabase's edge* can resolve the
+  host, and this laptop's resolver is not a witness to that (a local curl
+  reported healthy right through the second outage). On failure it restarts
+  the tunnel, pushes the new hostname to `OPENAI_COMPATIBLE_BASE_URL`, and
+  waits for DNS propagation (~25–45s; declaring success sooner reports a false
+  failure). Verified recovering from a killed tunnel unattended in 86s. It
+  skips recycling when LM Studio itself is down, since a new hostname can't
+  fix a stopped model server. A **named** tunnel on your own domain is still
+  the real fix — stable hostname, no secret churn.
 - **Prefix a model id with `local/` to route it to that tunnel** —
   `local/llama3.2-3b`. The prefix is load-bearing, not cosmetic:
   `detectProvider()` reads family names, so a locally-served
