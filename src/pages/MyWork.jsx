@@ -16,6 +16,7 @@ import { Role } from "@/entities/Role";
 import { sendAppEmail } from "@/components/utils/email";
 import { getRolesCached } from "@/components/utils/rolesCache";
 import { addNotification } from "@/components/notifications/NotificationToast";
+import { timesheetPayload } from "@/lib/timesheets";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function MyWork() {
@@ -42,7 +43,7 @@ export default function MyWork() {
 
       const [leRes, tsRes, jsRes] = await Promise.allSettled([
         LeaveRequest.filter({ user_id: u.email }, "-created_date", 50),
-        Timesheet.filter({ user_id: u.email }, "-date", 100),
+        Timesheet.filter({ user_email: u.email }, "-work_date", 100),
         Job.list()
       ]);
       if (leRes.status === "fulfilled") setMyLeaves(leRes.value); else setMyLeaves([]);
@@ -126,7 +127,7 @@ export default function MyWork() {
 
     const lockedStatuses = new Set(["submitted", "approved"]);
     const isLocked = (dateStr) =>
-      myTimesheets.some(t => t.date === dateStr && lockedStatuses.has(String(t.status || "").toLowerCase()));
+      myTimesheets.some(t => t.work_date === dateStr && lockedStatuses.has(String(t.status || "").toLowerCase()));
     const duplicates = filtered.filter(e => isLocked(e.date));
     const allowed = filtered.filter(e => !isLocked(e.date));
 
@@ -147,15 +148,14 @@ export default function MyWork() {
     }
 
     for (const e of allowed) {
-      await Timesheet.create({
-        user_id: me?.email || "anonymous",
+      await Timesheet.create(timesheetPayload({
+        email: me?.email || "anonymous",
         date: e.date,
         hours: e.hours,
         status: "submitted",
-        notes: ""
-      });
+      }));
     }
-    const ts = await Timesheet.filter({ user_id: me?.email }, "-date", 100);
+    const ts = await Timesheet.filter({ user_email: me?.email }, "-work_date", 100);
     setMyTimesheets(ts);
 
     const first = allowed[0]?.date;
@@ -192,16 +192,19 @@ export default function MyWork() {
 
     setQuickLoading(true);
     try {
-      await Timesheet.create({
-        user_id: me?.email,
+      // NOTE: `job_id` is deliberately absent — `timesheets` has no such
+      // column (only submission_id / consultant_id), so sending it made the
+      // whole insert fail. The picker's value is recorded in notes until a
+      // real job link column exists.
+      await Timesheet.create(timesheetPayload({
+        email: me?.email,
         date: quickDate,
         hours: Number(quickHours),
-        job_id: quickJobId || null,
-        notes: quickNotes,
-        status: "draft"
-      });
+        notes: quickJobId ? `${quickNotes || ""} [job:${quickJobId}]`.trim() : quickNotes,
+        status: "draft",
+      }));
 
-      const ts = await Timesheet.filter({ user_id: me?.email }, "-date", 100);
+      const ts = await Timesheet.filter({ user_email: me?.email }, "-work_date", 100);
       setMyTimesheets(ts);
 
       // Clear form

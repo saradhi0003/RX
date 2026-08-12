@@ -76,12 +76,19 @@ describe("modelRouting — fallback chain", () => {
     ]);
   });
 
-  it("offers the full chain behind a local primary", () => {
-    expect(fallbackCandidates("local/google/gemma-4-12b-qat", allKeys)).toEqual([
-      "deepseek-chat",
-      "qwen-turbo",
-      "claude-3-5-haiku-20241022",
-    ]);
+  // This previously asserted the opposite — that a local primary offers the
+  // full paid chain. That behavior was the bug: a dead tunnel silently served
+  // `local/…` requests from DeepSeek and started billing, with the only trace
+  // being the model name in llm_usage. A local request must never bill unless
+  // someone explicitly opts in.
+  it("offers NO paid chain behind a local primary (a local request must not bill)", () => {
+    expect(fallbackCandidates("local/google/gemma-4-12b-qat", allKeys)).toEqual([]);
+  });
+
+  it("offers the full chain behind a local primary only when paid fallback is opted into", () => {
+    expect(
+      fallbackCandidates("local/google/gemma-4-12b-qat", allKeys, { allowPaidFallback: true }),
+    ).toEqual(["deepseek-chat", "qwen-turbo", "claude-3-5-haiku-20241022"]);
   });
 
   it("skips the primary itself", () => {
@@ -92,9 +99,11 @@ describe("modelRouting — fallback chain", () => {
   });
 
   it("skips candidates whose provider has no credentials", () => {
-    // Only Anthropic configured — the two OpenAI-compatible candidates drop out.
+    // Only Anthropic configured — the two OpenAI-compatible candidates drop
+    // out. Uses a CLOUD primary: a local primary now short-circuits to [] on
+    // the spend policy before credentials are even considered.
     expect(
-      fallbackCandidates("local/google/gemma-4-12b-qat", {
+      fallbackCandidates("gpt-4o-mini", {
         deepseek: false,
         dashscope: false,
         anthropic: true,
@@ -119,5 +128,73 @@ describe("modelRouting — fallback chain", () => {
     // Unchecked families are assumed configured — their call path reports the precise error.
     expect(providerConfigured("gpt-4o-mini", {})).toBe(true);
     expect(providerConfigured("local/google/gemma-4-12b-qat", {})).toBe(true);
+  });
+});
+
+describe("fallbackCandidates — spend policy", () => {
+  const allKeys = { deepseek: true, dashscope: true, anthropic: true };
+
+  it("a local primary never falls back to a paid provider by default", async () => {
+    const { fallbackCandidates } = await import("../../../supabase/functions/_shared/modelRouting.ts");
+    // The whole point of asking for local/ is that it costs nothing. Quietly
+    // answering with DeepSeek/Qwen/Claude is the one outcome that request rules out.
+    expect(fallbackCandidates("local/google/gemma-4-12b-qat", allKeys)).toEqual([]);
+    expect(fallbackCandidates("lmstudio/llama3.2-3b", allKeys)).toEqual([]);
+  });
+
+  it("allows paid fallback for a local primary only when explicitly opted in", async () => {
+    const { fallbackCandidates } = await import("../../../supabase/functions/_shared/modelRouting.ts");
+    const out = fallbackCandidates("local/whatever", allKeys, { allowPaidFallback: true });
+    expect(out.length).toBeGreaterThan(0);
+    expect(out).toContain("deepseek-chat");
+  });
+
+  it("still protects a cloud primary — that call was always going to cost something", async () => {
+    const { fallbackCandidates } = await import("../../../supabase/functions/_shared/modelRouting.ts");
+    const out = fallbackCandidates("gpt-4o-mini", allKeys);
+    expect(out).toEqual(["deepseek-chat", "qwen-turbo", "claude-3-5-haiku-20241022"]);
+  });
+
+  it("skips providers with no credentials rather than burning the timeout", async () => {
+    const { fallbackCandidates } = await import("../../../supabase/functions/_shared/modelRouting.ts");
+    const out = fallbackCandidates("gpt-4o-mini", { deepseek: false, dashscope: false, anthropic: true });
+    expect(out).toEqual(["claude-3-5-haiku-20241022"]);
+  });
+});
+
+describe("fallbackCandidates — UI-configured chain", () => {
+  const allKeys = { deepseek: true, dashscope: true, anthropic: true };
+
+  it("uses the configured chain verbatim, in order, over the built-in one", async () => {
+    const { fallbackCandidates } = await import("../../../supabase/functions/_shared/modelRouting.ts");
+    const chain = ["local/llama3.1-8b", "local/qwen/qwen2.5-coder-14b"];
+    expect(fallbackCandidates("local/gemma", allKeys, { chain })).toEqual(chain);
+  });
+
+  it("honours an all-local chain without any paid opt-in (stays free)", async () => {
+    const { fallbackCandidates } = await import("../../../supabase/functions/_shared/modelRouting.ts");
+    const out = fallbackCandidates("local/gemma", allKeys, { chain: ["local/a", "local/b"] });
+    expect(out.every((m) => m.startsWith("local/"))).toBe(true);
+  });
+
+  it("drops paid entries from the chain for a local primary unless opted in", async () => {
+    const { fallbackCandidates } = await import("../../../supabase/functions/_shared/modelRouting.ts");
+    const chain = ["local/llama3.1-8b", "deepseek-chat", "claude-3-5-haiku-20241022"];
+    // The checkbox is off: a request asked to run free must not become billed.
+    expect(fallbackCandidates("local/gemma", allKeys, { chain })).toEqual(["local/llama3.1-8b"]);
+    // Opted in: the operator's full order is honoured.
+    expect(fallbackCandidates("local/gemma", allKeys, { chain, allowPaidFallback: true })).toEqual(chain);
+  });
+
+  it("an explicitly empty chain means no fallback at all", async () => {
+    const { fallbackCandidates } = await import("../../../supabase/functions/_shared/modelRouting.ts");
+    expect(fallbackCandidates("gpt-4o-mini", allKeys, { chain: [] })).toEqual([]);
+  });
+
+  it("still skips the primary and unconfigured providers inside a chain", async () => {
+    const { fallbackCandidates } = await import("../../../supabase/functions/_shared/modelRouting.ts");
+    const chain = ["deepseek-chat", "qwen-turbo", "claude-3-5-haiku-20241022"];
+    const out = fallbackCandidates("deepseek-chat", { deepseek: true, dashscope: false, anthropic: true }, { chain });
+    expect(out).toEqual(["claude-3-5-haiku-20241022"]);
   });
 });

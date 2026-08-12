@@ -98,6 +98,27 @@ export function createEntity(tableName, { beforeWrite = (f) => f, afterRead = (r
       return (data || []).map(shape);
     },
 
+    /**
+     * count(conditions?) → exact number of matching rows.
+     *
+     * Metrics MUST use this, never `(await list()).length`. Every list call
+     * here is capped (default 200), so counting the returned array silently
+     * reports the cap instead of the truth once a table outgrows it — the
+     * Dashboard was reporting 50 companies against a real 2360, and a pipeline
+     * of 50 against a real 98, with no indication anything was truncated.
+     *
+     * `head: true` means Postgres returns the count only and transfers no
+     * rows, so this is cheaper than the list it replaces. RLS still applies,
+     * so a user only ever counts what they may see.
+     */
+    async count(conditions = {}) {
+      let query = supabase.from(tableName).select("*", { count: "exact", head: true });
+      query = applyFilters(query, conditions);
+      const { count, error } = await query;
+      if (error) throw error;
+      return count ?? 0;
+    },
+
     /** get(id) */
     async get(id) {
       const { data, error } = await supabase

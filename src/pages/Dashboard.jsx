@@ -114,7 +114,10 @@ const STAGE_PILL = {
 // ─── Main Component ────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({ totalCandidates: 0, activeJobs: 0, totalCompanies: 0, thisMonthPlacements: 0 });
+  const [stats, setStats] = useState({
+    totalCandidates: 0, activeJobs: 0, totalCompanies: 0, thisMonthPlacements: 0,
+    pipelineApplied: 0, pipelineScreened: 0, pipelineInterview: 0, pipelineOffer: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [myTasksToday, setMyTasksToday] = useState([]);
   const [candidates, setCandidates] = useState([]);
@@ -205,14 +208,34 @@ export default function Dashboard() {
       setCompanies(safeCo);
       setApplications(safeA);
 
-      const activeJobs = safeJ.filter(j => j.status === "open").length;
       const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
-      const thisMonthPlacements = safeA.filter(a => {
-        if (a.status !== "hired") return false;
-        const d = new Date(a.created_date);
-        return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-      }).length;
-      const newStats = { totalCandidates: safeC.length, activeJobs, totalCompanies: safeCo.length, thisMonthPlacements };
+
+      // Metrics come from COUNT queries, never from the length of the lists
+      // above. Those lists are page fetches (100 candidates, 50 companies,
+      // 50 submissions), so counting them reported the cap rather than the
+      // truth the moment a table outgrew it — "Total Companies" read 50
+      // against a real 2360, and the pipeline read 50 against a real 98, with
+      // nothing on screen indicating the number was truncated. A count with
+      // head:true transfers no rows, so this is cheaper than what it replaces.
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
+      const [
+        totalCandidates, totalCompanies, activeJobs, thisMonthPlacements,
+        pipelineApplied, pipelineScreened, pipelineInterview, pipelineOffer,
+      ] = await Promise.all([
+        Candidate.count(candFilter || {}).catch(() => safeC.length),
+        Company.count(compFilter || {}).catch(() => safeCo.length),
+        Job.count({ ...(jobFilter || {}), status: "open" }).catch(() => safeJ.filter(j => j.status === "open").length),
+        Submission.count({ ...(subFilter || {}), status: "hired", created_at: { $gte: monthStart } }).catch(() => 0),
+        Submission.count(subFilter || {}).catch(() => safeA.length),
+        Submission.count({ ...(subFilter || {}), status: "under_review" }).catch(() => 0),
+        Submission.count({ ...(subFilter || {}), status: "interviewing" }).catch(() => 0),
+        Submission.count({ ...(subFilter || {}), status: "offered" }).catch(() => 0),
+      ]);
+
+      const newStats = {
+        totalCandidates, activeJobs, totalCompanies, thisMonthPlacements,
+        pipelineApplied, pipelineScreened, pipelineInterview, pipelineOffer,
+      };
       setStats(newStats);
 
       const todayTs = todayMidnight.getTime();
@@ -342,13 +365,16 @@ export default function Dashboard() {
   // "Applied" counts every row because entering the pipeline at all is the
   // top of the funnel, whichever door it came through (careers form, recruiter
   // add-to-job, inbound email).
+  // Counts, not `applications.filter(...).length` — `applications` is a capped
+  // page fetch (50), so the funnel silently under-reported every stage once the
+  // table passed that. See the count() note in entityFactory.
   const pipelineStages = useMemo(() => [
-    { label: "Applied",   count: applications.length },
-    { label: "Screened",  count: applications.filter(a => a.status === "under_review").length },
-    { label: "Interview", count: applications.filter(a => a.status === "interviewing").length },
-    { label: "Offer",     count: applications.filter(a => a.status === "offered").length },
+    { label: "Applied",   count: stats.pipelineApplied   ?? 0 },
+    { label: "Screened",  count: stats.pipelineScreened  ?? 0 },
+    { label: "Interview", count: stats.pipelineInterview ?? 0 },
+    { label: "Offer",     count: stats.pipelineOffer     ?? 0 },
     { label: "Placed",    count: stats.thisMonthPlacements },
-  ], [applications, stats.thisMonthPlacements]);
+  ], [stats]);
 
   const pipelineMax = useMemo(() => Math.max(...pipelineStages.map(s => s.count), 1), [pipelineStages]);
   const PIPE_COLORS = useMemo(() => ({ Applied: "#2563EB", Screened: "#F97316", Interview: "#16A34A", Offer: "#7C3AED", Placed: "#0891B2" }), []);

@@ -77,6 +77,8 @@ function SubmissionsPageContent() {
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [activeView, setActiveView] = useState(null);
   const [views, setViews] = useState([]);
+  // Header metrics that must reflect the whole table, not the page fetch.
+  const [metrics, setMetrics] = useState({ openRoles: 0 });
 
   const [highlightedSubmission, setHighlightedSubmission] = useState(null);
   const [highlightedChanges, setHighlightedChanges] = useState({});
@@ -126,6 +128,12 @@ function SubmissionsPageContent() {
         ...(submissionsData || []).map((s) => s.company_id).filter(Boolean),
       ])];
       const companiesData = await byId(Company, companyIds);
+
+      // Whole-table count — the `jobs` array above is deliberately scoped to
+      // the submissions on screen, so it cannot answer "how many open roles".
+      Job.count({ status: "open" })
+        .then((openRoles) => setMetrics((m) => ({ ...m, openRoles })))
+        .catch(() => { /* header metric only — never break the page */ });
 
       // Filter submissions to only show past 1 month
       const oneMonthAgo = new Date();
@@ -379,7 +387,13 @@ function SubmissionsPageContent() {
   };
 
   // ── Derived metrics ──
-  const openRoles = jobs.filter(j => j.status === "open").length;
+  // `openRoles` comes from a COUNT, not from the `jobs` array: that array holds
+  // only the jobs referenced by the submissions currently on screen, so
+  // counting "open" ones inside it answers a different question entirely
+  // (and read 0 while open roles existed elsewhere). The rest are derived from
+  // `submissions`, which is scoped to the last month on purpose — that IS the
+  // question for "filled this month".
+  const openRoles = metrics.openRoles;
   const filledThisMonth = (() => {
     const now = new Date();
     return submissions.filter(s => s.status === "hired" && new Date(s.submitted_date || s.created_date).getMonth() === now.getMonth() && new Date(s.submitted_date || s.created_date).getFullYear() === now.getFullYear()).length;

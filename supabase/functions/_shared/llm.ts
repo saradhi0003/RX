@@ -91,13 +91,25 @@ export async function invokeLLM(
   // (DeepSeek → Qwen → Anthropic), skipping providers with no credentials.
   // The first success wins; the usage log below records which model actually
   // served, so fallback spend is still visible against the daily ceiling.
+  // Routing config is DB-first (AI Recruiter Settings) so the whole decision —
+  // primary AND ordered fallbacks — is visible and editable in the UI rather
+  // than decided by a constant in this file. The env var stays only as a
+  // break-glass override for the spend policy.
+  const routingSettings = await getAISettings().catch(() => null);
+  const configuredChain: string[] = Array.isArray(routingSettings?.fallback_models)
+    ? routingSettings.fallback_models
+    : [];
+  const allowPaidFallback =
+    routingSettings?.llm_allow_paid_fallback === true ||
+    (Deno.env.get("LLM_ALLOW_PAID_FALLBACK") || "").toLowerCase() === "true";
+
   const candidates = [
     resolvedModel,
-    ...fallbackCandidates(resolvedModel, {
-      deepseek: hasDeepSeek(),
-      dashscope: hasDashScope(),
-      anthropic: hasAnthropic(),
-    }),
+    ...fallbackCandidates(
+      resolvedModel,
+      { deepseek: hasDeepSeek(), dashscope: hasDashScope(), anthropic: hasAnthropic() },
+      { allowPaidFallback, chain: configuredChain },
+    ),
   ];
   let result: LLMResult | null = null;
   let lastError: unknown = null;
@@ -118,7 +130,17 @@ export async function invokeLLM(
     }
   }
   if (!result) {
-    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+    const cause = lastError instanceof Error ? lastError.message : String(lastError);
+    if (isLocalModel(resolvedModel) && !allowPaidFallback) {
+      // Say WHY nothing else was tried, or this reads as a total AI outage
+      // rather than the deliberate cost policy it is.
+      throw new Error(
+        `Local model "${resolvedModel}" is unreachable and no paid fallback was used ` +
+        `(LLM_ALLOW_PAID_FALLBACK is not set, so a local request never bills). ` +
+        `Check the tunnel: ./scripts/tunnel-lmstudio.sh, or healthCheck's local_fleet probe. Cause: ${cause}`,
+      );
+    }
+    throw lastError instanceof Error ? lastError : new Error(cause);
   }
 
   // Cost logging is best-effort; it must never break the caller.

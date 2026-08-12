@@ -34,8 +34,16 @@ export default function AIRecruiterSettings() {
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [saved, setSaved]       = useState(false);
+  /** Four editable fallback slots; compacted into fallback_models on save. */
+  const [fallbackSlots, setFallbackSlots] = useState(["", "", "", ""]);
 
   useEffect(() => { loadSettings(); }, []);
+
+  // Re-seed the slots whenever a different settings row is loaded.
+  useEffect(() => {
+    const arr = Array.isArray(settings?.fallback_models) ? settings.fallback_models : [];
+    setFallbackSlots([0, 1, 2, 3].map((i) => arr[i] || ""));
+  }, [settings?.id]);
 
   const loadSettings = async () => {
     setLoading(true);
@@ -74,7 +82,13 @@ export default function AIRecruiterSettings() {
     setSaving(true);
     setSaved(false);
     try {
-      await AIRecruiterSettingsEntity.update(settings.id, settings);
+      // Compact here, not on keystroke — blanks must never reach the array.
+      const payload = {
+        ...settings,
+        fallback_models: fallbackSlots.map((s) => String(s || "").trim()).filter(Boolean),
+      };
+      await AIRecruiterSettingsEntity.update(settings.id, payload);
+      setSettings(payload);
       await refreshAIRecruiterSettings();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -110,6 +124,21 @@ export default function AIRecruiterSettings() {
   /** @param {string} key @param {any} val */
   const set = (key, val) => setSettings((prev) => ({ ...prev, [key]: val }));
 
+  // `fallback_models` is an ordered TEXT[]. The UI shows four fixed slots, but
+  // the stored array must contain no blanks — an empty slot means "nothing
+  // here", and the backend treats the array as the exact ordered list to try.
+  // Slots are therefore held as their own state while editing and compacted
+  // only on save; compacting on each keystroke would make a value typed into
+  // slot 3 jump up to slot 1 as you type.
+  const isFreeModel = (m) => /^(local|lmstudio)\//i.test(String(m || "").trim());
+  const fallbackAt = (i) => fallbackSlots[i] || "";
+  const setFallbackAt = (i, val) =>
+    setFallbackSlots((prev) => { const next = [...prev]; next[i] = val; return next; });
+  const applyLocalOnlyChain = () => {
+    setFallbackSlots(["local/qwen/qwen2.5-coder-14b", "local/llama3.1-8b", "", ""]);
+    set("llm_allow_paid_fallback", false);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -144,7 +173,7 @@ export default function AIRecruiterSettings() {
           <p className="text-xs text-muted-foreground mb-3">
             Free text — any model id works. Prefix with <code>local/</code> to route through your
             LM Studio tunnel (e.g. <code>local/google/gemma-4-12b-qat</code>). If a call fails, the
-            server automatically falls back: DeepSeek → Qwen → Claude Haiku.
+            server tries the fallback chain you define below — in order, and nothing else.
           </p>
           <datalist id="llm-model-suggestions">
             {MODEL_SUGGESTIONS.map((m) => <option key={m} value={m} />)}
@@ -169,6 +198,62 @@ export default function AIRecruiterSettings() {
               </div>
             ))}
           </div>
+        </section>
+
+        {/* Fallback chain — deterministic, in order, no hidden behaviour */}
+        <section className="border-t pt-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Fallback Chain</h3>
+            <Button type="button" variant="outline" size="sm" onClick={applyLocalOnlyChain}>
+              <Laptop className="w-3.5 h-3.5 mr-1.5" />
+              Local only (never spends)
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            Tried in order when the model above fails. Leave every slot blank for
+            <strong> no fallback at all</strong> — a failed local call then fails loudly instead of
+            quietly billing you. Each slot shows whether it is free or paid.
+          </p>
+          <div className="space-y-3">
+            {[0, 1, 2, 3].map((i) => {
+              const value = fallbackAt(i);
+              const paid = value ? !isFreeModel(value) : false;
+              return (
+                <div key={i}>
+                  <label className="block text-sm font-medium mb-1">
+                    Fallback {i + 1}
+                    {value && (
+                      <span className={`ml-2 text-xs font-normal ${paid ? "text-amber-600" : "text-emerald-600"}`}>
+                        {paid ? "• paid" : "• free (local)"}
+                      </span>
+                    )}
+                  </label>
+                  <Input
+                    list="llm-model-suggestions"
+                    placeholder={i === 0 ? "e.g. local/llama3.1-8b — leave blank for none" : "leave blank for none"}
+                    value={value}
+                    onChange={(e) => setFallbackAt(i, e.target.value)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+
+          <label className="flex items-start gap-2 mt-4 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={settings.llm_allow_paid_fallback === true}
+              onChange={(e) => set("llm_allow_paid_fallback", e.target.checked)}
+            />
+            <span>
+              Allow a <strong>paid</strong> fallback when the primary is a free <code>local/</code> model.
+              <span className="block text-xs text-muted-foreground">
+                Off by default. While off, paid entries above are skipped for local primaries, so a
+                request you asked to run for free can never quietly become a billed one.
+              </span>
+            </span>
+          </label>
         </section>
 
         {/* OpenAI-Compatible Endpoint (local Qwen / vLLM / tunnel / hosted proxy) */}

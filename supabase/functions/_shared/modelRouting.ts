@@ -81,13 +81,41 @@ export function providerConfigured(model: string, avail: ProviderAvailability): 
  * Ordered list of models to try after `primaryModel` fails. Skips the primary
  * itself and any candidate whose provider has no credentials — trying those
  * would just burn the timeout budget on a guaranteed "key not configured".
+ *
+ * `allowPaidFallback` is the spend policy, and it defaults to FALSE for a
+ * `local/` primary. Asking for `local/…` is an explicit instruction to run for
+ * free; quietly answering it with a billable provider is the one thing that
+ * instruction rules out. This is not hypothetical — a dead tunnel did exactly
+ * that here, and the only trace was a `deepseek-chat` row in llm_usage where a
+ * `local/…` row belonged. Failing loudly is recoverable (the tunnel supervisor
+ * restarts it, and the error says why); silently spending is not, because
+ * nobody looks until the bill arrives.
+ *
+ * A cloud primary still falls back normally — it was always going to cost
+ * something, so the chain is strictly protective there.
  */
 export function fallbackCandidates(
   primaryModel: string,
   avail: ProviderAvailability,
+  opts: { allowPaidFallback?: boolean; chain?: readonly string[] } = {},
 ): string[] {
   const primary = String(primaryModel || "").toLowerCase();
-  return FALLBACK_MODELS.filter(
-    (m) => m !== primary && providerConfigured(m, avail),
-  );
+  const allowPaid = opts.allowPaidFallback === true;
+
+  // An explicitly configured chain (ai_recruiter_settings.fallback_models, set
+  // in the Settings UI) wins over the built-in order — that is the whole point
+  // of making it configurable: what runs is what the operator listed, in their
+  // order, not what the code decided.
+  const source = (opts.chain && opts.chain.length > 0)
+    ? opts.chain.map((m) => String(m || "").trim()).filter(Boolean)
+    : (opts.chain ? [] : FALLBACK_MODELS.slice());
+
+  return source.filter((m) => {
+    if (m.toLowerCase() === primary) return false;              // already tried
+    if (!providerConfigured(m, avail)) return false;            // no credentials
+    // Spend policy: with a free local primary, a billable fallback is only
+    // reachable via an explicit opt-in. Local→local fallback is always fine.
+    if (isLocalModel(primary) && !isLocalModel(m) && !allowPaid) return false;
+    return true;
+  });
 }

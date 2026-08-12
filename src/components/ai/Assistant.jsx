@@ -25,7 +25,21 @@ import {
   Download
 } from "lucide-react";
 import { InvokeLLMJson } from "@/integrations/Core";
-import { Candidate, Job, Company, Submission, Task } from "@/entities/all";
+import { Candidate, Job, Company, Submission, Task, Timesheet, LeaveRequest } from "@/entities/all";
+
+/**
+ * Monday→Sunday bounds for a date. `timesheets` requires week_start/week_end
+ * (both NOT NULL) alongside the day itself, so a single-day entry still has to
+ * declare the week it belongs to.
+ */
+function weekBounds(isoDate) {
+  const d = new Date(`${isoDate}T00:00:00`);
+  const dow = (d.getDay() + 6) % 7;            // Mon=0 … Sun=6
+  const start = new Date(d); start.setDate(d.getDate() - dow);
+  const end = new Date(start); end.setDate(start.getDate() + 6);
+  const iso = (x) => x.toISOString().slice(0, 10);
+  return { week_start: iso(start), week_end: iso(end) };
+}
 import { User } from "@/entities/User";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import ReactMarkdown from "react-markdown";
@@ -278,7 +292,10 @@ export default function Assistant({ currentPageName }) {
       properties: {
         intent: {
           type: "string",
-          enum: ["query", "create_task", "create_candidate", "navigate", "not_supported"]
+          enum: [
+            "query", "create_task", "create_candidate", "create_job", "create_company",
+            "log_time", "apply_leave", "navigate", "not_supported",
+          ]
         },
         summary: { type: "string" },
         task_title: { type: "string" },
@@ -291,6 +308,21 @@ export default function Assistant({ currentPageName }) {
         candidate_phone: { type: "string" },
         candidate_current_title: { type: "string" },
         candidate_skills: { type: "array", items: { type: "string" } },
+        job_title: { type: "string" },
+        job_location: { type: "string" },
+        job_description: { type: "string" },
+        job_company_name: { type: "string" },
+        company_name: { type: "string" },
+        company_website: { type: "string" },
+        company_industry: { type: "string" },
+        company_location: { type: "string" },
+        timesheet_date: { type: "string" },
+        timesheet_hours: { type: "number" },
+        timesheet_notes: { type: "string" },
+        leave_start_date: { type: "string" },
+        leave_end_date: { type: "string" },
+        leave_type: { type: "string" },
+        leave_reason: { type: "string" },
         navigate_target: { type: "string" },
         navigate_label: { type: "string" }
       },
@@ -300,12 +332,17 @@ export default function Assistant({ currentPageName }) {
     const system = `You are an intent classifier for a recruiting assistant. Supported actions:
 - create_task: user wants a new task created
 - create_candidate: user wants to add a candidate from text they will paste or have pasted
+- create_job: user wants to add/open a job or role
+- create_company: user wants to add a company/client/connection
+- log_time: user wants to log hours worked on a date (timesheet)
+- apply_leave: user wants to request time off / leave
 - navigate: user wants to go to a page (Candidates, Jobs, Tasks, Companies, Submissions, Dashboard)
 - query: anything else (analysis, search, questions)
 - not_supported: destructive operations (delete, update, send email) or unclear requests
 
-Today is ${new Date().toISOString().slice(0, 10)}. Infer reasonable defaults: task priority medium, due today if not specified.
-Return a concise summary explaining what you understood.`;
+Today is ${new Date().toISOString().slice(0, 10)}. Infer reasonable defaults: task priority medium, due today if
+not specified; timesheet date today and hours 8 if not specified; leave end date same as start if only one date given.
+Dates must be YYYY-MM-DD. Return a concise summary explaining what you understood.`;
 
     const parsed = await InvokeLLMJson({
       task: "classification",
@@ -326,6 +363,36 @@ Return a concise summary explaining what you understood.`;
         type: "action",
         action: { kind: "create_candidate", data: parsed },
         summary: parsed.summary || `Add candidate: **${parsed.candidate_first_name || ""} ${parsed.candidate_last_name || ""}**`.trim()
+      };
+    }
+    // Every write still routes through the same confirm-before-execute card as
+    // the two original actions — the assistant never writes unprompted.
+    if (parsed.intent === "create_job") {
+      return {
+        type: "action",
+        action: { kind: "create_job", data: parsed },
+        summary: parsed.summary || `Create job: **${parsed.job_title || "(no title)"}**`
+      };
+    }
+    if (parsed.intent === "create_company") {
+      return {
+        type: "action",
+        action: { kind: "create_company", data: parsed },
+        summary: parsed.summary || `Add company: **${parsed.company_name || "(no name)"}**`
+      };
+    }
+    if (parsed.intent === "log_time") {
+      return {
+        type: "action",
+        action: { kind: "log_time", data: parsed },
+        summary: parsed.summary || `Log ${parsed.timesheet_hours ?? 8}h on ${parsed.timesheet_date || "today"}`
+      };
+    }
+    if (parsed.intent === "apply_leave") {
+      return {
+        type: "action",
+        action: { kind: "apply_leave", data: parsed },
+        summary: parsed.summary || `Request leave ${parsed.leave_start_date || ""}–${parsed.leave_end_date || ""}`.trim()
       };
     }
     if (parsed.intent === "navigate") {
@@ -381,6 +448,75 @@ Return a concise summary explaining what you understood.`;
           content: `✅ Added candidate **${candidate.first_name || ""} ${candidate.last_name || ""}** (${candidate.email}). [View Candidates](${createPageUrl("Candidates")})`
         }]);
         addNotification({ type: "success", title: "Candidate added", message: candidate.email });
+      } else if (action.kind === "create_job") {
+        const data = action.data;
+        if (!data.job_title) throw new Error("I need a job title to create a role.");
+        const job = await Job.create({
+          title: data.job_title,
+          location: data.job_location || "",
+          description: data.job_description || "",
+          status: "open",
+        });
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: `✅ Created job **${job.title}**. [View Jobs](${createPageUrl("Jobs")})`
+        }]);
+        addNotification({ type: "success", title: "Job created", message: job.title });
+      } else if (action.kind === "create_company") {
+        const data = action.data;
+        if (!data.company_name) throw new Error("I need a company name.");
+        const company = await Company.create({
+          name: data.company_name,
+          website: data.company_website || "",
+          industry: data.company_industry || "",
+          location: data.company_location || "",
+        });
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: `✅ Added company **${company.name}**. [View Connections](${createPageUrl("Companies")})`
+        }]);
+        addNotification({ type: "success", title: "Company added", message: company.name });
+      } else if (action.kind === "log_time") {
+        const data = action.data;
+        const workDate = data.timesheet_date || new Date().toISOString().slice(0, 10);
+        const hours = Number(data.timesheet_hours ?? 8);
+        // Column names are user_email / work_date / hours_worked — NOT
+        // user_id / date / hours. week_start+week_end are NOT NULL, so a
+        // single day still declares its week.
+        const ts = await Timesheet.create({
+          user_email: context?.user?.email || "",
+          work_date: workDate,
+          hours_worked: hours,
+          ...weekBounds(workDate),
+          status: "submitted",
+          notes: data.timesheet_notes || "",
+        });
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: `✅ Logged **${hours}h** on ${workDate}. [View My Work](${createPageUrl("MyWork")})`
+        }]);
+        addNotification({ type: "success", title: "Time logged", message: `${hours}h on ${workDate}` });
+        void ts;
+      } else if (action.kind === "apply_leave") {
+        const data = action.data;
+        const start = data.leave_start_date || new Date().toISOString().slice(0, 10);
+        const end = data.leave_end_date || start;
+        const days = Math.max(1, Math.round((new Date(end) - new Date(start)) / 86400000) + 1);
+        const leave = await LeaveRequest.create({
+          user_id: context?.user?.email || "",
+          leave_type: data.leave_type || "personal",
+          start_date: start,
+          end_date: end,
+          days_requested: days,
+          reason: data.leave_reason || "",
+          status: "pending",
+        });
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: `✅ Leave requested ${start} → ${end} (${days} day${days === 1 ? "" : "s"}), pending approval. [View My Work](${createPageUrl("MyWork")})`
+        }]);
+        addNotification({ type: "success", title: "Leave requested", message: `${start} → ${end}` });
+        void leave;
       }
     } catch (error) {
       console.error("Action execution failed:", error);
