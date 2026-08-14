@@ -95,8 +95,9 @@ cd mobile && npm run build:web   # expo export — CI parity check
   classify with the **local-first** parsing model → auto-create Job/Candidate at
   ≥0.7 confidence, queue the rest to `approval_items` (`email_intake`), stop
   follow-ups on replies. **Migration 032 is applied** (verified against the live
-  DB 2026-08-14); **033 is staged and not applied** — it closes an `anon` grant
-  032 left open on the OAuth token columns (see supabase/CLAUDE.md §033).
+  DB 2026-08-14), as are **033 + 034**, which close grants 032 left open on the
+  OAuth token columns — `anon` had table-wide SELECT and `authenticated`
+  table-wide UPDATE (see supabase/CLAUDE.md §033/034).
   Still needs `GOOGLE_OAUTH_*` / `ZOHO_OAUTH_*` / `CRON_SECRET` Edge Function
   secrets and the 5-minute scheduled trigger before mail actually flows.
   Details in

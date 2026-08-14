@@ -25,16 +25,17 @@ shipped migration — add a new one.
   029 self-bootstrap `workspace_id` fix · 030 audit-log `workspace_id` ·
   031 LLM fallback chain · **032 email accounts** (connected Gmail/Zoho
   mailboxes + `inbound_emails` classification columns) ·
-  **033 email_accounts anon revoke**.
-  017–**032** are **APPLIED** to the live project (017–022 on 2026-07-27;
+  **033 email_accounts anon revoke** · **034 email_accounts narrow UPDATE**.
+  017–**034** are **APPLIED** to the live project (017–022 on 2026-07-27;
   023 + 024 on 2026-08-03, re-verified 2026-08-08 — earlier revisions of this
   file wrongly called 023 "staged"). **032 verified applied 2026-08-14** by
   probing the live DB directly: `email_accounts` exists, the three
   `inbound_emails` columns exist, and `approval_items_type_check` already
-  carries `email_intake`.
-  **033 is STAGED — NOT applied.**
+  carries `email_intake`. **033 + 034 applied 2026-08-14** and verified: `anon`
+  holds nothing on `email_accounts`, `authenticated` holds SELECT on the nine
+  non-secret columns and UPDATE on `is_active` alone.
 
-### 033 — 032 revoked the token columns from `authenticated` only
+### 033 / 034 — 032 revoked the token columns from `authenticated` only
 Verified live 2026-08-14: `authenticated` sees the intended 9 columns, but
 **`anon` still had SELECT on all 15 — `access_token` and `refresh_token`
 included.** 032 wrote `REVOKE SELECT … FROM authenticated` and Supabase's
@@ -46,12 +47,24 @@ an anon request matches no policy and reads zero rows. It is a latent one — th
 grant is all that stands between a future anon-readable policy (`blog_posts` is
 the precedent here) and serving OAuth refresh tokens to anyone with the
 publishable key, which ships in the browser bundle by design. 033 revokes anon
-outright and drops `authenticated` to SELECT (9 columns) + UPDATE, since the
-UI's only write is flipping `is_active`.
+outright and drops `authenticated` to SELECT on the nine non-secret columns.
 
-**Lesson, and it generalises:** `REVOKE … FROM authenticated` is half a revoke.
-Grants are per-role, and Supabase seeds two. Audit `information_schema.column_privileges`
-for **both** roles after any column-grant migration.
+**034 finishes it.** Re-probing right after 033 showed `authenticated` still had
+**table-wide UPDATE**, tokens included. Not a confidentiality hole — Postgres
+requires column-level SELECT to *read* a column in any expression, so
+`SET last_error = access_token` is refused and `UPDATE … RETURNING` can only
+return SELECT-granted columns — but an integrity one: an admin could overwrite a
+token with garbage and silently break that mailbox's polling. 034 narrows UPDATE
+to `is_active`, the UI's only legitimate write (everything else runs as the
+service role, which bypasses grants).
+
+**Two lessons, both generalising:**
+1. `REVOKE … FROM authenticated` is **half a revoke** — grants are per-role and
+   Supabase seeds two (`anon` and `authenticated`).
+2. A revoke on SELECT says nothing about UPDATE. Audit
+   `information_schema.column_privileges` for **both roles and every privilege
+   type** after any column-grant migration — and re-probe *after* applying,
+   because the gap 034 closes was invisible until the SELECT fix was in place.
 
 ### 023 — the resume bucket never existed
 Verified against the live project 2026-07-29: the `uploads` bucket **does not

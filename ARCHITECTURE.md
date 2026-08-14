@@ -705,10 +705,10 @@ Migration 032 adds **classification**, **classification_confidence** NUMERIC(3,2
 #### email_accounts *(migration 032)*
 One row per connected mailbox. workspace_id, provider (`gmail|zoho`), email_address, **access_token**, **refresh_token**, token_expires_at, history_cursor, external_account_id (Zoho accountId), is_active, last_polled_at, last_error, created_by. `UNIQUE (provider, email_address)`.
 
-> **The token columns are protected by column grants, not only RLS.** `authenticated`
-> may SELECT nine non-secret columns; `anon` gets nothing (033). Writes happen via
-> the service role (OAuth callback + poller); the UI's sole write is flipping
-> `is_active`. Read it through `@/entities/EmailAccount` — a `SELECT *` is rejected
+> **The token columns are protected by column grants, not only RLS.** `anon` holds
+> nothing at all; `authenticated` may SELECT nine non-secret columns and UPDATE
+> `is_active` alone (033 + 034). Every other write runs as the service role
+> (OAuth callback + poller), which bypasses grants. Read it through `@/entities/EmailAccount` — a `SELECT *` is rejected
 > outright by Postgres, so the default entity wrapper would break every read on
 > the page. Never widen the grant to cover `access_token` / `refresh_token`.
 
@@ -1717,7 +1717,8 @@ broken". Never rewrite a migration that has been applied; add a new one.
 | `024` | **Multi-tenancy** — `auth_workspace_id()` + `workspace_id` scoping (the one that shipped) | ✅ Applied 2026-08-03 |
 | `025`–`031` | LLM settings; applications→submissions cutover + status vocabularies; self-bootstrap fix; audit-log `workspace_id`; LLM fallback chain | ✅ Applied |
 | `032` | **Email accounts** — `email_accounts`, `inbound_emails` classification columns, `email_intake` approval type | ✅ Applied (verified 2026-08-14) |
-| `033` | **`email_accounts` anon revoke** — closes the grant `032` left open on the OAuth token columns | ⚠️ **STAGED — not applied** |
+| `033` | **`email_accounts` anon revoke** — closes the grant `032` left open on the OAuth token columns | ✅ Applied 2026-08-14 |
+| `034` | **`email_accounts` narrow UPDATE** to `is_active` — `033` left `authenticated` with table-wide UPDATE | ✅ Applied 2026-08-14 |
 
 **Two lessons encoded here, both found by probing the live DB rather than reading
 the docs:**
@@ -1729,9 +1730,11 @@ the docs:**
 2. **`REVOKE … FROM authenticated` is half a revoke.** Supabase seeds grants to
    **both** `anon` and `authenticated`, so `032` narrowed one role and left the
    other with table-wide SELECT over OAuth refresh tokens (RLS still blocked the
-   rows, so it was latent, not live). Check
-   `information_schema.column_privileges` for both roles after any column-grant
-   migration.
+   rows, so it was latent, not live). And a revoke on SELECT says nothing about
+   UPDATE — `033` fixed the read side and `034` was still needed for the write
+   side. Check `information_schema.column_privileges` for **both roles and every
+   privilege type**, and re-probe *after* applying: the gap `034` closes was
+   invisible until the SELECT fix was already in.
 
 ---
 
