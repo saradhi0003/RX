@@ -6,6 +6,13 @@ interface ClassifyResult {
   classification: MessageClassification;
   confidence: number;
   reasoning: string;
+  /**
+   * True when the classifier never ran (LLM/tunnel down, bad JSON) as opposed
+   * to running and genuinely landing on "unknown". Callers must tell these
+   * apart: a real "unknown" is a decision and can be filed away, but a failure
+   * filed away the same way discards the message on an outage.
+   */
+  failed?: boolean;
 }
 
 const SYSTEM_PROMPT = `You are an AI assistant for a recruiting platform.
@@ -29,7 +36,12 @@ export async function classifyMessage(text: string, model?: string | null): Prom
       model || null
     );
     return result;
-  } catch {
-    return { classification: "unknown", confidence: 0, reasoning: "Classification failed" };
+  } catch (e) {
+    return {
+      classification: "unknown",
+      confidence: 0,
+      reasoning: `Classification failed: ${e instanceof Error ? e.message : String(e)}`,
+      failed: true,
+    };
   }
 }

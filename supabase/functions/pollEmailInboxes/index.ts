@@ -17,16 +17,27 @@ import {
   hasCronSecret, getCronSecret,
   getGoogleOAuthEnv, getZohoOAuthEnv,
 } from "../_shared/env.ts";
-import { DEFAULT_WORKSPACE_ID } from "../_shared/auth.ts";
 import {
   normalizeGmailMessage,
   normalizeZohoMessage,
   isParseableAttachment,
 } from "../_shared/emailNormalizers.ts";
-import { attachmentsToText } from "../_shared/attachmentText.ts";
+import { attachmentsToText, MAX_ATTACHMENTS_PER_EMAIL } from "../_shared/attachmentText.ts";
 import { processInboundEmail } from "../_shared/emailProcessor.ts";
 
+/**
+ * How many messages one run will fully process (fetch + classify + parse).
+ * Bounded by the Edge Function time limit, not by how much mail is waiting.
+ */
 const MAX_MESSAGES_PER_ACCOUNT = 20;
+/**
+ * How many message stubs to *list*. Larger than the processing cap on purpose:
+ * both providers list newest-first, so seeing more of the queue is what lets a
+ * run pick the OLDEST unprocessed messages. Processing the newest 20 and then
+ * moving the cursor past everything would strand any backlog bigger than the
+ * cap permanently.
+ */
+const LIST_PAGE_SIZE = 100;
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 /* ── OAuth token refresh ─────────────────────────────────────────────────── */
@@ -69,7 +80,21 @@ async function refreshTokenIfDue(account) {
 
 /* ── Insert helpers ──────────────────────────────────────────────────────── */
 
-async function insertIfNew(normalized) {
+// The service role bypasses RLS *and* the workspace_id stamp trigger, so the
+// mailbox's own workspace has to be carried in explicitly.
+//
+// There is deliberately no DEFAULT_WORKSPACE_ID fallback: 032 leaves
+// email_accounts.workspace_id nullable, and defaulting a null would file one
+// tenant's mail into another's workspace — a silent, hard-to-notice data leak.
+// Failing instead surfaces as last_error on that one account and leaves the
+// other mailboxes polling normally.
+async function insertIfNew(normalized, workspaceId) {
+  if (!workspaceId) {
+    throw new Error(
+      "mailbox has no workspace_id — reconnect it so inbound mail is scoped to a workspace",
+    );
+  }
+
   const { data: existing } = await supabase
     .from("inbound_emails")
     .select("id")
@@ -81,13 +106,46 @@ async function insertIfNew(normalized) {
     .from("inbound_emails")
     .insert({
       ...normalized,
-      workspace_id: DEFAULT_WORKSPACE_ID,
+      workspace_id: workspaceId,
       processing_status: "pending",
     })
     .select("id")
     .single();
-  if (error) throw new Error(`insert inbound_emails failed: ${error.message}`);
+
+  // The check above is not atomic — two overlapping cron runs can both pass it.
+  // `inbound_emails.message_id` is UNIQUE, so the loser gets 23505; that is the
+  // dedupe working, not an error, and throwing here would abort the whole
+  // account's poll and discard its cursor.
+  if (error) {
+    if (error.code === "23505") return null;
+    throw new Error(`insert inbound_emails failed: ${error.message}`);
+  }
   return data.id;
+}
+
+/**
+ * Resume attachments → plain text for the classifier and parser.
+ *
+ * The two providers differ only in how the bytes are fetched, so the caller
+ * passes a `download` closure and everything else (which attachments are worth
+ * fetching, the per-email cap, extraction) stays in one place.
+ */
+async function extractAttachmentText(attachments, download) {
+  const parseable = (attachments || []).filter((a) =>
+    isParseableAttachment(a.name, a.contentType)
+  );
+  if (!parseable.length) return "";
+
+  const files = [];
+  for (const att of parseable.slice(0, MAX_ATTACHMENTS_PER_EMAIL)) {
+    try {
+      const bytes = await download(att);
+      if (bytes) files.push({ name: att.name, bytes });
+    } catch {
+      // A single unreachable attachment must not fail the whole email.
+    }
+  }
+  return files.length ? await attachmentsToText(files) : "";
 }
 
 /* ── Gmail ─────────────────────────────────────────────────────────────── */
@@ -100,7 +158,7 @@ async function pollGmail(account, accessToken) {
   const after = account.history_cursor
     ? ` after:${Math.floor(Number(account.history_cursor) / 1000)}`
     : "";
-  const listUrl = `${base}?q=${encodeURIComponent(`in:inbox${after}`)}&maxResults=${MAX_MESSAGES_PER_ACCOUNT}`;
+  const listUrl = `${base}?q=${encodeURIComponent(`in:inbox${after}`)}&maxResults=${LIST_PAGE_SIZE}`;
   const listRes = await fetch(listUrl, { headers });
   if (!listRes.ok) throw new Error(`Gmail list failed: HTTP ${listRes.status}`);
   const list = await listRes.json();
@@ -108,35 +166,41 @@ async function pollGmail(account, accessToken) {
   let imported = 0;
   let maxInternalDate = Number(account.history_cursor || 0);
 
-  for (const stub of (list.messages || []).slice(0, MAX_MESSAGES_PER_ACCOUNT)) {
-    const msgRes = await fetch(`${base}/${stub.id}?format=full`, { headers });
-    if (!msgRes.ok) continue;
-    const msg = await msgRes.json();
+  // Gmail lists newest-first. Reverse to take the OLDEST unprocessed messages,
+  // so the cursor only ever moves over mail this run actually handled and the
+  // remainder of a backlog is still waiting (not skipped) on the next run.
+  const stubs = [...(list.messages || [])].reverse().slice(0, MAX_MESSAGES_PER_ACCOUNT);
 
-    const normalized = normalizeGmailMessage(msg, account.id);
-    const emailId = await insertIfNew(normalized);
-    if (!emailId) continue;   // duplicate
+  for (const stub of stubs) {
+    try {
+      const msgRes = await fetch(`${base}/${stub.id}?format=full`, { headers });
+      if (!msgRes.ok) continue;
+      const msg = await msgRes.json();
 
-    // Resume attachments: download + extract text for the classifier/parser.
-    let extraText = "";
-    const parseable = normalized.attachments.filter((a) => isParseableAttachment(a.name, a.contentType));
-    if (parseable.length) {
-      const files = [];
-      for (const att of parseable.slice(0, 2)) {
-        const attRes = await fetch(`${base}/${stub.id}/attachments/${att.attachmentId}`, { headers });
-        if (!attRes.ok) continue;
-        const attJson = await attRes.json();
-        if (attJson?.data) {
+      const normalized = normalizeGmailMessage(msg, account.id);
+      const emailId = await insertIfNew(normalized, account.workspace_id);
+
+      if (emailId) {
+        const extraText = await extractAttachmentText(normalized.attachments, async (att) => {
+          const attRes = await fetch(`${base}/${stub.id}/attachments/${att.attachmentId}`, { headers });
+          if (!attRes.ok) return null;
+          const attJson = await attRes.json();
+          if (!attJson?.data) return null;
           const b64 = attJson.data.replace(/-/g, "+").replace(/_/g, "/");
-          files.push({ name: att.name, bytes: Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)) });
-        }
-      }
-      extraText = await attachmentsToText(files);
-    }
+          return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+        });
 
-    await processInboundEmail(emailId, { extraText });
-    imported++;
-    maxInternalDate = Math.max(maxInternalDate, Number(msg.internalDate || 0));
+        await processInboundEmail(emailId, { extraText });
+        imported++;
+      }
+
+      // Only after the message is stored (or was already stored) — advancing
+      // past one we failed to fetch would drop it for good.
+      maxInternalDate = Math.max(maxInternalDate, Number(msg.internalDate || 0));
+    } catch (e) {
+      // One unreadable message must not abort the account and lose the cursor.
+      console.error(`[pollEmailInboxes] gmail message ${stub.id} failed:`, e);
+    }
   }
 
   return { imported, cursor: String(maxInternalDate || account.history_cursor || "") };
@@ -151,7 +215,7 @@ async function pollZoho(account, accessToken) {
   const headers = { Authorization: `Zoho-oauthtoken ${accessToken}` };
   const base = `https://mail.zoho.com/api/accounts/${account.external_account_id}/messages`;
 
-  const listRes = await fetch(`${base}/view?limit=${MAX_MESSAGES_PER_ACCOUNT}&sortorder=false`, { headers });
+  const listRes = await fetch(`${base}/view?limit=${LIST_PAGE_SIZE}&sortorder=false`, { headers });
   if (!listRes.ok) throw new Error(`Zoho list failed: HTTP ${listRes.status}`);
   const list = await listRes.json();
 
@@ -159,38 +223,42 @@ async function pollZoho(account, accessToken) {
   let imported = 0;
   let maxReceived = cursorMs;
 
-  for (const stub of (list.data || [])) {
+  // Same reasoning as Gmail: keep only what is newer than the cursor, then work
+  // oldest-first so a backlog larger than the per-run cap is drained across
+  // runs instead of being jumped over.
+  const stubs = (list.data || [])
+    .filter((s) => Number(s.receivedTime || 0) > cursorMs)
+    .sort((a, b) => Number(a.receivedTime || 0) - Number(b.receivedTime || 0))
+    .slice(0, MAX_MESSAGES_PER_ACCOUNT);
+
+  for (const stub of stubs) {
     const receivedMs = Number(stub.receivedTime || 0);
-    if (receivedMs <= cursorMs) continue;
-
-    // Body HTML lives behind a separate content endpoint.
-    let contentHtml = "";
-    const contentRes = await fetch(`${base}/${stub.messageId}/content`, { headers });
-    if (contentRes.ok) {
-      const contentJson = await contentRes.json().catch(() => ({}));
-      contentHtml = contentJson?.data?.content || "";
-    }
-
-    const normalized = normalizeZohoMessage(stub, contentHtml, account.id);
-    const emailId = await insertIfNew(normalized);
-    if (!emailId) continue;
-
-    let extraText = "";
-    const parseable = normalized.attachments.filter((a) => isParseableAttachment(a.name, a.contentType));
-    if (parseable.length) {
-      const files = [];
-      for (const att of parseable.slice(0, 2)) {
-        const attRes = await fetch(`${base}/${stub.messageId}/attachments/${att.attachmentId}`, { headers });
-        if (attRes.ok) {
-          files.push({ name: att.name, bytes: new Uint8Array(await attRes.arrayBuffer()) });
-        }
+    try {
+      // Body HTML lives behind a separate content endpoint.
+      let contentHtml = "";
+      const contentRes = await fetch(`${base}/${stub.messageId}/content`, { headers });
+      if (contentRes.ok) {
+        const contentJson = await contentRes.json().catch(() => ({}));
+        contentHtml = contentJson?.data?.content || "";
       }
-      extraText = await attachmentsToText(files);
-    }
 
-    await processInboundEmail(emailId, { extraText });
-    imported++;
-    maxReceived = Math.max(maxReceived, receivedMs);
+      const normalized = normalizeZohoMessage(stub, contentHtml, account.id);
+      const emailId = await insertIfNew(normalized, account.workspace_id);
+
+      if (emailId) {
+        const extraText = await extractAttachmentText(normalized.attachments, async (att) => {
+          const attRes = await fetch(`${base}/${stub.messageId}/attachments/${att.attachmentId}`, { headers });
+          return attRes.ok ? new Uint8Array(await attRes.arrayBuffer()) : null;
+        });
+
+        await processInboundEmail(emailId, { extraText });
+        imported++;
+      }
+
+      maxReceived = Math.max(maxReceived, receivedMs);
+    } catch (e) {
+      console.error(`[pollEmailInboxes] zoho message ${stub.messageId} failed:`, e);
+    }
   }
 
   return { imported, cursor: String(maxReceived || cursorMs) };
@@ -209,7 +277,7 @@ Deno.serve(withErrorHandling(async (req) => {
 
   const { data: accounts, error } = await supabase
     .from("email_accounts")
-    .select("id, provider, email_address, access_token, refresh_token, token_expires_at, history_cursor, external_account_id")
+    .select("id, workspace_id, provider, email_address, access_token, refresh_token, token_expires_at, history_cursor, external_account_id")
     .eq("is_active", true);
 
   if (error) return errResponse(error.message, 500);

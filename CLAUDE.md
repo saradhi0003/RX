@@ -87,6 +87,24 @@ cd mobile && npm run build:web   # expo export — CI parity check
 - Don't commit `.env.local`, `data-import/` (PII), or test artifacts (gitignored).
 
 ## Current state / gotchas (2026-07-11)
+- **Email intake from connected mailboxes (2026-08-14).** Gmail/Zoho are linked
+  by an admin through `emailOAuthStart` → `emailOAuthCallback`, then
+  `pollEmailInboxes` (cron, every 5 min) and the existing Postmark webhook share
+  one intake path,
+  [_shared/emailProcessor.ts](supabase/functions/_shared/emailProcessor.ts):
+  classify with the **local-first** parsing model → auto-create Job/Candidate at
+  ≥0.7 confidence, queue the rest to `approval_items` (`email_intake`), stop
+  follow-ups on replies. **Migration 032 is applied** (verified against the live
+  DB 2026-08-14); **033 is staged and not applied** — it closes an `anon` grant
+  032 left open on the OAuth token columns (see supabase/CLAUDE.md §033).
+  Still needs `GOOGLE_OAUTH_*` / `ZOHO_OAUTH_*` / `CRON_SECRET` Edge Function
+  secrets and the 5-minute scheduled trigger before mail actually flows.
+  Details in
+  [supabase/functions/CLAUDE.md](supabase/functions/CLAUDE.md) → "Email intake".
+  **The OAuth tokens are protected by column grants, not just RLS** — so
+  `email_accounts` must be read through [`@/entities/EmailAccount`](src/entities/EmailAccount.js)
+  with its explicit column list; a bare `select("*")` is rejected by Postgres and
+  the page fails looking like an empty list.
 - **Supabase is LIVE again (verified 2026-08-07).** The long-standing "project is
   paused" note above this line was stale: `/auth/v1/health` returns GoTrue
   v2.195.0 and PostgREST answers on every table. Free tier still auto-pauses

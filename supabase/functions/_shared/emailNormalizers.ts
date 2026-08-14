@@ -51,6 +51,64 @@ export function isParseableAttachment(name: string, contentType: string): boolea
   );
 }
 
+/**
+ * Every form an `In-Reply-To` header might take, so a lookup can match however
+ * the original send was recorded.
+ *
+ * Postmark returns a bare GUID from its send API and we store that in
+ * `sent_emails.message_id`, but the header the recipient's client echoes back
+ * is the full RFC-5322 `<guid@mtasv.net>`. Comparing the two directly never
+ * matches, which silently disables reply detection (and therefore
+ * stop-on-reply) for the entire follow-up system.
+ */
+export function messageIdCandidates(header: string): string[] {
+  const raw = String(header || "").trim();
+  if (!raw) return [];
+  // A client may echo several ids; the last is the immediate parent.
+  const ids = raw.match(/<[^>]+>/g) || [raw];
+  const out = new Set<string>();
+  for (const id of ids) {
+    const bare = id.replace(/^</, "").replace(/>$/, "").trim();
+    if (!bare) continue;
+    out.add(bare);                       // guid@mtasv.net
+    out.add(`<${bare}>`);                // <guid@mtasv.net>
+    const local = bare.split("@")[0];
+    if (local) out.add(local);           // guid  ← what Postmark handed us
+  }
+  return [...out];
+}
+
+/** "Re: Fwd: Senior Dev" → "senior dev" — for matching a reply to its thread. */
+export function normalizeSubject(subject: string): string {
+  return String(subject || "")
+    .replace(/^(\s*(re|fwd|fw|aw|sv)\s*(\[\d+\])?\s*:\s*)+/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+/** True when the subject carries a reply/forward prefix. */
+export function isReplySubject(subject: string): boolean {
+  return /^\s*(re|fwd|fw|aw|sv)\s*(\[\d+\])?\s*:/i.test(String(subject || ""));
+}
+
+/**
+ * Escape PostgREST `ilike` wildcards in a value that came from an email.
+ *
+ * `from_email` is attacker-controlled: a `From:` of `%@example.com` turns an
+ * unescaped `ilike` into a wildcard that matches an arbitrary existing
+ * candidate, whose record the "resume" then overwrites.
+ */
+export function escapeLikePattern(value: string): string {
+  return String(value || "").replace(/([\\%_])/g, "\\$1");
+}
+
+/** Cheap shape check — a value that is not one address is not a lookup key. */
+export function isPlausibleEmail(value: string): boolean {
+  const v = String(value || "").trim();
+  return /^[^\s@,%_\\]+@[^\s@,%_\\]+\.[^\s@,%_\\]+$/.test(v);
+}
+
 /** "Jane Doe <jane@example.com>" → { name: "Jane Doe", email: "jane@example.com" } */
 export function parseAddressHeader(header: string): { name: string; email: string } {
   const raw = String(header || "").trim();

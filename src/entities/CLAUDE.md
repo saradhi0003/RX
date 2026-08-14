@@ -18,6 +18,12 @@ way to touch a table from the frontend. `all.js` re-exports them;
 4. Use `Thing.list()` / `Thing.filter({...})` in pages/components.
 
 ## Remember
+- **A table with column-level grants needs an explicit `columns` option.** When a
+  migration does `REVOKE SELECT … ; GRANT SELECT (a, b) …` to keep a secret out
+  of the browser, Postgres rejects `SELECT *` rather than trimming it, so the
+  default wrapper makes *every* read fail — and it fails looking like an empty
+  table, not like an error. `EmailAccount.js` (OAuth tokens, migration 032) is
+  the worked example; guarded by `tests/unit/data/entityFactory.test.js`.
 - **Visibility is RLS**, not these wrappers — they add no org/workspace filter.
   On the multi-tenancy branch, a DB trigger stamps `workspace_id` on insert, so
   `create()` still needs no change.

@@ -19,9 +19,39 @@ shipped migration — add a new one.
   live/preview DB before merging that branch) · 019 security-definer view fix ·
   **020 approval RLS enforcement** · **021 SECURITY DEFINER RPC leak fix** ·
   022 signup notification (`user_profiles.notified_at`) ·
-  **023 uploads bucket RLS**.
-  017–**022** are all **APPLIED** to the live project as of 2026-07-27.
-  **023 is STAGED — NOT applied.**
+  **023 uploads bucket RLS** · **024 multitenancy** (the one that actually
+  shipped; `auth_workspace_id()` + `workspace_id` scoping) · 025 llm settings ·
+  026–028 applications→submissions cutover + status vocabularies ·
+  029 self-bootstrap `workspace_id` fix · 030 audit-log `workspace_id` ·
+  031 LLM fallback chain · **032 email accounts** (connected Gmail/Zoho
+  mailboxes + `inbound_emails` classification columns) ·
+  **033 email_accounts anon revoke**.
+  017–**032** are **APPLIED** to the live project (017–022 on 2026-07-27;
+  023 + 024 on 2026-08-03, re-verified 2026-08-08 — earlier revisions of this
+  file wrongly called 023 "staged"). **032 verified applied 2026-08-14** by
+  probing the live DB directly: `email_accounts` exists, the three
+  `inbound_emails` columns exist, and `approval_items_type_check` already
+  carries `email_intake`.
+  **033 is STAGED — NOT applied.**
+
+### 033 — 032 revoked the token columns from `authenticated` only
+Verified live 2026-08-14: `authenticated` sees the intended 9 columns, but
+**`anon` still had SELECT on all 15 — `access_token` and `refresh_token`
+included.** 032 wrote `REVOKE SELECT … FROM authenticated` and Supabase's
+default privileges grant new public-schema tables to *both* roles, so `anon` was
+never narrowed.
+
+Not a live leak: RLS is on and the only policy is `FOR ALL TO authenticated`, so
+an anon request matches no policy and reads zero rows. It is a latent one — the
+grant is all that stands between a future anon-readable policy (`blog_posts` is
+the precedent here) and serving OAuth refresh tokens to anyone with the
+publishable key, which ships in the browser bundle by design. 033 revokes anon
+outright and drops `authenticated` to SELECT (9 columns) + UPDATE, since the
+UI's only write is flipping `is_active`.
+
+**Lesson, and it generalises:** `REVOKE … FROM authenticated` is half a revoke.
+Grants are per-role, and Supabase seeds two. Audit `information_schema.column_privileges`
+for **both** roles after any column-grant migration.
 
 ### 023 — the resume bucket never existed
 Verified against the live project 2026-07-29: the `uploads` bucket **does not

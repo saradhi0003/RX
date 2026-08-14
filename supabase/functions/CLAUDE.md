@@ -15,6 +15,9 @@ Server-side logic and the place API keys live. Called from the app via
 - **sendApprovedDraft**, **stopFollowup** — execution actions.
 - **inboundEmailWebhook**, **channelMessageWebhook**, **reprocessChannelMessage**
   — inbound ingestion (email / Telegram / Slack / WhatsApp).
+- **emailOAuthStart** (admin) / **emailOAuthCallback** (`verify_jwt = false`) /
+  **pollEmailInboxes** (cron) — the connected-mailbox intake; see "Email intake"
+  below.
 - **createWhatsappRegistrationCode / validateWhatsappRegistrationCode**,
   **parseResumeFile**, **healthCheck** (integrations liveness).
 - **notifySignupRequest** — emails the admins when a signup lands at
@@ -22,7 +25,9 @@ Server-side logic and the place API keys live. Called from the app via
   `notified_at` stays NULL so the next sign-in retries. Needs
   `SMTP_HOST/PORT/USER/PASS/SENDER` secrets (see AUTH_SETUP.md §5).
 - **_shared/** — `supabaseClient.ts`, `llm.ts`, `classifier.ts`, `errorHandler.ts`,
-  `pii.ts`, `env.ts`, **`auth.ts`**, `pricing.ts`, `modelRouting.ts`.
+  `pii.ts`, `env.ts`, **`auth.ts`**, `pricing.ts`, `modelRouting.ts`, and the
+  email-intake set: `emailProcessor.ts`, `emailNormalizers.ts`, `parseJob.ts`,
+  `parseCandidate.ts`, `attachmentText.ts`, `oauthState.ts`.
 
 ## Model routing — the `local/` prefix
 `modelRouting.ts` decides which provider serves a model id. It is a separate
@@ -70,6 +75,67 @@ with `verify_jwt = false` (that is what now protects `livekitToken`). It also
 recognises the **service key as a trusted internal caller** — required because
 `channelMessageWebhook` fans out to `aiRecruiterParseJob` / `parseResumeFile`
 with `Bearer $SERVICE_KEY` and there is no end user in that chain.
+
+## Email intake — connected mailboxes (migration 032)
+Two entry points, **one intake path**: `inboundEmailWebhook` (Postmark) and
+`pollEmailInboxes` (Gmail/Zoho OAuth polling) both hand off to
+`_shared/emailProcessor.ts`, which classifies → routes:
+reply stops the follow-up sequence; job/resume at **≥ 0.7 confidence**
+(`CONFIDENCE_THRESHOLD` in `emailNormalizers.ts`) creates the record through the
+same prompts as the upload flow (`parseJob.ts` / `parseCandidate.ts`); below the
+threshold it files an `approval_items` row of type `email_intake`; spam/unknown
+is ignored. It never throws — a failed email lands in `processing_status='failed'`
+with `error_message` so one bad message can't stall a mailbox.
+
+**`failed` and `ignored` are not interchangeable.** `ignored` is terminal —
+`processInboundEmail` refuses to reprocess it — so it is only used for a verdict
+the classifier actually reached. Anything that *went wrong* (LLM unreachable,
+daily cost ceiling hit) must be `failed`, which stays replayable; that is why
+`classifyMessage` returns a `failed` flag instead of passing an outage off as a
+confident `"unknown"`. The intake path calls `checkDailyCeiling()` like every
+other LLM entry point — it is two model calls per email and is reachable from a
+public webhook.
+
+**Reply matching is not a string compare.** Postmark's send API hands back a
+bare GUID (stored in `sent_emails.message_id`) while the reply carries
+`<guid@mtasv.net>`, so `_shared/emailNormalizers.ts` `messageIdCandidates()`
+generates every form and the lookup uses `.in(...)`. Zoho's list payload has no
+threading headers at all, so there is a second path: a `Re:` subject matched
+against recent sends to that address (`normalizeSubject`). Without both, the
+stop-on-reply half of the follow-up system is silently dead.
+
+`inboundEmailWebhook` acknowledges Postmark as soon as the row is durable and
+finishes the intake in `EdgeRuntime.waitUntil()` — classify+parse is far longer
+than a webhook should hold its caller, and Postmark retries on timeout, which
+would duplicate the work.
+
+**Connecting a mailbox:** `emailOAuthStart` (**admin only** — a mailbox imports
+data for the whole workspace) returns the provider consent URL carrying an
+HMAC-signed `state`; the provider redirects to `emailOAuthCallback`, which runs
+with `verify_jwt = false` because Google/Zoho arrive with no session. **The
+signed state is the entire authentication of that endpoint** (`_shared/oauthState.ts`,
+signed with the service-role key, 15-minute expiry) — don't loosen it.
+
+**Tokens never reach the browser.** 032 revokes table-wide SELECT on
+`email_accounts` and grants only the non-secret columns. Postgres rejects a
+`SELECT *` against a column-granted table outright, so the UI must name its
+columns — that is what `@/entities/EmailAccount` (and the `columns` option on
+`createEntity`) exists for. A plain `createEntity("email_accounts")` makes the
+settings page fail to load, and it fails *looking like* "no mailboxes connected".
+
+**Workspace stamping:** the poller runs as the service role, so it must carry
+`email_accounts.workspace_id` onto every `inbound_emails` row it inserts —
+selecting the account without `workspace_id` silently files every tenant's mail
+under `DEFAULT_WORKSPACE_ID`. Same rule as the Multi-tenancy section below.
+
+**Secrets** (Edge Function secrets, never `VITE_*`): `GOOGLE_OAUTH_CLIENT_ID` /
+`GOOGLE_OAUTH_CLIENT_SECRET`, `ZOHO_OAUTH_CLIENT_ID` / `ZOHO_OAUTH_CLIENT_SECRET`,
+`CRON_SECRET`, and optionally `EMAIL_OAUTH_REDIRECT_URL` (defaults to
+`<SUPABASE_URL>/functions/v1/emailOAuthCallback`) and `APP_URL` (where the
+callback lands the browser). The redirect URI must be registered verbatim in the
+Google and Zoho consent-screen config. `pollEmailInboxes` is driven by a
+Supabase **scheduled trigger** every 5 min sending `x-cron-secret` — created in
+the Dashboard, not in a migration, since the secret must not live in SQL.
 
 ## Conventions
 - Use the service-role client from `_shared/supabaseClient.ts` for privileged

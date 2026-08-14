@@ -14,6 +14,8 @@ import mammoth from "npm:mammoth@^1.8";
 import { Buffer } from "node:buffer";
 
 const MAX_ATTACHMENT_TEXT = 8000;
+/** Resumes come one or two per email; downloading more is latency for nothing. */
+export const MAX_ATTACHMENTS_PER_EMAIL = 2;
 
 async function pdfToText(bytes: Uint8Array): Promise<string> {
   try {
@@ -40,7 +42,7 @@ export async function attachmentsToText(
   files: Array<{ name: string; bytes: Uint8Array }>,
 ): Promise<string> {
   let out = "";
-  for (const file of files.slice(0, 2)) {
+  for (const file of files.slice(0, MAX_ATTACHMENTS_PER_EMAIL)) {
     const lower = file.name.toLowerCase();
     const text = lower.endsWith(".docx")
       ? await docxToText(file.bytes)

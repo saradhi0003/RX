@@ -8,6 +8,7 @@
  */
 import { supabase } from "./supabaseClient.ts";
 import { invokeLLMJson } from "./llm.ts";
+import { escapeLikePattern, isPlausibleEmail } from "./emailNormalizers.ts";
 
 export interface ParsedCandidate {
   full_name: string;
@@ -59,10 +60,13 @@ export async function parseResumeText(
   let candidateId = opts.candidateId || null;
 
   if (candidateId) {
-    await supabase
+    // full_name is NOT NULL with no default: writing the parser's empty string
+    // back over an existing name would either blank it or reject the whole
+    // patch, so it is only included when the parse actually produced one.
+    const { error: updateErr } = await supabase
       .from("candidates")
       .update({
-        full_name: parsed.full_name,
+        full_name: parsed.full_name || undefined,
         email: parsed.email || undefined,
         phone: parsed.phone || undefined,
         location: parsed.location || undefined,
@@ -75,6 +79,7 @@ export async function parseResumeText(
         linkedin_url: parsed.linkedin_url || undefined,
       })
       .eq("id", candidateId);
+    if (updateErr) throw new Error(`Failed to update candidate: ${updateErr.message}`);
   } else {
     const { data: newCandidate, error } = await supabase
       .from("candidates")
@@ -101,9 +106,20 @@ export async function parseResumeText(
     candidateId = newCandidate.id;
   }
 
-  const { data: resume } = await supabase
+  // `resumes` has no unique key to conflict on, so the old `.upsert()` was a
+  // plain insert: every re-parse left another row claiming is_primary, and
+  // whichever one a reader picked was arbitrary. Demote first, then insert, so
+  // exactly one primary survives and the older versions stay as history.
+  const { error: demoteErr } = await supabase
     .from("resumes")
-    .upsert({
+    .update({ is_primary: false })
+    .eq("candidate_id", candidateId)
+    .eq("is_primary", true);
+  if (demoteErr) throw new Error(`Failed to demote previous resumes: ${demoteErr.message}`);
+
+  const { data: resume, error: resumeErr } = await supabase
+    .from("resumes")
+    .insert({
       candidate_id: candidateId,
       file_url: opts.fileUrl || null,
       file_name: opts.fileName || null,
@@ -116,6 +132,7 @@ export async function parseResumeText(
     })
     .select("id")
     .single();
+  if (resumeErr) throw new Error(`Failed to store resume: ${resumeErr.message}`);
 
   return { candidateId, resumeId: resume?.id || null, parsed };
 }
@@ -129,12 +146,19 @@ export async function findCandidateByEmail(
   email: string,
   workspaceId: string,
 ): Promise<string | null> {
-  if (!email) return null;
+  // The address comes off an inbound `From:` header, so it is attacker-chosen.
+  // Both guards matter: the shape check rejects anything that is not a single
+  // address, and escaping stops a `%` from turning this lookup into a wildcard
+  // that matches an unrelated candidate — whose record the caller would then
+  // overwrite with the sender's "resume".
+  const candidate = String(email || "").trim();
+  if (!isPlausibleEmail(candidate)) return null;
+
   const { data } = await supabase
     .from("candidates")
     .select("id")
     .eq("workspace_id", workspaceId)
-    .ilike("email", email.trim())
+    .ilike("email", escapeLikePattern(candidate))
     .limit(1)
     .maybeSingle();
   return data?.id || null;
