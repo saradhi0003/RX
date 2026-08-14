@@ -66,3 +66,8 @@ verify_jwt = false
 
 [functions.requestTrial]
 verify_jwt = false
+
+# OAuth consent redirect target — Google/Zoho hit it with ?code&state, no JWT.
+# Guarded by the HMAC-signed state parameter (see _shared/oauthState.ts).
+[functions.emailOAuthCallback]
+verify_jwt = false

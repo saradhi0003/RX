@@ -1,0 +1,245 @@
+// @ts-nocheck   — Deno-runtime file; node-tsc can't see Deno globals or npm: imports.
+/**
+ * pollEmailInboxes
+ * POST {} — invoked by a Supabase scheduled trigger every ~5 minutes.
+ *
+ * For each connected mailbox (email_accounts): refresh the OAuth token when
+ * due, list messages newer than the account cursor, normalize them into
+ * inbound_emails, extract resume-attachment text, and hand each row to
+ * _shared/emailProcessor.ts — the same intake path the Postmark webhook uses.
+ *
+ * Auth: x-cron-secret header (same pattern as scheduledFollowupRun).
+ * One account's failure never aborts the others — it lands in last_error.
+ */
+import { supabase } from "../_shared/supabaseClient.ts";
+import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
+import {
+  hasCronSecret, getCronSecret,
+  getGoogleOAuthEnv, getZohoOAuthEnv,
+} from "../_shared/env.ts";
+import { DEFAULT_WORKSPACE_ID } from "../_shared/auth.ts";
+import {
+  normalizeGmailMessage,
+  normalizeZohoMessage,
+  isParseableAttachment,
+} from "../_shared/emailNormalizers.ts";
+import { attachmentsToText } from "../_shared/attachmentText.ts";
+import { processInboundEmail } from "../_shared/emailProcessor.ts";
+
+const MAX_MESSAGES_PER_ACCOUNT = 20;
+const REFRESH_MARGIN_MS = 5 * 60 * 1000;
+
+/* ── OAuth token refresh ─────────────────────────────────────────────────── */
+
+async function refreshTokenIfDue(account) {
+  const expiresAt = account.token_expires_at ? Date.parse(account.token_expires_at) : 0;
+  if (expiresAt - REFRESH_MARGIN_MS > Date.now()) return account.access_token;
+  if (!account.refresh_token) throw new Error("token expired and no refresh_token stored");
+
+  const tokenUrl = account.provider === "gmail"
+    ? "https://oauth2.googleapis.com/token"
+    : "https://accounts.zoho.com/oauth/v2/token";
+  const { clientId, clientSecret } =
+    account.provider === "gmail" ? getGoogleOAuthEnv() : getZohoOAuthEnv();
+
+  const res = await fetch(tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: account.refresh_token,
+      grant_type: "refresh_token",
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.access_token) {
+    throw new Error(json.error_description || json.error || `token refresh failed: HTTP ${res.status}`);
+  }
+
+  await supabase.from("email_accounts").update({
+    access_token: json.access_token,
+    token_expires_at: json.expires_in
+      ? new Date(Date.now() + json.expires_in * 1000).toISOString()
+      : null,
+  }).eq("id", account.id);
+
+  return json.access_token;
+}
+
+/* ── Insert helpers ──────────────────────────────────────────────────────── */
+
+async function insertIfNew(normalized) {
+  const { data: existing } = await supabase
+    .from("inbound_emails")
+    .select("id")
+    .eq("message_id", normalized.message_id)
+    .maybeSingle();
+  if (existing) return null;
+
+  const { data, error } = await supabase
+    .from("inbound_emails")
+    .insert({
+      ...normalized,
+      workspace_id: DEFAULT_WORKSPACE_ID,
+      processing_status: "pending",
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(`insert inbound_emails failed: ${error.message}`);
+  return data.id;
+}
+
+/* ── Gmail ─────────────────────────────────────────────────────────────── */
+
+async function pollGmail(account, accessToken) {
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  const base = "https://gmail.googleapis.com/gmail/v1/users/me/messages";
+
+  // Cursor = max internalDate (ms) seen so far. Gmail's after: takes seconds.
+  const after = account.history_cursor
+    ? ` after:${Math.floor(Number(account.history_cursor) / 1000)}`
+    : "";
+  const listUrl = `${base}?q=${encodeURIComponent(`in:inbox${after}`)}&maxResults=${MAX_MESSAGES_PER_ACCOUNT}`;
+  const listRes = await fetch(listUrl, { headers });
+  if (!listRes.ok) throw new Error(`Gmail list failed: HTTP ${listRes.status}`);
+  const list = await listRes.json();
+
+  let imported = 0;
+  let maxInternalDate = Number(account.history_cursor || 0);
+
+  for (const stub of (list.messages || []).slice(0, MAX_MESSAGES_PER_ACCOUNT)) {
+    const msgRes = await fetch(`${base}/${stub.id}?format=full`, { headers });
+    if (!msgRes.ok) continue;
+    const msg = await msgRes.json();
+
+    const normalized = normalizeGmailMessage(msg, account.id);
+    const emailId = await insertIfNew(normalized);
+    if (!emailId) continue;   // duplicate
+
+    // Resume attachments: download + extract text for the classifier/parser.
+    let extraText = "";
+    const parseable = normalized.attachments.filter((a) => isParseableAttachment(a.name, a.contentType));
+    if (parseable.length) {
+      const files = [];
+      for (const att of parseable.slice(0, 2)) {
+        const attRes = await fetch(`${base}/${stub.id}/attachments/${att.attachmentId}`, { headers });
+        if (!attRes.ok) continue;
+        const attJson = await attRes.json();
+        if (attJson?.data) {
+          const b64 = attJson.data.replace(/-/g, "+").replace(/_/g, "/");
+          files.push({ name: att.name, bytes: Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)) });
+        }
+      }
+      extraText = await attachmentsToText(files);
+    }
+
+    await processInboundEmail(emailId, { extraText });
+    imported++;
+    maxInternalDate = Math.max(maxInternalDate, Number(msg.internalDate || 0));
+  }
+
+  return { imported, cursor: String(maxInternalDate || account.history_cursor || "") };
+}
+
+/* ── Zoho ──────────────────────────────────────────────────────────────── */
+
+async function pollZoho(account, accessToken) {
+  if (!account.external_account_id) {
+    throw new Error("Zoho account id missing — reconnect the mailbox");
+  }
+  const headers = { Authorization: `Zoho-oauthtoken ${accessToken}` };
+  const base = `https://mail.zoho.com/api/accounts/${account.external_account_id}/messages`;
+
+  const listRes = await fetch(`${base}/view?limit=${MAX_MESSAGES_PER_ACCOUNT}&sortorder=false`, { headers });
+  if (!listRes.ok) throw new Error(`Zoho list failed: HTTP ${listRes.status}`);
+  const list = await listRes.json();
+
+  const cursorMs = Number(account.history_cursor || 0);
+  let imported = 0;
+  let maxReceived = cursorMs;
+
+  for (const stub of (list.data || [])) {
+    const receivedMs = Number(stub.receivedTime || 0);
+    if (receivedMs <= cursorMs) continue;
+
+    // Body HTML lives behind a separate content endpoint.
+    let contentHtml = "";
+    const contentRes = await fetch(`${base}/${stub.messageId}/content`, { headers });
+    if (contentRes.ok) {
+      const contentJson = await contentRes.json().catch(() => ({}));
+      contentHtml = contentJson?.data?.content || "";
+    }
+
+    const normalized = normalizeZohoMessage(stub, contentHtml, account.id);
+    const emailId = await insertIfNew(normalized);
+    if (!emailId) continue;
+
+    let extraText = "";
+    const parseable = normalized.attachments.filter((a) => isParseableAttachment(a.name, a.contentType));
+    if (parseable.length) {
+      const files = [];
+      for (const att of parseable.slice(0, 2)) {
+        const attRes = await fetch(`${base}/${stub.messageId}/attachments/${att.attachmentId}`, { headers });
+        if (attRes.ok) {
+          files.push({ name: att.name, bytes: new Uint8Array(await attRes.arrayBuffer()) });
+        }
+      }
+      extraText = await attachmentsToText(files);
+    }
+
+    await processInboundEmail(emailId, { extraText });
+    imported++;
+    maxReceived = Math.max(maxReceived, receivedMs);
+  }
+
+  return { imported, cursor: String(maxReceived || cursorMs) };
+}
+
+/* ── Entry point ─────────────────────────────────────────────────────────── */
+
+Deno.serve(withErrorHandling(async (req) => {
+  if (hasCronSecret()) {
+    if (req.headers.get("x-cron-secret") !== getCronSecret()) {
+      return errResponse("Unauthorized: bad or missing x-cron-secret", 401);
+    }
+  } else {
+    console.warn("CRON_SECRET not set — cron gate disabled (dev only; set it in production)");
+  }
+
+  const { data: accounts, error } = await supabase
+    .from("email_accounts")
+    .select("id, provider, email_address, access_token, refresh_token, token_expires_at, history_cursor, external_account_id")
+    .eq("is_active", true);
+
+  if (error) return errResponse(error.message, 500);
+  if (!accounts?.length) return okResponse({ polled: 0, imported: 0, message: "No connected mailboxes" });
+
+  const results = [];
+  for (const account of accounts) {
+    try {
+      const token = await refreshTokenIfDue(account);
+      const outcome = account.provider === "gmail"
+        ? await pollGmail(account, token)
+        : await pollZoho(account, token);
+
+      await supabase.from("email_accounts").update({
+        history_cursor: outcome.cursor,
+        last_polled_at: new Date().toISOString(),
+        last_error: null,
+      }).eq("id", account.id);
+
+      results.push({ account: account.email_address, provider: account.provider, imported: outcome.imported, ok: true });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      await supabase.from("email_accounts").update({ last_error: message }).eq("id", account.id);
+      results.push({ account: account.email_address, provider: account.provider, ok: false, error: message });
+    }
+  }
+
+  return okResponse({
+    polled: accounts.length,
+    imported: results.reduce((s, r) => s + (r.imported || 0), 0),
+    results,
+  });
+}));

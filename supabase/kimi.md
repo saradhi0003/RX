@@ -85,10 +85,28 @@ Local tunnel setup: run `./scripts/tunnel-lmstudio.sh` (needs LM Studio server o
 
 The generic OpenAI-compatible endpoint reads `openai_compatible_base_url` / `openai_compatible_model` from `ai_recruiter_settings` first, then falls back to `OPENAI_COMPATIBLE_BASE_URL` / `OPENAI_COMPATIBLE_DEFAULT_MODEL` env secrets.
 
+## Email intake (Gmail / Zoho → records)
+
+Inbound email becomes Jobs/Candidates through ONE path: `_shared/emailProcessor.ts`.
+Both `inboundEmailWebhook` (Postmark) and `pollEmailInboxes` (Gmail/Zoho OAuth, cron-gated,
+5-min schedule) call `processInboundEmail(emailId)`. Never add a third intake path.
+
+- `email_accounts` table (migration 027) holds OAuth tokens — browsers get column-grant SELECT
+  on non-secret columns only; RLS is admin-per-workspace.
+- Connect flow: `emailOAuthStart` (admin) → provider consent → `emailOAuthCallback`
+  (verify_jwt=false, HMAC-signed state in `_shared/oauthState.ts`).
+- Classification: `_shared/classifier.ts` (model = `parsing_model` from settings, local-first).
+  Confidence ≥ 0.7 auto-creates via `_shared/parseJob.ts` / `_shared/parseCandidate.ts`
+  (shared with aiRecruiterParseJob / parseResumeFile — same prompts); below → `approval_items`
+  type `email_intake`; spam/unknown → ignored; replies stop follow-up sequences.
+- Attachments: PDF/DOCX text extracted by `_shared/attachmentText.ts` (unpdf/mammoth),
+  fed to classification + parsing. Payload mapping quirks live in `_shared/emailNormalizers.ts`
+  (pure, Vitest-covered).
+
 ## Secrets
 
 Server secrets are set in Supabase Edge Function secrets, not in `VITE_*` env vars.  
-Common secrets: `LLM_PROVIDER`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, `DASHSCOPE_API_KEY`, `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_API_KEY`, `POSTMARK_SERVER_TOKEN`, `CHANNEL_BOT_SECRET`, `CRON_SECRET`, `INTERNAL_FUNCTION_TOKEN`.
+Common secrets: `LLM_PROVIDER`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, `DASHSCOPE_API_KEY`, `OPENAI_COMPATIBLE_BASE_URL`, `OPENAI_COMPATIBLE_API_KEY`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `ZOHO_OAUTH_CLIENT_ID`, `ZOHO_OAUTH_CLIENT_SECRET`, `EMAIL_OAUTH_REDIRECT_URL`, `APP_URL`, `POSTMARK_SERVER_TOKEN`, `CHANNEL_BOT_SECRET`, `CRON_SECRET`, `INTERNAL_FUNCTION_TOKEN`.
 
 ## Token-saving lookups
 

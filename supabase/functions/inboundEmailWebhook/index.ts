@@ -1,13 +1,14 @@
+// @ts-nocheck   — Deno-runtime file; node-tsc can't see Deno globals.
 /**
  * inboundEmailWebhook  (verify_jwt = false)
  * POST — Postmark Inbound Webhook payload
- * Stores the email, detects if it's a reply to a tracked outreach,
- * and stops the follow-up sequence if a candidate replied.
+ * Stores the email, then hands it to _shared/emailProcessor.ts — the same
+ * intake path the Gmail/Zoho poller uses (classify → route → create records).
  */
 import { supabase } from "../_shared/supabaseClient.ts";
-import { classifyMessage } from "../_shared/classifier.ts";
 import { withErrorHandling, okResponse } from "../_shared/errorHandler.ts";
 import { DEFAULT_WORKSPACE_ID } from "../_shared/auth.ts";
+import { processInboundEmail } from "../_shared/emailProcessor.ts";
 
 Deno.serve(withErrorHandling(async (req) => {
   const payload = await req.json();
@@ -59,54 +60,17 @@ Deno.serve(withErrorHandling(async (req) => {
     return okResponse({ status: "error", message: insertErr?.message });
   }
 
-  const emailId = email.id;
-
-  // Check if this is a reply to one of our tracked threads
-  let stoppedFollowup = false;
-
-  if (inReplyTo) {
-    // Find a sent email with matching message_id
-    const { data: origSent } = await supabase
-      .from("sent_emails")
-      .select("id, followup_schedule_id, related_entity_id")
-      .eq("message_id", inReplyTo)
-      .maybeSingle();
-
-    if (origSent?.followup_schedule_id) {
-      // Candidate replied — stop the follow-up
-      await supabase
-        .from("followup_schedules")
-        .update({
-          status: "stopped",
-          last_inbound_reply_at: new Date().toISOString(),
-          stop_reason: "candidate_replied",
-        })
-        .eq("id", origSent.followup_schedule_id);
-
-      stoppedFollowup = true;
-    }
-  }
-
-  // Classify if not a reply
-  let classification = "reply";
-  if (!inReplyTo) {
-    const result = await classifyMessage(`Subject: ${subject}\n\n${bodyText}`);
-    classification = result.classification;
-  }
-
-  // Mark as processed
-  await supabase
-    .from("inbound_emails")
-    .update({
-      processing_status: "processed",
-      processed_at: new Date().toISOString(),
-    })
-    .eq("id", emailId);
+  // Classify → route → create records (shared with pollEmailInboxes).
+  // Postmark attachments arrive base64-inlined in raw_payload; text extraction
+  // for those is intentionally left to the poller path for now.
+  const result = await processInboundEmail(email.id);
 
   return okResponse({
-    id: emailId,
-    classification,
-    stopped_followup: stoppedFollowup,
+    id: email.id,
+    classification: result.classification,
+    entity: result.entityType ? { type: result.entityType, id: result.entityId } : null,
+    approval_item: result.approvalItemId || null,
+    stopped_followup: result.stoppedFollowup || false,
     from: fromEmail,
   });
 }));

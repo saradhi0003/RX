@@ -88,6 +88,25 @@ export const getResendKey = () => getRequiredEnv("RESEND_API_KEY");
 export const hasCronSecret = () => Boolean(get("CRON_SECRET"));
 export const getCronSecret = () => getRequiredEnv("CRON_SECRET");
 
+/* ── Email intake OAuth (Gmail / Zoho inbound polling) ── */
+export const hasGoogleOAuth = () =>
+  Boolean(get("GOOGLE_OAUTH_CLIENT_ID") && get("GOOGLE_OAUTH_CLIENT_SECRET"));
+export const getGoogleOAuthEnv = () => ({
+  clientId: getRequiredEnv("GOOGLE_OAUTH_CLIENT_ID"),
+  clientSecret: getRequiredEnv("GOOGLE_OAUTH_CLIENT_SECRET"),
+});
+export const hasZohoOAuth = () =>
+  Boolean(get("ZOHO_OAUTH_CLIENT_ID") && get("ZOHO_OAUTH_CLIENT_SECRET"));
+export const getZohoOAuthEnv = () => ({
+  clientId: getRequiredEnv("ZOHO_OAUTH_CLIENT_ID"),
+  clientSecret: getRequiredEnv("ZOHO_OAUTH_CLIENT_SECRET"),
+});
+/** Where the provider sends the user back after consent (an Edge Function). */
+export const getEmailOAuthRedirectUrl = () =>
+  get("EMAIL_OAUTH_REDIRECT_URL") || `${get("SUPABASE_URL")}/functions/v1/emailOAuthCallback`;
+/** Where the callback lands the browser afterwards (the app's settings page). */
+export const getAppUrl = () => get("APP_URL") || "https://rx-self.vercel.app";
+
 /**
  * Presence map for every expected secret — names and booleans ONLY, never
  * values. Safe to include in healthCheck responses.
@@ -111,5 +130,7 @@ export function envPresence(): Record<string, boolean> {
     POSTMARK_SERVER_TOKEN: hasPostmark(),
     RESEND_API_KEY: hasResend(),
     CRON_SECRET: hasCronSecret(),
+    GOOGLE_OAUTH_CLIENT_ID: Boolean(get("GOOGLE_OAUTH_CLIENT_ID")),
+    ZOHO_OAUTH_CLIENT_ID: Boolean(get("ZOHO_OAUTH_CLIENT_ID")),
   };
 }

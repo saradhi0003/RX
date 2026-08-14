@@ -2,41 +2,14 @@
  * aiRecruiterParseJob
  * POST { job_description: string, source?: string, run_id?: string }
  * Extracts structured job data from free text and upserts a Job + Run record.
+ * Parse logic lives in _shared/parseJob.ts — shared with the email intake
+ * pipeline so both flows use the same prompt and insert shape.
  */
 import { supabase, getAISettings } from "../_shared/supabaseClient.ts";
-import { invokeLLMJson, checkDailyCeiling } from "../_shared/llm.ts";
+import { checkDailyCeiling } from "../_shared/llm.ts";
+import { parseJobText } from "../_shared/parseJob.ts";
 import { withErrorHandling, okResponse, errResponse } from "../_shared/errorHandler.ts";
 import { requireApprovedUser } from "../_shared/auth.ts";
-
-interface ParsedJob {
-  title: string;
-  company_name: string;
-  location: string;
-  job_type: string;
-  salary_range: string;
-  description: string;
-  requirements: string;
-  skills_required: string[];
-  experience_min: number | null;
-  experience_max: number | null;
-  openings: number;
-}
-
-const SYSTEM = `You are an expert recruiter assistant. Extract structured job information from the text.
-Return JSON exactly matching:
-{
-  "title": "string",
-  "company_name": "string or empty",
-  "location": "string or empty",
-  "job_type": "full_time|part_time|contract|c2c|remote|hybrid",
-  "salary_range": "string or empty",
-  "description": "summary of role (2-3 sentences)",
-  "requirements": "key requirements as bullet points",
-  "skills_required": ["array", "of", "skills"],
-  "experience_min": null or integer years,
-  "experience_max": null or integer years,
-  "openings": 1
-}`;
 
 Deno.serve(withErrorHandling(async (req) => {
   // Approval gate — the service role bypasses RLS, so re-check here.
@@ -72,57 +45,14 @@ Deno.serve(withErrorHandling(async (req) => {
     runId = run?.id;
   }
 
-  // Parse job via LLM
-  const parsed = await invokeLLMJson<ParsedJob>(
-    `Parse this job description:\n\n${job_description}`,
-    SYSTEM,
-    model
-  );
-
-  // Insert job record
-  const { data: job, error: jobErr } = await supabase
-    .from("jobs")
-    .insert({
-      title: parsed.title || "Untitled Role",
-      company_name: parsed.company_name,
-      location: parsed.location,
-      job_type: parsed.job_type || "full_time",
-      salary_range: parsed.salary_range,
-      description: parsed.description,
-      requirements: parsed.requirements,
-      skills_required: parsed.skills_required || [],
-      experience_min: parsed.experience_min,
-      experience_max: parsed.experience_max,
-      openings: parsed.openings || 1,
-      raw_text: job_description,
+  try {
+    const { jobId, parsed } = await parseJobText(job_description, model, {
       source,
-      status: "open",
-      parsed_at: new Date().toISOString(),
-      workspace_id: gate.profile.workspace_id,
-    })
-    .select("id")
-    .single();
-
-  if (jobErr) return errResponse(`Failed to create job: ${jobErr.message}`, 500);
-
-  // Update run with job reference + status
-  if (runId) {
-    await supabase
-      .from("ai_recruiter_runs")
-      .update({ job_id: job.id, status: "parsed" })
-      .eq("id", runId);
+      workspaceId: gate.profile.workspace_id,
+      runId,
+    });
+    return okResponse({ job_id: jobId, run_id: runId, parsed });
+  } catch (e) {
+    return errResponse(e instanceof Error ? e.message : String(e), 500);
   }
-
-  // Log activity
-  await supabase.from("recruiter_activities").insert({
-    run_id: runId,
-    entity_type: "job",
-    entity_id: job.id,
-    activity_type: "ai_job_parsed",
-    title: `Parsed job: ${parsed.title}`,
-    description: `Model: ${model} | Skills: ${parsed.skills_required?.join(", ")}`,
-    workspace_id: gate.profile.workspace_id,
-  });
-
-  return okResponse({ job_id: job.id, run_id: runId, parsed });
 }));

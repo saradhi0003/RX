@@ -730,7 +730,9 @@ Talent Stack Team`;
     const colors = {
       pending: "bg-yellow-100 text-yellow-800",
       processing: "bg-blue-100 text-blue-800",
+      processed: "bg-green-100 text-green-800",
       completed: "bg-green-100 text-green-800",
+      ignored: "bg-gray-100 text-gray-800",
       failed: "bg-red-100 text-red-800"
     };
     return <Badge className={colors[status] || "bg-gray-100 text-gray-800"}>{status}</Badge>;
@@ -1010,6 +1012,18 @@ Talent Stack Team`;
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
                             {getStatusBadge(email.processing_status)}
+                            {email.classification && (
+                              <Badge className={
+                                email.classification === "job" ? "bg-blue-100 text-blue-800" :
+                                email.classification === "resume" ? "bg-emerald-100 text-emerald-800" :
+                                email.classification === "reply" ? "bg-purple-100 text-purple-800" :
+                                "bg-gray-100 text-gray-800"
+                              }>
+                                {email.classification}
+                                {email.classification_confidence != null &&
+                                  ` ${(email.classification_confidence * 100).toFixed(0)}%`}
+                              </Badge>
+                            )}
                             {email.response_sent && (
                               <Badge className="bg-purple-100 text-purple-800">
                                 Response Sent
@@ -1059,24 +1073,24 @@ Talent Stack Team`;
                               <RefreshCcw className="w-4 h-4" />
                             </Button>
                           )}
-                          {email.created_job_id && (
+                          {(email.created_job_id || (email.resulting_entity_type === "job" && email.resulting_entity_id)) && (
                             <Button
                               variant="outline"
                               size="sm"
                               asChild
                             >
-                              <Link to={createPageUrl(`JobDetails?id=${email.created_job_id}`)}>
+                              <Link to={createPageUrl(`JobDetails?id=${email.created_job_id || email.resulting_entity_id}`)}>
                                 <Briefcase className="w-4 h-4" />
                               </Link>
                             </Button>
                           )}
-                          {email.created_candidate_id && (
+                          {(email.created_candidate_id || (email.resulting_entity_type === "candidate" && email.resulting_entity_id)) && (
                             <Button
                               variant="outline"
                               size="sm"
                               asChild
                             >
-                              <Link to={createPageUrl(`CandidateDetails?id=${email.created_candidate_id}`)}>
+                              <Link to={createPageUrl(`CandidateDetails?id=${email.created_candidate_id || email.resulting_entity_id}`)}>
                                 <Users className="w-4 h-4" />
                               </Link>
                             </Button>

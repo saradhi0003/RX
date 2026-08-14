@@ -18,12 +18,15 @@ Classify the incoming message as one of:
 
 Return JSON: { "classification": "<type>", "confidence": <0.0-1.0>, "reasoning": "<short reason>" }`;
 
-export async function classifyMessage(text: string): Promise<ClassifyResult> {
+export async function classifyMessage(text: string, model?: string | null): Promise<ClassifyResult> {
   try {
+    // Model comes from the caller (ai_recruiter_settings.parsing_model —
+    // local-first). Passing null lets invokeLLM resolve its configured
+    // default; never hardcode a cloud model here.
     const result = await invokeLLMJson<ClassifyResult>(
       `Classify this message:\n\n${text.slice(0, 3000)}`,
       SYSTEM_PROMPT,
-      "claude-opus-4-8"
+      model || null
     );
     return result;
   } catch {

@@ -1,96 +1,188 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { AppSettings } from "@/entities/AppSettings";
+import { supabase } from "@/lib/supabase";
+import { createEntity } from "@/lib/entityFactory";
+import { addNotification } from "@/components/notifications/NotificationToast";
 import PageHeader from "@/components/common/PageHeader";
+import { Mail, MailPlus, Loader2, RefreshCcw, Unlink, CheckCircle2, AlertTriangle } from "lucide-react";
+
+const EmailAccount = createEntity("email_accounts");
+
+const PROVIDERS = [
+  { id: "gmail", label: "Gmail", description: "Google OAuth — read-only Gmail API scope" },
+  { id: "zoho", label: "Zoho Mail", description: "Zoho OAuth — ZohoMail messages read scope" },
+];
 
 export default function EmailSettings() {
-  const [settings, setSettings] = useState({ email_provider: "none", provider_connected: false, notes: "" });
-  const [existingId, setExistingId] = useState(null);
-  const [saving, setSaving] = useState(false);
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  useEffect(() => {
-    const load = async () => {
-      const list = await AppSettings.list("-updated_date", 1);
-      if (list.length) {
-        setSettings({
-          email_provider: list[0].email_provider || "none",
-          provider_connected: !!list[0].provider_connected,
-          notes: list[0].notes || ""
-        });
-        setExistingId(list[0].id);
-      }
-    };
-    load();
-  }, []);
-
-  const save = async () => {
-    setSaving(true);
-    if (existingId) {
-      await AppSettings.update(existingId, settings);
-    } else {
-      const created = await AppSettings.create(settings);
-      setExistingId(created.id);
+  const loadAccounts = async () => {
+    setLoading(true);
+    try {
+      const rows = await EmailAccount.list("-created_at", 50);
+      setAccounts(rows || []);
+    } catch (err) {
+      console.error("Failed to load email accounts:", err);
+      setAccounts([]);
+    } finally {
+      setLoading(false);
     }
-    setSaving(false);
+  };
+
+  useEffect(() => { loadAccounts(); }, []);
+
+  // Landing back from the provider consent screen.
+  useEffect(() => {
+    const connected = searchParams.get("connected");
+    const oauthError = searchParams.get("oauth_error");
+    if (connected) {
+      addNotification({ type: "success", title: "Mailbox connected", message: `${connected} account linked. Polling starts within 5 minutes.` });
+      loadAccounts();
+    } else if (oauthError) {
+      addNotification({ type: "error", title: "Connection failed", message: oauthError, duration: 8000 });
+    }
+    if (connected || oauthError) setSearchParams({}, { replace: true });
+  }, [searchParams]);
+
+  const connect = async (provider) => {
+    setConnecting(provider);
+    try {
+      const { data, error } = await supabase.functions.invoke("emailOAuthStart", { body: { provider } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (!data?.consent_url) throw new Error("No consent URL returned");
+      window.location.href = data.consent_url;
+    } catch (err) {
+      console.error("OAuth start failed:", err);
+      addNotification({
+        type: "error",
+        title: "Could not start connection",
+        message: err.message || "Check that the OAuth secrets are set",
+        duration: 8000,
+      });
+      setConnecting("");
+    }
+  };
+
+  const disconnect = async (account) => {
+    try {
+      await EmailAccount.update(account.id, { is_active: false });
+      addNotification({ type: "success", title: "Disconnected", message: `${account.email_address} will no longer be polled.` });
+      loadAccounts();
+    } catch (err) {
+      addNotification({ type: "error", title: "Disconnect failed", message: err.message });
+    }
   };
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
       <PageHeader
         title="Email Settings"
-        subtitle="Choose and connect your email provider"
+        subtitle="Connect Gmail and Zoho inboxes — inbound mail is classified by the local LLM and routed to Jobs / Candidates"
+        right={
+          <Button variant="outline" onClick={loadAccounts} className="gap-2">
+            <RefreshCcw className="w-4 h-4" />
+            Refresh
+          </Button>
+        }
       />
 
+      {/* Connect providers */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {PROVIDERS.map((p) => {
+          const connectedAccounts = accounts.filter((a) => a.provider === p.id && a.is_active);
+          return (
+            <Card key={p.id}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Mail className="w-5 h-5" />
+                  {p.label}
+                  {connectedAccounts.length > 0 && (
+                    <Badge className="bg-green-100 text-green-800">
+                      {connectedAccounts.length} connected
+                    </Badge>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-slate-600">{p.description}</p>
+                <Button onClick={() => connect(p.id)} disabled={!!connecting} className="gap-2">
+                  {connecting === p.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <MailPlus className="w-4 h-4" />
+                  )}
+                  Connect {p.label}
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Connected accounts */}
       <Card>
         <CardHeader>
-          <CardTitle>Provider</CardTitle>
+          <CardTitle className="text-base">Connected Mailboxes</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="text-sm text-slate-600">Email Provider</label>
-              <Select
-                value={settings.email_provider}
-                onValueChange={(v) => setSettings({ ...settings, email_provider: v })}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Not Configured</SelectItem>
-                  <SelectItem value="gmail">Gmail</SelectItem>
-                  <SelectItem value="outlook">Microsoft Outlook</SelectItem>
-                </SelectContent>
-              </Select>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center p-6">
+              <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
             </div>
-            <div className="flex items-end">
-              <Button
-                type="button"
-                variant={settings.provider_connected ? "default" : "outline"}
-                className="w-full"
-                onClick={() => setSettings({ ...settings, provider_connected: !settings.provider_connected })}
-              >
-                {settings.provider_connected ? "Connected" : "Mark Connected"}
-              </Button>
+          ) : accounts.length === 0 ? (
+            <p className="text-sm text-slate-500 p-2">
+              No mailboxes connected yet. Connect Gmail or Zoho above — once linked, new mail is
+              polled every 5 minutes, classified, and turned into Job / Candidate records
+              (low-confidence items go to the Approval Queue).
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {accounts.map((a) => (
+                <div key={a.id} className="flex items-center justify-between border rounded-lg p-3">
+                  <div className="flex items-center gap-3">
+                    {a.is_active && !a.last_error ? (
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">{a.email_address}</p>
+                      <p className="text-xs text-slate-500">
+                        {a.provider} · {a.is_active ? "active" : "disabled"}
+                        {a.last_polled_at && ` · last polled ${new Date(a.last_polled_at).toLocaleString()}`}
+                      </p>
+                      {a.last_error && (
+                        <p className="text-xs text-red-600 mt-0.5">{a.last_error}</p>
+                      )}
+                    </div>
+                  </div>
+                  {a.is_active && (
+                    <Button variant="outline" size="sm" onClick={() => disconnect(a)} className="gap-1.5">
+                      <Unlink className="w-3.5 h-3.5" />
+                      Disconnect
+                    </Button>
+                  )}
+                </div>
+              ))}
             </div>
-            <div className="flex items-end">
-              <Badge className={settings.provider_connected ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"}>
-                {settings.email_provider === "none" ? "Disabled" : settings.provider_connected ? "Active" : "Needs Connection"}
-              </Badge>
-            </div>
-          </div>
-          <div>
-            <label className="text-sm text-slate-600">Notes</label>
-            <Textarea rows={4} value={settings.notes} onChange={(e)=>setSettings({...settings, notes: e.target.value})} placeholder="Document how this account should be connected. OAuth setup is required via Base44 backend functions or platform integration." />
-          </div>
-          <div className="text-sm text-slate-600">
-            Direct Gmail/Outlook OAuth isn’t available in-app. To enable true sending from your mailbox, enable backend functions (Dashboard → Settings) or request an integration via the Feedback button. Until then, emails will be blocked here.
-          </div>
-          <div className="text-right">
-            <Button onClick={save} disabled={saving}>{saving ? "Saving..." : "Save Settings"}</Button>
-          </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="pt-6">
+          <p className="text-xs text-slate-500">
+            Tokens are stored server-side in Supabase (never in the browser). The poller runs as an
+            Edge Function on a schedule gated by CRON_SECRET; classification and parsing use the
+            local LM Studio fleet first and fall back to DeepSeek → Qwen → Claude automatically.
+          </p>
         </CardContent>
       </Card>
     </div>
