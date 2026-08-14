@@ -8,6 +8,11 @@ import {
   normalizeZohoMessage,
   htmlToText,
   CONFIDENCE_THRESHOLD,
+  messageIdCandidates,
+  normalizeSubject,
+  isReplySubject,
+  escapeLikePattern,
+  isPlausibleEmail,
 } from "../../../supabase/functions/_shared/emailNormalizers.ts";
 
 describe("emailNormalizers — address parsing", () => {
@@ -152,5 +157,65 @@ describe("emailNormalizers — htmlToText", () => {
   it("is safe on empty input", () => {
     expect(htmlToText("")).toBe("");
     expect(htmlToText(undefined)).toBe("");
+  });
+});
+
+describe("emailNormalizers — reply threading", () => {
+  // Postmark's send API returns a bare GUID, which is what lands in
+  // sent_emails.message_id; the recipient's client echoes back the full
+  // <guid@mtasv.net>. Matching one against the other is what makes
+  // stop-on-reply work at all.
+  it("offers the bare, bracketed and local-part forms of a message id", () => {
+    const forms = messageIdCandidates("<abc-123@mtasv.net>");
+    expect(forms).toContain("abc-123@mtasv.net");
+    expect(forms).toContain("<abc-123@mtasv.net>");
+    expect(forms).toContain("abc-123");
+  });
+
+  it("takes every id when a client echoes a chain, and dedupes", () => {
+    const forms = messageIdCandidates("<one@x.com> <two@x.com>");
+    expect(forms).toContain("one@x.com");
+    expect(forms).toContain("two@x.com");
+    expect(new Set(forms).size).toBe(forms.length);
+  });
+
+  it("handles an unbracketed header and empty input", () => {
+    expect(messageIdCandidates("plain-guid")).toContain("plain-guid");
+    expect(messageIdCandidates("")).toEqual([]);
+    expect(messageIdCandidates(null)).toEqual([]);
+  });
+
+  it("strips reply and forward prefixes down to a comparable subject", () => {
+    expect(normalizeSubject("Re: Senior Dev")).toBe("senior dev");
+    expect(normalizeSubject("RE: Fwd:  Senior   Dev")).toBe("senior dev");
+    expect(normalizeSubject("Re[2]: Senior Dev")).toBe("senior dev");
+    expect(normalizeSubject("Senior Dev")).toBe("senior dev");
+  });
+
+  it("detects reply subjects — the Zoho fallback depends on it", () => {
+    expect(isReplySubject("Re: hello")).toBe(true);
+    expect(isReplySubject("FWD: hello")).toBe(true);
+    expect(isReplySubject("hello")).toBe(false);
+    expect(isReplySubject("")).toBe(false);
+  });
+});
+
+describe("emailNormalizers — lookup-key hardening", () => {
+  // from_email is attacker-controlled: an unescaped % turns the candidate
+  // lookup into a wildcard that matches somebody else's record, which the
+  // sender's "resume" then overwrites.
+  it("escapes LIKE wildcards", () => {
+    expect(escapeLikePattern("%@example.com")).toBe("\\%@example.com");
+    expect(escapeLikePattern("a_b@example.com")).toBe("a\\_b@example.com");
+    expect(escapeLikePattern("jane@example.com")).toBe("jane@example.com");
+  });
+
+  it("rejects anything that is not a single plain address", () => {
+    expect(isPlausibleEmail("jane@example.com")).toBe(true);
+    expect(isPlausibleEmail("%@example.com")).toBe(false);
+    expect(isPlausibleEmail("a_b@example.com")).toBe(false);
+    expect(isPlausibleEmail("jane@example.com, bob@example.com")).toBe(false);
+    expect(isPlausibleEmail("not-an-email")).toBe(false);
+    expect(isPlausibleEmail("")).toBe(false);
   });
 });

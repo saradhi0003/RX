@@ -19,6 +19,7 @@ export { FormSubmission } from "./FormSubmission";
 export { AppSettings } from "./AppSettings";
 export { AuditLog } from "./AuditLog";
 export { InboundEmail } from "./InboundEmail";
+export { EmailAccount } from "./EmailAccount";
 export { ChannelConnection } from "./ChannelConnection";
 export { InboundChannelMessage } from "./InboundChannelMessage";
 export { AIRecruiterSettings } from "./AIRecruiterSettings";

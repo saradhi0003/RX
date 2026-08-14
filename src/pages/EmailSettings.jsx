@@ -4,12 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase";
-import { createEntity } from "@/lib/entityFactory";
+import { EmailAccount } from "@/entities/EmailAccount";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import PageHeader from "@/components/common/PageHeader";
 import { Mail, MailPlus, Loader2, RefreshCcw, Unlink, CheckCircle2, AlertTriangle } from "lucide-react";
-
-const EmailAccount = createEntity("email_accounts");
 
 const PROVIDERS = [
   { id: "gmail", label: "Gmail", description: "Google OAuth — read-only Gmail API scope" },
@@ -20,6 +18,7 @@ export default function EmailSettings() {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [searchParams, setSearchParams] = useSearchParams();
 
   const loadAccounts = async () => {
@@ -27,9 +26,14 @@ export default function EmailSettings() {
     try {
       const rows = await EmailAccount.list("-created_at", 50);
       setAccounts(rows || []);
+      setLoadError("");
     } catch (err) {
+      // Distinguished from "none connected" on purpose: a permissions or
+      // network failure that renders as an empty list reads as "nothing is
+      // connected", and someone reconnects a mailbox that was never gone.
       console.error("Failed to load email accounts:", err);
       setAccounts([]);
+      setLoadError(err?.message || "Could not load connected mailboxes.");
     } finally {
       setLoading(false);
     }
@@ -135,6 +139,17 @@ export default function EmailSettings() {
           {loading ? (
             <div className="flex items-center justify-center p-6">
               <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+            </div>
+          ) : loadError ? (
+            <div className="flex items-start gap-2 p-3 rounded-lg border border-red-200 bg-red-50">
+              <AlertTriangle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-red-800">Could not load mailboxes</p>
+                <p className="text-xs text-red-700 mt-0.5">{loadError}</p>
+                <Button variant="outline" size="sm" className="mt-2" onClick={loadAccounts}>
+                  Retry
+                </Button>
+              </div>
             </div>
           ) : accounts.length === 0 ? (
             <p className="text-sm text-slate-500 p-2">

@@ -63,14 +63,27 @@ Deno.serve(withErrorHandling(async (req) => {
   // Classify → route → create records (shared with pollEmailInboxes).
   // Postmark attachments arrive base64-inlined in raw_payload; text extraction
   // for those is intentionally left to the poller path for now.
-  const result = await processInboundEmail(email.id);
+  //
+  // This is two LLM calls plus several writes — far longer than a webhook
+  // should hold its caller. Postmark retries on timeout, which would duplicate
+  // the work, so acknowledge as soon as the row is durable and let the intake
+  // finish in the background. The row is already 'pending', so a crash between
+  // the two leaves it reprocessable rather than lost.
+  const intake = processInboundEmail(email.id).catch((e) => {
+    console.error(`[inboundEmailWebhook] intake failed for ${email.id}:`, e);
+  });
+
+  // Supabase's runtime keeps the isolate alive for this; locally (supabase
+  // functions serve) there is no EdgeRuntime, so fall back to awaiting.
+  if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+    EdgeRuntime.waitUntil(intake);
+  } else {
+    await intake;
+  }
 
   return okResponse({
     id: email.id,
-    classification: result.classification,
-    entity: result.entityType ? { type: result.entityType, id: result.entityId } : null,
-    approval_item: result.approvalItemId || null,
-    stopped_followup: result.stoppedFollowup || false,
+    status: "accepted",
     from: fromEmail,
   });
 }));

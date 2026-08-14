@@ -60,7 +60,8 @@ function applyFilters(query, filters = {}) {
 /**
  * @param {string} tableName
  * @param {{beforeWrite?: (fields: object, op: "create"|"update") => object,
- *          afterRead?: (row: object) => object}} [opts]
+ *          afterRead?: (row: object) => object,
+ *          columns?: string}} [opts]
  *   `beforeWrite` normalises a payload just before it hits Postgres. It exists
  *   because several tables carry NOT NULL columns the UI never collects
  *   directly (`candidates.full_name` is derived from first+last), and patching
@@ -70,8 +71,18 @@ function applyFilters(query, filters = {}) {
  *   `afterRead` is its mirror, for columns whose stored vocabulary differs from
  *   the one the UI speaks (`tasks.status`). Both are needed or a translated
  *   write becomes invisible to the filter that reads it back.
+ *
+ *   `columns` is the select list, defaulting to `*`. Set it for tables that
+ *   hold secrets in columns the browser role must never read: a table with
+ *   column-level grants (`REVOKE SELECT … ; GRANT SELECT (a, b) …`) rejects
+ *   `SELECT *` outright with "permission denied", so the default would make
+ *   every read fail rather than merely hide the column. `email_accounts`
+ *   (OAuth tokens, migration 032) is the case this exists for.
  */
-export function createEntity(tableName, { beforeWrite = (f) => f, afterRead = (r) => r } = {}) {
+export function createEntity(
+  tableName,
+  { beforeWrite = (f) => f, afterRead = (r) => r, columns = "*" } = {},
+) {
   const shape = (row) => (row ? afterRead(normalize(row)) : row);
   return {
     /** list(sortField?, limit?) */
@@ -79,7 +90,7 @@ export function createEntity(tableName, { beforeWrite = (f) => f, afterRead = (r
       const { column, ascending } = parseSortField(sortField);
       const { data, error } = await supabase
         .from(tableName)
-        .select("*")
+        .select(columns)
         .order(column, { ascending })
         .limit(limit);
       if (error) throw error;
@@ -89,7 +100,7 @@ export function createEntity(tableName, { beforeWrite = (f) => f, afterRead = (r
     /** filter(conditions, sortField?, limit?) */
     async filter(conditions = {}, sortField = "-created_at", limit = 200) {
       const { column, ascending } = parseSortField(sortField);
-      let query = supabase.from(tableName).select("*");
+      let query = supabase.from(tableName).select(columns);
       query = applyFilters(query, conditions);
       const { data, error } = await query
         .order(column, { ascending })
@@ -112,7 +123,7 @@ export function createEntity(tableName, { beforeWrite = (f) => f, afterRead = (r
      * so a user only ever counts what they may see.
      */
     async count(conditions = {}) {
-      let query = supabase.from(tableName).select("*", { count: "exact", head: true });
+      let query = supabase.from(tableName).select(columns, { count: "exact", head: true });
       query = applyFilters(query, conditions);
       const { count, error } = await query;
       if (error) throw error;
@@ -123,7 +134,7 @@ export function createEntity(tableName, { beforeWrite = (f) => f, afterRead = (r
     async get(id) {
       const { data, error } = await supabase
         .from(tableName)
-        .select("*")
+        .select(columns)
         .eq("id", id)
         .single();
       if (error) throw error;
@@ -136,7 +147,7 @@ export function createEntity(tableName, { beforeWrite = (f) => f, afterRead = (r
       const { data, error } = await supabase
         .from(tableName)
         .insert(beforeWrite(clean, "create"))
-        .select()
+        .select(columns)
         .single();
       if (error) throw error;
       return shape(data);
@@ -149,7 +160,7 @@ export function createEntity(tableName, { beforeWrite = (f) => f, afterRead = (r
         .from(tableName)
         .update(beforeWrite(clean, "update"))
         .eq("id", id)
-        .select()
+        .select(columns)
         .single();
       if (error) throw error;
       return shape(data);

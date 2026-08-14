@@ -8,10 +8,13 @@ import and use; don't re-instantiate.
   `isSupabaseConfigured` (drives the "not connected" banner). Reads
   `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (build-time). Falls back to a
   placeholder client so the app still mounts without env.
-- **entityFactory.js** — `createEntity(table)` → `{list, filter, get, create,
-  update, delete}`. Base44-compat: `-field` DESC sort, `{$gt,$gte,$lt,$lte,$in,
-  $like,$or}` filters, `created_at→created_date` alias. **No workspace/org
-  filter — RLS decides visibility.** Errors `throw` — callers must handle.
+- **entityFactory.js** — `createEntity(table, opts?)` → `{list, filter, get,
+  create, update, delete, count}`. Base44-compat: `-field` DESC sort,
+  `{$gt,$gte,$lt,$lte,$in,$like,$or}` filters, `created_at→created_date` alias.
+  **No workspace/org filter — RLS decides visibility.** Errors `throw` — callers
+  must handle. `opts.columns` narrows the select list (default `*`): required for
+  tables with **column-level grants**, where Postgres rejects `SELECT *` outright
+  instead of trimming it — see `@/entities/EmailAccount` (OAuth tokens, 032).
 - **llm.js** — provider-agnostic LLM. `invokeLLM/invokeLLMJson/invokeLLMStream`.
   Defaults to the `llmProxy` Edge Function (keys server-side). Set
   **`VITE_LLM_PROVIDER=lmstudio`** (or `ollama`) for dev-only direct local calls
