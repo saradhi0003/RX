@@ -16,8 +16,8 @@ Server-side logic and the place API keys live. Called from the app via
 - **inboundEmailWebhook**, **channelMessageWebhook**, **reprocessChannelMessage**
   — inbound ingestion (email / Telegram / Slack / WhatsApp).
 - **emailOAuthStart** (admin) / **emailOAuthCallback** (`verify_jwt = false`) /
-  **pollEmailInboxes** (cron) — the connected-mailbox intake; see "Email intake"
-  below.
+  **pollEmailInboxes** (cron) / **reprocessInboundEmail** — the connected-mailbox
+  intake; see "Email intake" below.
 - **createWhatsappRegistrationCode / validateWhatsappRegistrationCode**,
   **parseResumeFile**, **healthCheck** (integrations liveness).
 - **notifySignupRequest** — emails the admins when a signup lands at
@@ -108,6 +108,30 @@ stop-on-reply half of the follow-up system is silently dead.
 finishes the intake in `EdgeRuntime.waitUntil()` — classify+parse is far longer
 than a webhook should hold its caller, and Postmark retries on timeout, which
 would duplicate the work.
+
+**Replaying an email — `reprocessInboundEmail`.** One server-side entry point,
+two callers: EmailInbox's retry button (`{ email_id }`) for a row stuck in
+`failed`, and ApprovalQueue on approving an `email_intake` item
+(`{ email_id, force: true }`). `force` skips the confidence gate because a human
+has now vouched for the message — **without it that queue is a dead end**:
+approving marks the item approved and creates nothing. The UI executes the
+approval *before* marking it decided, so a failure leaves it pending.
+Reprocessing is also the only sanctioned way to revive an `ignored` row.
+
+Attachment text survives a replay: `processInboundEmail` re-resolves it from the
+stored row when the caller passes none — Postmark's base64 bytes live in
+`raw_payload`, and the poller stashes what it extracted under
+`raw_payload.extracted_attachment_text` (it streams the bytes once and cannot
+keep them). Skip that and retrying a resume email parses the covering note and
+silently drops the CV.
+
+**Do not "reprocess" from the client.** The previous EmailInbox handler wrote
+`processing_status:"processing"` and `processed:false` straight through the
+entity layer — neither exists (the CHECK allows only
+pending/processed/failed/ignored, and there is no `processed` column), so it
+threw on its first statement every time, then routed on two hardcoded legacy
+inbox addresses no polled mail can match. Classification belongs where the model
+keys, the cost ceiling and the workspace stamping are.
 
 **Connecting a mailbox:** `emailOAuthStart` (**admin only** — a mailbox imports
 data for the whole workspace) returns the provider consent URL carrying an

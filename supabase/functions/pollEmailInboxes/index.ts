@@ -190,6 +190,16 @@ async function pollGmail(account, accessToken) {
           return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
         });
 
+        // Stash what we extracted: the bytes were streamed from the provider
+        // and are not stored, so without this a later reprocess would re-parse
+        // the covering note alone and lose the CV.
+        if (extraText) {
+          await supabase
+            .from("inbound_emails")
+            .update({ raw_payload: { extracted_attachment_text: extraText } })
+            .eq("id", emailId);
+        }
+
         await processInboundEmail(emailId, { extraText });
         imported++;
       }
@@ -250,6 +260,16 @@ async function pollZoho(account, accessToken) {
           const attRes = await fetch(`${base}/${stub.messageId}/attachments/${att.attachmentId}`, { headers });
           return attRes.ok ? new Uint8Array(await attRes.arrayBuffer()) : null;
         });
+
+        // Stash what we extracted: the bytes were streamed from the provider
+        // and are not stored, so without this a later reprocess would re-parse
+        // the covering note alone and lose the CV.
+        if (extraText) {
+          await supabase
+            .from("inbound_emails")
+            .update({ raw_payload: { extracted_attachment_text: extraText } })
+            .eq("id", emailId);
+        }
 
         await processInboundEmail(emailId, { extraText });
         imported++;

@@ -22,6 +22,7 @@ import {
   Send
 } from "lucide-react";
 import { InboundEmail } from "@/entities/InboundEmail";
+import { supabase } from "@/lib/supabase";
 import { Job } from "@/entities/Job";
 import { Candidate } from "@/entities/Candidate";
 import { Company } from "@/entities/Company";
@@ -692,37 +693,40 @@ Talent Stack Team`;
     setProcessing(false);
   };
 
+  /**
+   * Retry a failed intake through the shared server-side pipeline.
+   *
+   * The previous version wrote processing_status:"processing" and processed:false
+   * directly — neither exists: the CHECK constraint allows only
+   * pending/processed/failed/ignored, and there is no `processed` column, so it
+   * threw on its first statement every time. It then routed on two hardcoded
+   * legacy inbox addresses, which no Gmail/Zoho-polled email ever matches.
+   * Classification and record creation belong server-side anyway (that is where
+   * the model keys, the cost ceiling and the workspace stamping live).
+   */
   const reprocessEmail = async (emailRecord) => {
     setProcessing(true);
-    
     try {
-      await InboundEmail.update(emailRecord.id, { 
-        processing_status: "processing",
-        processed: false
+      const { data, error } = await supabase.functions.invoke("reprocessInboundEmail", {
+        body: { email_id: emailRecord.id },
       });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      if (emailRecord.to_email?.includes("talentstackjobs")) {
-        const job = await processJobEmail(emailRecord);
-        addNotification({ 
-          type: "success", 
-          title: "Job created", 
-          message: `Created: ${job.title}` 
-        });
-      } else if (emailRecord.to_email?.includes("resumes@talestack")) {
-        const result = await processResumeEmail(emailRecord);
-        addNotification({ 
-          type: "success", 
-          title: "Candidate processed", 
-          message: `Score: ${result.matchScore}/100` 
-        });
-      }
+      const entity = data?.entity;
+      addNotification({
+        type: data?.status === "failed" ? "error" : "success",
+        title: data?.status === "failed" ? "Reprocess failed" : "Reprocessed",
+        message: entity
+          ? `Classified as ${data.classification} — created ${entity.type}.`
+          : `Classified as ${data?.classification || "unknown"} (${data?.status}).`,
+      });
 
       await loadEmails();
     } catch (error) {
       console.error("Error reprocessing:", error);
       addNotification({ type: "error", title: "Reprocess failed", message: error.message });
     }
-    
     setProcessing(false);
   };
 

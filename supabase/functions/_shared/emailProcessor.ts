@@ -23,6 +23,7 @@
 import { supabase, getAISettings } from "./supabaseClient.ts";
 import { classifyMessage } from "./classifier.ts";
 import { checkDailyCeiling } from "./llm.ts";
+import { postmarkAttachmentsToText } from "./attachmentText.ts";
 import { parseJobText } from "./parseJob.ts";
 import { parseResumeText, findCandidateByEmail } from "./parseCandidate.ts";
 import { DEFAULT_WORKSPACE_ID } from "./auth.ts";
@@ -79,14 +80,47 @@ async function findRepliedSend(email) {
   return null;
 }
 
+/**
+ * The attachment text for this email, however it has to be obtained.
+ *
+ * A live call passes it in (the poller has just downloaded the bytes). A
+ * *reprocess* has no such caller, so it has to be recoverable from the stored
+ * row — otherwise retrying a failed resume email silently drops the CV and
+ * parses the covering note alone. Postmark keeps the base64 bytes in
+ * `raw_payload`; the poller stashes the text it already extracted there under
+ * `extracted_attachment_text`, since it cannot store bytes it streamed once.
+ */
+async function resolveAttachmentText(email, extraText?: string): Promise<string> {
+  const passedIn = String(extraText || "").trim();
+  if (passedIn) return passedIn;
+
+  const raw = email.raw_payload || {};
+  const stashed = String(raw.extracted_attachment_text || "").trim();
+  if (stashed) return stashed;
+
+  if (Array.isArray(raw.Attachments) && raw.Attachments.length) {
+    return (await postmarkAttachmentsToText(raw)).trim();
+  }
+  return "";
+}
+
 export async function processInboundEmail(
   emailId: string,
-  opts: { extraText?: string } = {},
+  opts: {
+    extraText?: string;
+    /**
+     * Create the record even below CONFIDENCE_THRESHOLD. Set only when a human
+     * has already reviewed the message — approving the `email_intake` item that
+     * the low-confidence path filed. Without it that queue is a dead end:
+     * approving an item would mark it approved and create nothing.
+     */
+    forceCreate?: boolean;
+  } = {},
 ): Promise<ProcessResult> {
   const { data: email } = await supabase
     .from("inbound_emails")
     .select(
-      "id, workspace_id, subject, body_text, body_html, in_reply_to, from_email, processing_status",
+      "id, workspace_id, subject, body_text, body_html, in_reply_to, from_email, processing_status, raw_payload",
     )
     .eq("id", emailId)
     .maybeSingle();
@@ -121,7 +155,7 @@ export async function processInboundEmail(
     const model = aiSettings?.parsing_model || null;
 
     const bodyText = email.body_text || htmlToText(email.body_html || "");
-    const attachmentText = String(opts.extraText || "").trim();
+    const attachmentText = await resolveAttachmentText(email, opts.extraText);
     const classifyInput = `Subject: ${email.subject || ""}\n\n${bodyText}\n\n${attachmentText}`;
 
     // ── Reply to a tracked outreach → stop the follow-up sequence ──
@@ -197,7 +231,8 @@ export async function processInboundEmail(
       return { status: "processed", classification, confidence, stoppedFollowup };
     }
 
-    if (shouldAutoCreate(classification, confidence)) {
+    const isRecordKind = classification === "job" || classification === "resume";
+    if (shouldAutoCreate(classification, confidence) || (opts.forceCreate && isRecordKind)) {
       if (classification === "job") {
         const { jobId } = await parseJobText(parseInput, model, {
           source: "email",
@@ -226,7 +261,7 @@ export async function processInboundEmail(
     }
 
     // ── Plausible but uncertain → human review ──
-    if (classification === "job" || classification === "resume") {
+    if (isRecordKind) {
       const { data: item } = await supabase
         .from("approval_items")
         .insert({

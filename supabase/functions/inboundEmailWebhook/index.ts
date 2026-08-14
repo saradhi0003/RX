@@ -61,8 +61,9 @@ Deno.serve(withErrorHandling(async (req) => {
   }
 
   // Classify → route → create records (shared with pollEmailInboxes).
-  // Postmark attachments arrive base64-inlined in raw_payload; text extraction
-  // for those is intentionally left to the poller path for now.
+  // Postmark inlines attachment bytes as base64 and we store the whole payload,
+  // so processInboundEmail re-extracts a PDF/DOCX resume straight from
+  // raw_payload — no download, and it still works on a later reprocess.
   //
   // This is two LLM calls plus several writes — far longer than a webhook
   // should hold its caller. Postmark retries on timeout, which would duplicate

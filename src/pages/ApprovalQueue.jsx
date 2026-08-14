@@ -77,9 +77,44 @@ export default function ApprovalQueue() {
   } = useEntityList(() => ApprovalItem.filter({ status: "pending" }, "due_at", 200));
   const [decidingItem, setDecidingItem] = useState(null);
 
+  /**
+   * Carry out what approving an item actually means.
+   *
+   * Marking the row `approved` is bookkeeping, not execution — for
+   * `email_intake` the whole point of the approval is to create the Job or
+   * Candidate the classifier scored below the auto-create threshold. Without
+   * this the queue is a dead end: the reviewer approves, the item disappears,
+   * and no record is ever created.
+   *
+   * Returns a message describing what happened, or null when the type needs no
+   * side effect.
+   */
+  const executeApproval = async (item) => {
+    if (item.type !== "email_intake") return null;
+
+    const emailId = item.action_payload?.inbound_email_id;
+    if (!emailId) throw new Error("Approval item has no inbound_email_id to act on");
+
+    // force: the reviewer is the confidence now, so bypass the score gate.
+    const data = await InvokeFunction({
+      function_name: "reprocessInboundEmail",
+      payload: { email_id: emailId, force: true },
+    });
+    if (data?.error) throw new Error(data.error);
+
+    return data?.entity
+      ? `Created ${data.entity.type} from the email.`
+      : `Email reprocessed (${data?.status || "done"}).`;
+  };
+
   const decideItem = async (item, decision, reason = null) => {
     setDecidingItem(item.id);
     try {
+      // Execute first: if creating the record fails, the item must stay pending
+      // so it can be retried, rather than being marked approved with nothing
+      // to show for it.
+      const executed = decision === "approved" ? await executeApproval(item) : null;
+
       await ApprovalItem.update(item.id, {
         status: decision,
         decision,
@@ -90,7 +125,7 @@ export default function ApprovalQueue() {
       addNotification({
         type: decision === "approved" ? "success" : "info",
         title: decision === "approved" ? "Approved" : "Rejected",
-        message: item.title,
+        message: executed ? `${item.title} — ${executed}` : item.title,
       });
     } catch (err) {
       addNotification({ type: "error", title: "Error", message: err?.message || "Could not update item" });

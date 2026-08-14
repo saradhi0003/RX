@@ -17,7 +17,7 @@
 5. [Backend — Supabase Edge Functions](#5-backend--supabase-edge-functions)
 6. [LLM Layer](#6-llm-layer)
 7. [Authentication & Security](#7-authentication--security)
-8. [Data Model — All 36+ Tables](#8-data-model--all-36-tables)
+8. [Data Model — All 37 Tables](#8-data-model--all-37-tables)
 9. [Frontend — Application Design](#9-frontend--application-design)
 10. [Frontend — All Pages (51)](#10-frontend--all-pages-49)
 11. [Frontend — All Components (145+)](#11-frontend--all-components-145)
@@ -279,29 +279,57 @@ All functions live at `supabase/functions/<name>/index.ts` (Deno runtime).
 
 ### 5.1 Function Catalog
 
-| Function | HTTP | Auth Method | Purpose |
-|----------|------|------------|---------|
-| `inboundEmailWebhook` | POST | Postmark signature header | Receive Postmark inbound emails |
-| `channelMessageWebhook` | POST | `Bearer CHANNEL_BOT_SECRET` | Receive Telegram / Slack / WhatsApp messages |
-| `aiRecruiterParseJob` | POST | Supabase JWT | Parse raw job text → Job entity |
-| `parseResumeFile` | POST | JWT or `INTERNAL_FUNCTION_TOKEN` | Download + parse resume → Candidate |
-| `autoMatchOnInsert` | POST | Supabase JWT | Trigger matching after new job/candidate |
-| `aiRecruiterMatchCandidates` | POST | Supabase JWT | LLM score candidates against job |
-| `aiRecruiterDraftEmail` | POST | Supabase JWT | Generate email draft (all 5 types) |
-| `aiRecruiterApproveDraft` | POST | Supabase JWT | Approve or reject a draft |
-| `sendApprovedDraft` | POST | Supabase JWT | Send via Postmark + create FollowupSchedule |
-| `stopFollowup` | POST | Supabase JWT | Manually stop FollowupSchedule |
-| `scheduledFollowupRun` | POST | `Bearer CRON_SECRET` | Cron: draft all due follow-ups |
-| `reprocessChannelMessage` | POST | Supabase JWT | Retry a failed InboundChannelMessage |
-| `healthCheck` | POST | Supabase JWT | Check OpenAI / Anthropic / Postmark health |
-| `aiRecruiterCreateSubmission` | POST | Supabase JWT | AI creates Submission record |
-| `aiRecruiterCreateTask` | POST | Supabase JWT | AI creates Task record |
-| `createWhatsappRegistrationCode` | POST | Supabase JWT | Generate 8-char WA registration code |
-| `validateWhatsappRegistrationCode` | POST | `Bearer CHANNEL_BOT_SECRET` | Validate code + create ChannelConnection |
-| `sendEmail` | POST | Supabase JWT | Generic email send via Postmark |
-| `extractDataFromFile` | POST | Supabase JWT | LLM extract structured data from file |
-| `generateImage` | POST | Supabase JWT | DALL·E image generation |
-| `llmHelper` | POST | Supabase JWT | Generic LLM wrapper |
+> Verified against `supabase/functions/` on 2026-08-14. Earlier revisions of this
+> table listed seven functions that do not exist (`autoMatchOnInsert`,
+> `aiRecruiterCreateSubmission`, `aiRecruiterCreateTask`, `sendEmail`,
+> `extractDataFromFile`, `generateImage`, `llmHelper`) and omitted six that do.
+> **`verify_jwt` is set in `supabase/config.toml`, and it is not the same thing
+> as the approval gate** — see §5.2.
+
+| Function | Auth Method | Purpose |
+|----------|------------|---------|
+| `llmProxy` | JWT + `requireApprovedUser` | The LLM gateway — all `@/lib/llm` calls route here so keys stay server-side |
+| `inboundEmailWebhook` | `verify_jwt = false` (external) | Receive Postmark inbound email → shared intake path |
+| `pollEmailInboxes` | `x-cron-secret` | Cron ~5 min: poll connected Gmail/Zoho mailboxes → shared intake path |
+| `emailOAuthStart` | JWT + `requireAdminUser` | Build the Gmail/Zoho consent URL with an HMAC-signed `state` |
+| `emailOAuthCallback` | `verify_jwt = false`; signed `state` | OAuth redirect target — exchange code, store tokens in `email_accounts` |
+| `reprocessInboundEmail` | JWT + `requireApprovedUser` | Replay a failed intake; `force` creates the record for an approved low-confidence email |
+| `channelMessageWebhook` | `Bearer CHANNEL_BOT_SECRET` | Receive Telegram / Slack / WhatsApp messages |
+| `reprocessChannelMessage` | JWT + `requireApprovedUser` | Retry a failed `inbound_channel_messages` row |
+| `aiRecruiterParseJob` | JWT + `requireApprovedUser` | Parse raw job text → Job entity |
+| `aiRecruiterMatchCandidates` | JWT + `requireApprovedUser` | LLM score candidates against a job |
+| `aiRecruiterDraftEmail` | JWT + `requireApprovedUser` | Generate an email draft |
+| `aiRecruiterApproveDraft` | JWT + `requireApprovedUser` | Approve or reject a draft |
+| `sendApprovedDraft` | JWT + `requireApprovedUser` | Send via Postmark + create FollowupSchedule (atomic send lock) |
+| `stopFollowup` | JWT + `requireApprovedUser` | Manually stop a FollowupSchedule |
+| `scheduledFollowupRun` | `CRON_SECRET` | Cron: send all due follow-ups |
+| `parseResumeFile` | JWT + `requireApprovedUser` | Download + parse a resume → Candidate |
+| `transcribeRecording` | JWT + `requireApprovedUser` | Storage `.webm` → Whisper → transcript (~25 MB cap) |
+| `livekitToken` | `verify_jwt = false`; `requireApprovedUser` in handler | Mint LiveKit JWTs for video calls |
+| `createWhatsappRegistrationCode` | JWT + `requireAdminUser` | Generate an 8-char WhatsApp registration code |
+| `validateWhatsappRegistrationCode` | `verify_jwt = false` (bot) | Validate code + create ChannelConnection |
+| `notifySignupRequest` | authenticate only (`getCallerUser`) | Email admins when a signup lands at `status='invited'` |
+| `requestTrial` | `verify_jwt = false` (public form) | Public trial request intake |
+| `healthCheck` | `verify_jwt = false` | Integrations liveness, including the `local_fleet` tunnel probe |
+
+### 5.2 `verify_jwt` is not the approval gate
+
+`verify_jwt` proves the caller is *authenticated*; it says nothing about whether
+they are **approved**. Since Edge Functions use the service-role client — which
+bypasses RLS and therefore `auth_is_approved()` from migration 020 — every
+user-invoked function re-checks approval itself via `_shared/auth.ts`:
+
+```ts
+const gate = await requireApprovedUser(req);   // or requireAdminUser
+if (gate.response) return gate.response;       // 401/403 already formed
+```
+
+Deliberately **not** gated: the webhooks (external callers with no session),
+`healthCheck`, `scheduledFollowupRun` / `pollEmailInboxes` (cron, gated by
+`CRON_SECRET`), and `notifySignupRequest` — that one exists precisely to serve an
+unapproved caller and must never be "fixed" to use `requireApprovedUser`.
+`requireApprovedUser` also recognises the service key as a trusted internal
+caller, which is what lets functions fan out to one another.
 
 ---
 
@@ -516,7 +544,7 @@ isAdmin                       // role === "admin"
 
 ---
 
-## 8. Data Model — All 36 Tables
+## 8. Data Model — All 37 Tables
 
 All tables share:
 - `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
@@ -668,6 +696,21 @@ channel_connection_id, channel_type, external_message_id, sender, sender_name, s
 
 #### inbound_emails
 from_email/name, to_email, subject, body_text/html, message_id (unique), in_reply_to, thread_id, attachments JSONB, raw_payload JSONB, received_at, processing_status, processed_at, resulting_entity_type/id, error_message.
+Migration 032 adds **classification**, **classification_confidence** NUMERIC(3,2) and **email_account_id** (FK → `email_accounts`).
+
+- `processing_status` CHECK allows exactly `pending | processed | failed | ignored` — **there is no `processing` value and no `processed` column**; writing either fails. `processed` vs `ignored` are terminal, `failed` is replayable (§15.3).
+- `message_id` is globally UNIQUE, which is what makes the poller's insert safe against overlapping cron runs — a 23505 there means "already imported", not an error.
+- `raw_payload` does double duty: Postmark's full payload (base64 attachment bytes included) for webhook mail, and `{ extracted_attachment_text }` for polled mail, so a replay can still see the CV.
+
+#### email_accounts *(migration 032)*
+One row per connected mailbox. workspace_id, provider (`gmail|zoho`), email_address, **access_token**, **refresh_token**, token_expires_at, history_cursor, external_account_id (Zoho accountId), is_active, last_polled_at, last_error, created_by. `UNIQUE (provider, email_address)`.
+
+> **The token columns are protected by column grants, not only RLS.** `authenticated`
+> may SELECT nine non-secret columns; `anon` gets nothing (033). Writes happen via
+> the service role (OAuth callback + poller); the UI's sole write is flipping
+> `is_active`. Read it through `@/entities/EmailAccount` — a `SELECT *` is rejected
+> outright by Postgres, so the default entity wrapper would break every read on
+> the page. Never widen the grant to cover `access_token` / `refresh_token`.
 
 ### 8.6 Email Send & Follow-Up
 
@@ -1273,20 +1316,125 @@ Channel message
 
 ## 15. Email Pipeline
 
-### 15.1 Inbound Flow
+### 15.1 Two front doors, one intake path
+
+Mail reaches the system two ways, and they deliberately converge on a single
+shared module — `supabase/functions/_shared/emailProcessor.ts`. Classification,
+routing, workspace stamping and record creation exist **once**; the entry points
+only differ in how they obtain a message.
 
 ```
-External email → Postmark MX → POST /inboundEmailWebhook
-    1. Verify X-Postmark-Signature
-    2. Store InboundChannelMessage
-    3. Check In-Reply-To → stop FollowupSchedule if reply
-    4. LLM classify: job/resume/reply/spam/unknown
-    5a. job → aiRecruiterParseJob
-    5b. resume + attachment → upload → parseResumeFile
-    6. Return HTTP 200 always
+  Postmark MX ──► inboundEmailWebhook  ┐
+  (push, external sender)              │
+                                       ├──► _shared/emailProcessor.ts
+  Gmail / Zoho ──► pollEmailInboxes    │      (classify → route → create)
+  (pull, cron every 5 min)             ┘
 ```
 
-### 15.2 Outbound Flow
+| | `inboundEmailWebhook` | `pollEmailInboxes` |
+|---|---|---|
+| Trigger | Postmark POSTs on delivery | Scheduled trigger, ~5 min |
+| Auth | `verify_jwt = false`, external caller | `x-cron-secret` header |
+| Workspace | `DEFAULT_WORKSPACE_ID` — one inbound stream serves the deployment | `email_accounts.workspace_id`, per mailbox |
+| Attachments | base64-inlined in the payload, kept in `raw_payload` | downloaded per message, extracted text stashed in `raw_payload` |
+
+The webhook acknowledges Postmark as soon as the row is durable and finishes the
+intake in `EdgeRuntime.waitUntil()`. Classify-plus-parse is two LLM calls and
+several writes — far longer than a webhook should hold its caller, and Postmark
+retries on timeout, which would duplicate the work.
+
+### 15.2 Connecting a mailbox (OAuth)
+
+```
+Admin clicks Connect (EmailSettings)
+   └─► emailOAuthStart            admin-gated; builds the provider consent URL
+         │                        carrying an HMAC-signed `state`
+         ▼
+       Google / Zoho consent screen
+         │
+         ▼
+       emailOAuthCallback         verify_jwt = false — the provider arrives with
+         │                        no session, so the signed state IS the auth
+         ├─ exchange code → tokens
+         ├─ resolve mailbox address (Gmail id_token / Zoho accounts API)
+         └─ upsert email_accounts (tokens server-side only)
+```
+
+`state` is signed with the service-role key and expires in 15 minutes
+(`_shared/oauthState.ts`). It is the entire authentication of the callback
+endpoint — loosening it opens an unauthenticated write path into
+`email_accounts`.
+
+**Tokens never reach the browser.** Migration 032 revokes table-wide SELECT and
+grants only the non-secret columns; 033 closes the same hole for `anon`, which
+032 left with table-wide access. Because Postgres rejects `SELECT *` against a
+column-granted table outright (rather than trimming it), the UI must name its
+columns — hence `@/entities/EmailAccount` and the `columns` option on
+`createEntity`.
+
+### 15.3 Classification and routing
+
+```
+classify (local-first parsing model, ai_recruiter_settings.parsing_model)
+   │
+   ├─ classifier failed?  ──────────────► processing_status = 'failed'   [replayable]
+   │
+   ├─ reply / matched a tracked send ───► stop FollowupSchedule
+   │     └─ carries a CV attachment? ───► also parse → Candidate
+   │
+   ├─ job|resume, confidence ≥ 0.70 ────► parseJob.ts / parseCandidate.ts → record
+   │
+   ├─ job|resume, confidence < 0.70 ────► approval_items (type 'email_intake')
+   │
+   └─ spam / unknown ───────────────────► processing_status = 'ignored'  [terminal]
+```
+
+**`failed` and `ignored` are not interchangeable.** `ignored` is terminal — the
+processor refuses to touch such a row again — so it is only ever used for a
+verdict the classifier actually reached. Anything that *went wrong* (LLM
+unreachable, daily cost ceiling hit) is `failed`, which stays replayable. This is
+why `classifyMessage` returns a distinct `failed` flag instead of passing an
+outage off as a confident `"unknown"`: doing the latter silently destroyed a
+mailbox's intake with no way to replay it.
+
+The intake path calls `checkDailyCeiling()` like every other LLM entry point — it
+is two model calls per email and is reachable from a public webhook.
+
+### 15.4 Reply detection
+
+Naïve string comparison does not work here and this is the subtlety most likely
+to be reintroduced. Postmark's send API returns a **bare GUID**, which is what
+lands in `sent_emails.message_id`; the recipient's client echoes back the full
+RFC-5322 `<guid@mtasv.net>`. Comparing the two directly never matches, which
+silently disables stop-on-reply for the entire follow-up system.
+
+- `messageIdCandidates()` generates every form (bare, bracketed, local-part) and
+  the lookup uses `.in(...)`.
+- Zoho's list payload carries **no threading headers at all**, so a second path
+  matches a `Re:` subject against recent sends to that address
+  (`normalizeSubject`). Without it, reply handling is dead for every Zoho mailbox.
+
+### 15.5 Human review and replay
+
+`reprocessInboundEmail` is the single server-side entry point for re-running the
+intake, used by two callers:
+
+| Caller | Payload | Meaning |
+|---|---|---|
+| EmailInbox retry button | `{ email_id }` | Retry a row stuck in `failed` |
+| ApprovalQueue approve | `{ email_id, force: true }` | A human vouched for a sub-threshold message — create the record despite the score |
+
+`force` is what makes the `email_intake` queue more than a dead end: without it,
+approving an item marks it approved and creates nothing. Approval **executes
+before** the item is marked decided, so a failure leaves it pending and retryable.
+
+Attachment text survives a replay: Postmark's base64 bytes stay in `raw_payload`,
+and the poller stashes the text it already extracted under
+`raw_payload.extracted_attachment_text` (it streams the bytes once and cannot
+store them). Otherwise retrying a resume email would parse the covering note and
+silently drop the CV.
+
+### 15.6 Outbound Flow
 
 ```
 Recruiter approves draft → sendApprovedDraft
@@ -1297,10 +1445,14 @@ Recruiter approves draft → sendApprovedDraft
     → if client_submission: create FollowupSchedule
 ```
 
-### 15.3 RFC822 Threading
+### 15.7 RFC822 Threading
 
 Every outbound email: `Message-ID: <{uuid}@recruiterx.io>`  
 Follow-ups add: `In-Reply-To: <original-id>` + `References: <id1> <id2>`
+
+> The id **stored** in `sent_emails.message_id` is the provider's bare GUID, not
+> this header form. Inbound matching must therefore normalise across both — see
+> §15.4.
 
 ---
 
@@ -1507,8 +1659,23 @@ export const PAGES = {
 | `POSTMARK_FROM_EMAIL` | Sender address |
 | `POSTMARK_WEBHOOK_SECRET` | Inbound HMAC validation |
 | `CHANNEL_BOT_SECRET` | Bot → function auth |
-| `CRON_SECRET` | Cron job auth |
+| `CRON_SECRET` | Cron auth for `scheduledFollowupRun` **and** `pollEmailInboxes` |
 | `INTERNAL_FUNCTION_TOKEN` | Function-to-function auth |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | Gmail mailbox connection (§15.2) |
+| `ZOHO_OAUTH_CLIENT_ID` / `ZOHO_OAUTH_CLIENT_SECRET` | Zoho mailbox connection (§15.2) |
+| `EMAIL_OAUTH_REDIRECT_URL` | Optional. Defaults to `<SUPABASE_URL>/functions/v1/emailOAuthCallback`. **Must match the provider consent-screen config verbatim** |
+| `APP_URL` | Where `emailOAuthCallback` lands the browser afterwards |
+| `LLM_DAILY_COST_CEILING_USD` | Daily spend ceiling (default 10) enforced at every LLM entry point |
+| `OPENAI_COMPATIBLE_BASE_URL` / `OPENAI_COMPATIBLE_API_KEY` | The LM Studio fleet tunnel; the key is the gateway's shared secret, not a provider credential |
+
+> **Never put any of these behind a `VITE_` prefix** — `VITE_*` is inlined into
+> the browser bundle at build time. Server secrets belong in Supabase Edge
+> Function secrets.
+>
+> Connecting a mailbox additionally requires a **scheduled trigger** (Dashboard →
+> Edge Functions → Schedules) calling `pollEmailInboxes` every 5 minutes with the
+> `x-cron-secret` header. It is not created by a migration, because the secret
+> must not live in SQL.
 
 ### 19.3 Bot Services
 
@@ -1528,19 +1695,43 @@ export const PAGES = {
 
 ## 20. Database Migrations
 
-| File | Lines | Description | Status |
-|------|-------|-------------|--------|
-| `001_schema.sql` | 882 | All 34+ tables, indexes, updated_at triggers | ✅ Applied |
-| `002_rls_policies.sql` | 182 | RLS policies for all tables, `auth_is_admin()` helper | ✅ Applied |
-| `003_demo_users.sql` | 40 | Demo user profiles insert (after creating auth users manually) | ✅ Applied |
-| `004_enterprise.sql` | 220 | `llm_usage` table + FTS GIN indexes + audit triggers + RPC helpers | ✅ Applied |
-| `005_import_prep.sql` | 89 | Adds `legacy_id` + `raw_data JSONB` to importable tables (zero-loss CSV import) | ⚠️  Run before CSV import |
+Migrations are **additive and ordered** (`0NN_name.sql`) and applied **manually**
+in the Supabase SQL Editor. **Pushing a migration file does not run it** — this
+is the single most common source of "the code is deployed but the feature is
+broken". Never rewrite a migration that has been applied; add a new one.
 
-**Pending migrations** (to be authored):
-- `006_skills.sql` — `skills` table (id, name, category, proficiency_levels jsonb), `candidate_skills` join table with proficiency
-- `007_routines.sql` — `routines` table (id, name, schedule cron, action_kind, payload jsonb, last_run_at, next_run_at, owner_id)
+> Status verified against the live project 2026-08-14. An earlier revision of
+> this section stopped at `005` and described `006`/`007` as "to be authored",
+> which had been wrong for twenty-eight migrations.
 
-> Run each migration in order in the Supabase SQL Editor (Dashboard → SQL Editor → New query). Migration `005` is required before running `npm run import:data` to preserve every original Base44 column in `raw_data` JSONB.
+| Range | Description | Status |
+|-------|-------------|--------|
+| `001`–`004` | Schema, RLS + `auth_is_admin()`, demo users, enterprise (`llm_usage`, FTS, audit) | ✅ Applied |
+| `005`–`007` | Import prep (`legacy_id`, `raw_data`), upsert + unique fixes | ✅ Applied |
+| `008`–`011` | Roles, expenses, video calls, bookings | ✅ Applied |
+| `012` | First multi-tenancy attempt — superseded by `024`, never applied | ⛔ Superseded |
+| `013`–`016` | Audit-trigger fix, UI field alignment, recruiter sync, signup approval | ✅ Applied |
+| `017`–`018` | `agents` + `agent_runs`; `approval_items` | ✅ Applied 2026-07-27 |
+| `019`–`021` | SECURITY DEFINER view fix; **approval RLS enforcement**; **DEFINER RPC leak fix** | ✅ Applied 2026-07-27 |
+| `022`–`023` | Signup notification; **uploads bucket RLS** | ✅ Applied |
+| `024` | **Multi-tenancy** — `auth_workspace_id()` + `workspace_id` scoping (the one that shipped) | ✅ Applied 2026-08-03 |
+| `025`–`031` | LLM settings; applications→submissions cutover + status vocabularies; self-bootstrap fix; audit-log `workspace_id`; LLM fallback chain | ✅ Applied |
+| `032` | **Email accounts** — `email_accounts`, `inbound_emails` classification columns, `email_intake` approval type | ✅ Applied (verified 2026-08-14) |
+| `033` | **`email_accounts` anon revoke** — closes the grant `032` left open on the OAuth token columns | ⚠️ **STAGED — not applied** |
+
+**Two lessons encoded here, both found by probing the live DB rather than reading
+the docs:**
+
+1. **Audit policy *bodies*, not names.** After `020`, several tables kept a policy
+   named `*_all_authenticated` whose body had been rewritten to
+   `auth_is_approved()`. The name implied a hole that was not there; elsewhere the
+   reverse could hold.
+2. **`REVOKE … FROM authenticated` is half a revoke.** Supabase seeds grants to
+   **both** `anon` and `authenticated`, so `032` narrowed one role and left the
+   other with table-wide SELECT over OAuth refresh tokens (RLS still blocked the
+   rows, so it was latent, not live). Check
+   `information_schema.column_privileges` for both roles after any column-grant
+   migration.
 
 ---
 
