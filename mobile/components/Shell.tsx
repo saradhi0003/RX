@@ -3,24 +3,18 @@ import { Platform, Pressable, StatusBar as RNStatusBar, StyleSheet, Text, View }
 import { supabase } from '../lib/supabase';
 import { colors, radius, spacing } from '../theme';
 
-// RN's SafeAreaView is a no-op on Android, so the header would sit under the
-// status bar and the tab bar under the gesture pill. Pad explicitly instead.
 const ANDROID_TOP_INSET = Platform.OS === 'android' ? RNStatusBar.currentHeight ?? 0 : 0;
 const ANDROID_BOTTOM_INSET = Platform.OS === 'android' ? 12 : 0;
 
-/** Bottom-tab destinations. Anything reachable but secondary lives behind
- *  'more' rather than crowding the bar past five targets. */
 export type Tab = 'dashboard' | 'candidates' | 'jobs' | 'tasks' | 'more';
 
-/** Screens pushed OVER a tab. Still hand-rolled: one level of depth does not
- *  justify react-navigation and the native dependencies it drags in, which
- *  would turn every future JS-only change into a full rebuild. */
 export type Detail =
   | { screen: 'candidate'; id: string; title: string }
   | { screen: 'job'; id: string; title: string }
   | { screen: 'submissions' }
   | { screen: 'companies' }
-  | { screen: 'upload' };
+  | { screen: 'upload' }
+  | { screen: 'local-model' };
 
 const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: 'dashboard', label: 'Home', icon: '📊' },
