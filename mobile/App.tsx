@@ -19,27 +19,12 @@ import { Submissions } from './screens/Submissions';
 import { Companies } from './screens/Companies';
 import { More } from './screens/More';
 import { Upload } from './screens/Upload';
+import { LocalModel } from './screens/LocalModel';
 import { colors, spacing } from './theme';
 
-/**
- * The gate cascade — ordered early returns, mirroring the web app's route
- * guards (src/App.jsx PrivateRoute + Layout.jsx AccessBlocker):
- *
- *   session → MFA (AAL2) → biometric lock (native only) → approval → app
- *
- * Every one of these is UX. The real locks are in the database: migration 020
- * compiles auth_is_approved() into every policy, so deleting this whole file
- * would not expose a single candidate row to an unapproved account. The gates
- * exist so the user sees the right screen, not to make the data safe.
- */
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [sessionLoaded, setSessionLoaded] = useState(false);
-
-  // Navigation is one tab plus at most one pushed detail screen — deep enough
-  // for this app, shallow enough not to need react-navigation (a native
-  // dependency would turn JS-only changes into full rebuilds instead of OTA
-  // updates).
   const [tab, setTab] = useState<Tab>('dashboard');
   const [detail, setDetail] = useState<Detail | null>(null);
 
@@ -49,8 +34,6 @@ export default function App() {
   }, []);
   const back = useCallback(() => setDetail(null), []);
 
-  // Android's hardware back must dismiss the detail screen rather than
-  // background the app. Returning false lets the OS handle it at the tab root.
   useEffect(() => {
     if (Platform.OS !== 'android') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -73,11 +56,7 @@ export default function App() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // Mobile keeps the session and re-locks behind biometrics instead of the
-  // web's 20-minute idle sign-out. See lib/useAppLock.ts for why.
   const { locked, unlock, touch } = useAppLock(!!session);
-
-  // MFA: an account with a verified TOTP factor must reach AAL2 before data.
   const [needsMfa, setNeedsMfa] = useState(false);
   useEffect(() => {
     let cancelled = false;
@@ -95,8 +74,6 @@ export default function App() {
     };
   }, [session]);
 
-  // Approval: user_profiles.status must be 'active' and the row unlocked —
-  // the same predicate as auth_is_approved() and the web's Layout.jsx isBlocked.
   const [approval, setApproval] = useState<'checking' | 'approved' | 'pending'>('checking');
   const [profileNonce, setProfileNonce] = useState(0);
   useEffect(() => {
@@ -112,10 +89,6 @@ export default function App() {
       .maybeSingle()
       .then(({ data, error }) => {
         if (cancelled) return;
-        // Fail CLOSED. An unreadable or missing profile means we cannot prove
-        // approval, so we do not assume it — the web app bootstraps the row as
-        // 'invited', and treating that as approved here would show the pending
-        // user an empty app instead of an explanation.
         if (error || !data) {
           setApproval('pending');
           return;
@@ -169,7 +142,6 @@ export default function App() {
     );
   }
 
-  // Native only — the web export keeps the browser's own session policy.
   if (Platform.OS !== 'web' && locked) {
     return (
       <View style={styles.root}>
@@ -197,6 +169,7 @@ export default function App() {
   else if (detail?.screen === 'submissions') screen = <Submissions onCandidate={openCandidate} />;
   else if (detail?.screen === 'companies') screen = <Companies />;
   else if (detail?.screen === 'upload') screen = <Upload />;
+  else if (detail?.screen === 'local-model') screen = <LocalModel />;
   else if (tab === 'dashboard') screen = <Dashboard onTab={openTab} onCandidate={openCandidate} onDetail={setDetail} />;
   else if (tab === 'candidates') screen = <Candidates onOpen={openCandidate} />;
   else if (tab === 'jobs') screen = <Jobs onOpen={openJob} />;
@@ -204,8 +177,6 @@ export default function App() {
   else screen = <More onOpen={setDetail} email={email} />;
 
   return (
-    // The capture prop observes every touch (returning false lets it through) so
-    // activity pushes back the inactivity re-lock.
     <SafeAreaView
       style={styles.root}
       onStartShouldSetResponderCapture={() => {
@@ -239,6 +210,8 @@ function detailTitle(detail: Detail | null): string | undefined {
       return 'Companies';
     case 'upload':
       return 'Add candidate';
+    case 'local-model':
+      return 'Local model';
   }
 }
 
