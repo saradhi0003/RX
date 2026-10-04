@@ -6,6 +6,7 @@ const ITEMS: { detail: Detail; icon: string; label: string; hint: string }[] = [
   { detail: { screen: 'submissions' }, icon: '📤', label: 'Submissions', hint: 'Candidates sent to clients' },
   { detail: { screen: 'companies' }, icon: '🏢', label: 'Companies', hint: 'Clients and prospects' },
   { detail: { screen: 'upload' }, icon: '⬆️', label: 'Add candidate', hint: 'Upload a resume' },
+  { detail: { screen: 'local-model' }, icon: '🧠', label: 'Local model', hint: 'Download SmolLM2 on this phone' },
 ];
 
 /** Overflow menu for destinations that do not earn a permanent tab. */

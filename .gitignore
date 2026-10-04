@@ -40,3 +40,8 @@ coverage
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Local SLM weights and llama.cpp binary
+models/*.gguf
+models/llama-server
+models/*.partial
