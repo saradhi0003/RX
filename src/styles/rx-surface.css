@@ -1,0 +1,96 @@
+/* Shared surface for list pages and the bookings calendar.
+   Targets the existing rxlp-* rows so Candidates, Jobs, Companies,
+   Submissions, Tasks and Playbooks react the same way without a rewrite. */
+
+.rx-surface {
+  font-family: var(--font-ui);
+  background: #f8fafc;
+  min-height: 100%;
+  color: #0f172a;
+}
+
+.rxlp-row,
+.rx-row {
+  transition: background 120ms ease, transform 80ms ease;
+}
+.rxlp-row:hover,
+.rx-row:hover {
+  background: #f8fafc !important;
+}
+.rxlp-row:active,
+.rx-row:active {
+  background: rgba(37, 99, 235, 0.08) !important;
+  transform: scale(0.998);
+}
+.rxlp-row:focus-visible,
+.rx-row:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+
+.rx-surface button,
+.rxlp-bar-actions button {
+  transition: transform 80ms ease, filter 80ms ease, background 120ms ease;
+}
+.rx-surface button:active,
+.rxlp-bar-actions button:active {
+  transform: translateY(1px) scale(0.99);
+}
+.rx-surface button:disabled {
+  opacity: 0.6;
+  transform: none;
+}
+
+.rx-banner {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.rx-busy {
+  position: relative;
+}
+.rx-busy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(248, 250, 252, 0.55);
+  pointer-events: none;
+}
+
+/* react-big-calendar sits on the same surface as the lists */
+.rx-calendar .rbc-calendar {
+  font-family: var(--font-ui);
+  min-height: 640px;
+}
+.rx-calendar .rbc-toolbar {
+  margin-bottom: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.rx-calendar .rbc-toolbar button {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #0f172a;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.rx-calendar .rbc-toolbar button.rbc-active,
+.rx-calendar .rbc-toolbar button:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+.rx-calendar .rbc-event {
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.rx-calendar .rbc-event:focus {
+  outline: 2px solid #2563eb;
+}
+.rx-calendar .rbc-today {
+  background: #f8fafc;
+}
