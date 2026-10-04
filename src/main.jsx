@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import App from '@/App.jsx'
 import { registerServiceWorker } from '@/lib/registerSW'
 import '@/index.css'
+import '@/styles/rx-surface.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   // <React.StrictMode>
@@ -17,9 +18,6 @@ if (import.meta.hot) {
     window.parent?.postMessage({ type: 'sandbox:beforeUpdate' }, '*');
   });
   import.meta.hot.on('vite:afterUpdate', () => {
-    window.parent?.postMessage({ type: 'sandbox:afterUpdate' }, '*');
+    window.parent?.postMessage({ type: 'sandbox:afterUpdate', }, '*');
   });
 }
-
-
-
