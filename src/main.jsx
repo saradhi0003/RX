@@ -4,6 +4,7 @@ import App from '@/App.jsx'
 import { registerServiceWorker } from '@/lib/registerSW'
 import '@/index.css'
 import '@/styles/rx-surface.css'
+import '@/styles/rx-responsive.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   // <React.StrictMode>

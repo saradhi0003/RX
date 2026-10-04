@@ -410,7 +410,7 @@ function SubmissionsPageContent() {
     <div style={{ fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
 
       {/* ── Metrics bar ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", background: "#fff", borderBottom: "1px solid #E2E8F0" }}>
+      <div className="rx-metrics" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", background: "#fff", borderBottom: "1px solid #E2E8F0" }}>
         {[
           { label: "Open Roles",        value: loading ? "—" : openRoles,      sub: "actively hiring",    valColor: "#0F172A" },
           { label: "Filled This Month", value: loading ? "—" : filledThisMonth, sub: `+${filledThisMonth} vs last`, subColor: "#10B981", valColor: "#10B981" },
@@ -426,7 +426,7 @@ function SubmissionsPageContent() {
       </div>
 
       {/* ── Toolbar ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 24px", background: "#fff", borderBottom: "1px solid #E2E8F0", flexWrap: "wrap" }}>
+      <div className="rx-toolbar" style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 24px", background: "#fff", borderBottom: "1px solid #E2E8F0", flexWrap: "wrap" }}>
         {/* View toggle */}
         <span style={{ fontSize: 12, fontWeight: 600, color: "#94A3B8", marginRight: 2 }}>View</span>
         {["kanban","list"].map(v => (
@@ -511,7 +511,7 @@ function SubmissionsPageContent() {
         <>
           <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,.07),0 0 0 .5px rgba(0,0,0,.05)", overflow: "hidden" }}>
             {/* Table header */}
-            <div style={{ display: "grid", gridTemplateColumns: "40px 1.8fr 1.4fr 120px 120px 120px 36px", padding: "9px 20px", borderBottom: "1px solid #E2E8F0", background: "#FAFAFA" }}>
+            <div className="rx-listgrid" style={{ display: "grid", gridTemplateColumns: "40px 1.8fr 1.4fr 120px 120px 120px 36px", padding: "9px 20px", borderBottom: "1px solid #E2E8F0", background: "#FAFAFA" }}>
               {["", "CANDIDATE", "JOB", "STATUS", "SUBMITTED", "MATCH", ""].map((h, i) => (
                 <div key={i} style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".04em", color: "#94A3B8", display: "flex", alignItems: "center", gap: i === 0 ? 0 : 0 }}>
                   {i === 0 ? <Checkbox checked={allVisibleSelected} onCheckedChange={c => toggleSelectAllVisible(!!c)} /> : h}
@@ -532,7 +532,7 @@ function SubmissionsPageContent() {
 
               return (
                 <div key={submission.id} onClick={() => setSelectedSubmission(submission)}
-                  style={{ display: "grid", gridTemplateColumns: "40px 1.8fr 1.4fr 120px 120px 120px 36px", padding: "10px 20px", borderBottom: idx < paginatedSubmissions.length - 1 ? "1px solid #F2F2F7" : "none", alignItems: "center", cursor: "pointer", background: highlightedSubmission?.id === submission.id ? "rgba(0,113,227,.04)" : "transparent", transition: "background 100ms" }}
+                  className="rx-listgrid" style={{ display: "grid", gridTemplateColumns: "40px 1.8fr 1.4fr 120px 120px 120px 36px", padding: "10px 20px", borderBottom: idx < paginatedSubmissions.length - 1 ? "1px solid #F2F2F7" : "none", alignItems: "center", cursor: "pointer", background: highlightedSubmission?.id === submission.id ? "rgba(0,113,227,.04)" : "transparent", transition: "background 100ms" }}
                   onMouseEnter={e => { if (highlightedSubmission?.id !== submission.id) e.currentTarget.style.background = "#F9F9FB"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = highlightedSubmission?.id === submission.id ? "rgba(0,113,227,.04)" : "transparent"; }}>
                   <div onClick={e => e.stopPropagation()}>

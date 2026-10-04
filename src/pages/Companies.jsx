@@ -656,7 +656,7 @@ export default function CompaniesPage() { // Renamed component
     <div style={{ fontFamily:"-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background:"#F8FAFC", minHeight:"100vh" }}>
 
       {/* ── Metrics bar ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:"1px solid #E2E8F0" }}>
+      <div className="rx-metrics" style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", background:"#fff", borderBottom:"1px solid #E2E8F0" }}>
         {[
           { label:"Total Connections", value:loading?"—":totalConnections, sub:"in network" },
           { label:"Active", value:loading?"—":activeConnections, sub:"current clients", subColor:"#10B981" },
@@ -672,7 +672,7 @@ export default function CompaniesPage() { // Renamed component
       </div>
 
       {/* ── Filter bar ── */}
-      <div style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 24px", background:"#fff", borderBottom:"1px solid #E2E8F0", flexWrap:"wrap" }}>
+      <div className="rx-toolbar" style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 24px", background:"#fff", borderBottom:"1px solid #E2E8F0", flexWrap:"wrap" }}>
         <span style={{ fontSize:12, fontWeight:600, color:"#94A3B8", marginRight:4 }}>Status</span>
         {[{k:"all",l:"All"},{k:"active",l:"Active"},{k:"prospect",l:"Prospect"},{k:"inactive",l:"Inactive"}].map(s => (
           <button key={s.k} onClick={() => { setConnStatusFilter(s.k); setCurrentPage(1); }}
@@ -716,7 +716,7 @@ export default function CompaniesPage() { // Renamed component
       <div style={{ padding:"20px 24px 40px" }}>
         <div style={{ background:"#fff", borderRadius:16, boxShadow:"0 2px 12px rgba(0,0,0,.07),0 0 0 .5px rgba(0,0,0,.05)", overflow:"hidden" }}>
           {/* Header */}
-          <div style={{ display:"grid", gridTemplateColumns:connGridTemplate, gap:0, padding:"9px 20px", borderBottom:"1px solid #E2E8F0", background:"#FAFAFA" }}>
+          <div className="rx-listgrid" style={{ display:"grid", gridTemplateColumns:connGridTemplate, gap:0, padding:"9px 20px", borderBottom:"1px solid #E2E8F0", background:"#FAFAFA" }}>
             {connColumns.map((col,i) => {
               const active = col.sort && sortBy === col.sort;
               return (
@@ -750,7 +750,7 @@ export default function CompaniesPage() { // Renamed component
 
             return (
               <div key={company.id} onClick={() => { setSelectedCompany(company); window.dispatchEvent(new CustomEvent("preview:open", { detail: { entity: "Company", id: company.id } })); }}
-                style={{ display:"grid", gridTemplateColumns:connGridTemplate, gap:0, padding:"10px 20px", borderBottom:idx<paginatedConn.length-1?"1px solid #F2F2F7":"none", alignItems:"center", cursor:"pointer", background:isSelected?"rgba(0,113,227,.05)":"transparent", transition:"background 100ms" }}
+                className="rx-listgrid" style={{ display:"grid", gridTemplateColumns:connGridTemplate, gap:0, padding:"10px 20px", borderBottom:idx<paginatedConn.length-1?"1px solid #F2F2F7":"none", alignItems:"center", cursor:"pointer", background:isSelected?"rgba(0,113,227,.05)":"transparent", transition:"background 100ms" }}
                 onMouseEnter={e => { if(!isSelected) e.currentTarget.style.background="#F9F9FB"; }}
                 onMouseLeave={e => { e.currentTarget.style.background=isSelected?"rgba(0,113,227,.05)":"transparent"; }}>
 

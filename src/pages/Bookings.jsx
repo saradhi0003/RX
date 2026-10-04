@@ -43,6 +43,13 @@ export default function Bookings() {
   const [formDefaults, setFormDefaults] = useState({ start: null, end: null });
   const [selectedId, setSelectedId] = useState(null);
   const [recording, setRecording] = useState(null);
+  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const onChange = () => setNarrow(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -144,7 +151,7 @@ export default function Bookings() {
       {dropped > 0 && <div className="text-xs text-amber-700">Skipped {dropped} booking{dropped === 1 ? "" : "s"} with a missing or invalid time.</div>}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
         <Card className={loading ? "rx-busy" : ""}><CardContent className="p-2 lg:p-3"><div className="rx-calendar">
-          <Calendar localizer={localizer} events={events} startAccessor="start" endAccessor="end" defaultView="week" views={["month","week","day","agenda"]} style={{ height: 680 }} selectable longPressThreshold={1} onSelectSlot={handleSelectSlot} onSelectEvent={handleSelectEvent} onDoubleClickEvent={handleDoubleClickEvent} popup eventPropGetter={(ev) => {
+          <Calendar localizer={localizer} events={events} startAccessor="start" endAccessor="end" defaultView={narrow ? "agenda" : "week"} views={["month","week","day","agenda"]} style={{ height: narrow ? "100%" : 680 }} selectable longPressThreshold={1} onSelectSlot={handleSelectSlot} onSelectEvent={handleSelectEvent} onDoubleClickEvent={handleDoubleClickEvent} popup eventPropGetter={(ev) => {
             const s = ev.resource?.status;
             const bg = s === "cancelled" ? "#FECACA" : s === "completed" ? "#E2E8F0" : s === "in_progress" ? "#FDE68A" : s === "confirmed" ? "#BBF7D0" : "#C4B5FD";
             return { style: { backgroundColor: bg, color: "#1E1B4B", borderRadius: 6, border: "none" } };

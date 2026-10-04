@@ -278,7 +278,7 @@ export default function MyWork() {
       ) : (
         <>
           {/* Metrics bar */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", background: "#fff", borderBottom: "1px solid #E2E8F0", borderRadius: "12px", marginBottom: 20, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,.05)" }}>
+          <div className="rx-metrics" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", background: "#fff", borderBottom: "1px solid #E2E8F0", borderRadius: "12px", marginBottom: 20, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,.05)" }}>
             {[
               { label: "Week Hours",      value: weekHours.toFixed(1),       sub: "logged time",        color: "#2563EB" },
               { label: "Month Approved",  value: monthApprovedHours.toFixed(1), sub: "hours approved",   color: "#16A34A" },

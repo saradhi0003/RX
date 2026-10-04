@@ -568,7 +568,7 @@ export default function Tasks() {
     <div style={{ fontFamily: "-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif", background: "#F8FAFC", minHeight: "100vh" }}>
 
       {/* ── Metrics bar ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", background: "#fff", borderBottom: "1px solid #E2E8F0" }}>
+      <div className="rx-metrics" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", background: "#fff", borderBottom: "1px solid #E2E8F0" }}>
         {[
           { label: "Pending",          value: loading ? "—" : tasksByStatus.pending.length,    sub: "to do",            valColor: "#0F172A" },
           { label: "In Progress",      value: loading ? "—" : tasksByStatus.in_progress.length, sub: "active now",      valColor: "#9333EA" },
@@ -584,7 +584,7 @@ export default function Tasks() {
       </div>
 
       {/* ── Toolbar ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 24px", background: "#fff", borderBottom: "1px solid #E2E8F0", flexWrap: "wrap" }}>
+      <div className="rx-toolbar" style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 24px", background: "#fff", borderBottom: "1px solid #E2E8F0", flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: "#94A3B8", marginRight: 2 }}>View</span>
         {[["board","Board"],["list","List"]].map(([v, l]) => (
           <button key={v} onClick={() => setMode(v)}
@@ -678,7 +678,7 @@ export default function Tasks() {
                 </div>
               )}
               {/* Header */}
-              <div style={{ display: "grid", gridTemplateColumns: taskGridTemplate, padding: "9px 20px", borderBottom: "1px solid #E2E8F0", background: "#FAFAFA" }}>
+              <div className="rx-listgrid" style={{ display: "grid", gridTemplateColumns: taskGridTemplate, padding: "9px 20px", borderBottom: "1px solid #E2E8F0", background: "#FAFAFA" }}>
                 {taskColumns.map((col, i) => {
                   const active = col.sort && sortBy === col.sort;
                   return (
@@ -702,7 +702,7 @@ export default function Tasks() {
 
                 return (
                   <div key={t.id} onClick={() => setSelectedTask(t)}
-                    style={{ display: "grid", gridTemplateColumns: taskGridTemplate, padding: "10px 20px", borderBottom: idx < paginatedTasks.length - 1 ? "1px solid #F2F2F7" : "none", alignItems: "center", cursor: "pointer", background: highlightedTask?.id === t.id ? "rgba(0,113,227,.04)" : "transparent", transition: "background 100ms" }}
+                    className="rx-listgrid" style={{ display: "grid", gridTemplateColumns: taskGridTemplate, padding: "10px 20px", borderBottom: idx < paginatedTasks.length - 1 ? "1px solid #F2F2F7" : "none", alignItems: "center", cursor: "pointer", background: highlightedTask?.id === t.id ? "rgba(0,113,227,.04)" : "transparent", transition: "background 100ms" }}
                     onMouseEnter={e => { if (highlightedTask?.id !== t.id) e.currentTarget.style.background = "#F9F9FB"; }}
                     onMouseLeave={e => { e.currentTarget.style.background = highlightedTask?.id === t.id ? "rgba(0,113,227,.04)" : "transparent"; }}>
                     <div onClick={e => e.stopPropagation()}><Checkbox checked={selectedIds.has(t.id)} onCheckedChange={() => toggleSelect(t.id)} /></div>
