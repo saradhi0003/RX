@@ -88,6 +88,16 @@ export const getResendKey = () => getRequiredEnv("RESEND_API_KEY");
 export const hasCronSecret = () => Boolean(get("CRON_SECRET"));
 export const getCronSecret = () => getRequiredEnv("CRON_SECRET");
 
+/* ── botIngest (external bot → inbound mail) ── */
+export const hasBotWebhookSecret = () => Boolean(get("BOT_WEBHOOK_SECRET"));
+export const getBotWebhookSecret = () => getRequiredEnv("BOT_WEBHOOK_SECRET");
+/** Accepted messages per minute across all bots; 0 disables the ceiling. */
+export const getBotIngestMaxPerMinute = (fallback: number) => {
+  const raw = get("BOT_INGEST_MAX_PER_MINUTE");
+  const n = Number(raw);
+  return raw !== "" && Number.isFinite(n) && n >= 0 ? n : fallback;
+};
+
 /* ── Email intake OAuth (Gmail / Zoho inbound polling) ── */
 export const hasGoogleOAuth = () =>
   Boolean(get("GOOGLE_OAUTH_CLIENT_ID") && get("GOOGLE_OAUTH_CLIENT_SECRET"));
@@ -130,6 +140,7 @@ export function envPresence(): Record<string, boolean> {
     POSTMARK_SERVER_TOKEN: hasPostmark(),
     RESEND_API_KEY: hasResend(),
     CRON_SECRET: hasCronSecret(),
+    BOT_WEBHOOK_SECRET: hasBotWebhookSecret(),
     GOOGLE_OAUTH_CLIENT_ID: Boolean(get("GOOGLE_OAUTH_CLIENT_ID")),
     ZOHO_OAUTH_CLIENT_ID: Boolean(get("ZOHO_OAUTH_CLIENT_ID")),
   };

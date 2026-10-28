@@ -71,3 +71,8 @@ verify_jwt = false
 # Guarded by the HMAC-signed state parameter (see _shared/oauthState.ts).
 [functions.emailOAuthCallback]
 verify_jwt = false
+
+# External bot → inbound mail. Bots carry no Supabase session; the handler
+# requires x-webhook-secret == BOT_WEBHOOK_SECRET and fails closed without it.
+[functions.botIngest]
+verify_jwt = false
