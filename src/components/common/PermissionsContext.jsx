@@ -8,9 +8,11 @@ const Ctx = createContext({
   me: null,
   role: null,
   isAdmin: false,
-  can: () => false,
-  scopeFor: () => "own",
-  listFilterFor: () => null,
+  // Defaults keep the real signatures so checkJs doesn't flag every
+  // can("Entity", "action") call as passing arguments to a zero-arg function.
+  can: (_entity, _action) => false,
+  scopeFor: (_entity) => "own",
+  listFilterFor: (_entity) => null,
 });
 
 export function PermissionsProvider({ children }) {
