@@ -66,7 +66,6 @@ import JobsBulkUpdateModal from "../components/jobs/JobsBulkUpdateModal";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import { emitEntityChanged } from "@/components/common/refreshBus";
 import RecommendedCandidates from "../components/ai/RecommendedCandidates";
-import "@/styles/list-page.css";
 
 import EmptyState from "@/components/common/EmptyState";
 function exportJobsToCSV(rows) {
@@ -159,12 +158,16 @@ export default function JobsPage() {
     if (!force && jobsGuard.current.inFlight) return;
     if (!force && now - jobsGuard.current.ts < 10000) return;
     jobsGuard.current.inFlight = true;
-    setLoading(true);
+    const jobFilter = listFilterFor("Job");
+    const companyFilter = listFilterFor("Company");
+    // Paint what the last visit loaded, then refresh (see entityFactory).
+    const keptJobs = jobFilter ? Job.peekFilter(jobFilter, `-${sortBy}`, 200) : Job.peekList(`-${sortBy}`, 200);
+    const keptCompanies = companyFilter ? Company.peekFilter(companyFilter, '-created_date', 100) : Company.peekList('-created_date', 100);
+    if (keptJobs) { setJobs(keptJobs); setCompanies(keptCompanies || []); }
+    setLoading(!keptJobs);
     setLoadError(null);
 
     try {
-      const jobFilter = listFilterFor("Job");
-      const companyFilter = listFilterFor("Company");
 
       const [jobsData, companiesData] = await Promise.all([
         jobFilter ? Job.filter(jobFilter, `-${sortBy}`, 200) : Job.list(`-${sortBy}`, 200),
@@ -695,7 +698,7 @@ export default function JobsPage() {
             const compName = getCompanyName(job.company_id);
 
             return (
-              <div key={job.id} onClick={() => setSelectedJob(job)}
+              <div key={job.id} onClick={() => { setSelectedJob(job); window.dispatchEvent(new CustomEvent("preview:open", { detail: { entity: "Job", id: job.id } })); }}
                 className="rxlp-grid rxlp-grid-jobs rxlp-row"
                 style={{ borderBottom:idx<paginatedStatusJobs.length-1?"1px solid #F2F2F7":"none", cursor:"pointer", background:isSelected?"rgba(0,113,227,.05)":"transparent", transition:"background 100ms" }}
                 onMouseEnter={e => { if(!isSelected) e.currentTarget.style.background="#F9F9FB"; }}

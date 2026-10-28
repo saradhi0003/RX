@@ -33,17 +33,21 @@
     font-size: 28px !important;
   }
 
-  /* Keep the name and the row menu. Middle columns stay in the data; they
-     just do not fit beside the name on 390pt. */
+  /* Each list says which cells survive on a phone: the rest carry
+     .rxlp-col-hide (list-page.css) and their values move into the name's
+     subtitle via .rxlp-sm-only, the same pattern Candidates and Jobs use.
+     This replaced a positional "keep the first and last cell" rule, which on
+     Applications kept the checkbox and the menu and hid the name — every row
+     rendered blank. Tracks come from --rx-phone-cols (set per list below). */
   .rx-listgrid {
-    grid-template-columns: minmax(0, 1fr) 36px !important;
-    column-gap: 8px;
+    grid-template-columns: var(--rx-phone-cols, minmax(0, 1fr) 36px) !important;
+    column-gap: 10px;
     padding-left: 12px !important;
     padding-right: 12px !important;
   }
-  .rx-listgrid > :not(:first-child):not(:last-child) {
-    display: none !important;
-  }
+  .rx-listgrid-apps { --rx-phone-cols: 24px minmax(0, 1fr) auto 32px; }
+  .rx-listgrid-tasks { --rx-phone-cols: 24px minmax(0, 1fr) auto 32px; }
+  .rx-listgrid-companies { --rx-phone-cols: minmax(0, 1fr) auto 32px; }
 
   .rx-toolbar {
     padding-left: 12px !important;

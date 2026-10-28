@@ -5,6 +5,7 @@ import { registerServiceWorker } from '@/lib/registerSW'
 import '@/index.css'
 import '@/styles/rx-surface.css'
 import '@/styles/rx-responsive.css'
+import '@/styles/list-page.css'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   // <React.StrictMode>

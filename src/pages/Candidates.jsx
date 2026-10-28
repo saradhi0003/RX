@@ -66,7 +66,6 @@ import BulkBenchScorer from "@/components/ai/BulkBenchScorer";
 import { emitEntityChanged, useEntityAutoRefresh } from "@/components/common/refreshBus";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import { SkeletonTable } from "@/components/common/SkeletonLoader";
-import "@/styles/list-page.css";
 import Breadcrumbs from "@/components/common/Breadcrumbs";
 import BulkResumeUpload from "@/components/candidates/BulkResumeUpload";
 import PasteToAddCandidate from "../components/candidates/PasteToAddCandidate";
@@ -135,8 +134,10 @@ function exportCandidatesToCSV(rows) {
 
 export default function Candidates() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [candidates, setCandidates] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // A revisit starts from the rows the last visit loaded (entityFactory keeps
+  // them) and refreshes behind them, instead of blanking to a spinner.
+  const [candidates, setCandidates] = useState(() => Candidate.peekList("-created_date", 200) || []);
+  const [loading, setLoading] = useState(() => !Candidate.peekList("-created_date", 200));
   const [loadError, setLoadError] = useState(null);
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get("q") || "");
   const [showForm, setShowForm] = useState(false);
@@ -154,6 +155,15 @@ export default function Candidates() {
   const [showDeleteViewConfirm, setShowDeleteViewConfirm] = useState(false);
 
   const [selectedCandidate, setSelectedCandidate] = useState(null);
+
+  // The name opens the same panel as the rest of the row. It stays a real
+  // link so ctrl/cmd/middle-click still opens the full page in a new tab;
+  // data-no-preview keeps Layout's link interceptor from opening a second,
+  // different panel on top of this one.
+  const openFromName = (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) { e.stopPropagation(); return; }
+    e.preventDefault();
+  };
   const [showBenchScorer, setShowBenchScorer] = useState(false);
   const [showBulkResumeUpload, setShowBulkResumeUpload] = useState(false);
   const [showPasteToAdd, setShowPasteToAdd] = useState(false);
@@ -199,10 +209,14 @@ export default function Candidates() {
     if (!force && now - loadGuard.current.ts < 30000) return;
 
     loadGuard.current.inFlight = true;
-    setLoading(true);
+    const filter = listFilterFor("Candidate");
+    const kept = filter
+      ? Candidate.peekFilter(filter, "-created_date", 200)
+      : Candidate.peekList("-created_date", 200);
+    if (kept) setCandidates(kept);
+    setLoading(!kept);
     setLoadError(null);
     try {
-      const filter = listFilterFor("Candidate");
       const data = filter
         ? await Candidate.filter(filter, "-created_date", 200)
         : await Candidate.list("-created_date", 200);
@@ -658,7 +672,7 @@ export default function Candidates() {
                   </div>
                   <div style={{ minWidth:0 }}>
                     <div style={{ fontSize:13.5, fontWeight:600, color:"#0F172A", display:"flex", alignItems:"center", gap:6, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                      <Link to={createPageUrl(`CandidateDetails?id=${candidate.id}`)} onClick={e=>e.stopPropagation()} style={{ color:"inherit", textDecoration:"none" }}>
+                      <Link to={createPageUrl(`CandidateDetails?id=${candidate.id}`)} data-no-preview="true" onClick={openFromName} style={{ color:"inherit", textDecoration:"none" }}>
                         {candidate.first_name} {candidate.last_name}
                       </Link>
                       {score >= 90 && <span style={{ fontSize:10, fontWeight:700, padding:"2px 6px", borderRadius:6, background:"rgba(0,113,227,.10)", color:"#9333EA" }}>⚡{Math.round(score)}%</span>}

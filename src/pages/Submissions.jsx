@@ -59,6 +59,21 @@ import { executeAutomationRules } from "@/components/automation/executeAutomatio
 import { personName } from "@/lib/names";
 
 import EmptyState from "@/components/common/EmptyState";
+import RightPreviewPanel from "@/components/common/RightPreviewPanel";
+
+// A kanban board on a 390pt screen shows one clipped column and scrolls
+// sideways; phones open in List, and Kanban stays one tap away.
+const isPhone = () =>
+  typeof window !== "undefined" && window.matchMedia?.("(max-width: 767px)").matches;
+
+/** The page shows the past month; undated rows are kept. */
+function recentOnly(rows) {
+  const oneMonthAgo = new Date();
+  oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+  return (rows || []).filter((s) => !s.submitted_date || new Date(s.submitted_date) >= oneMonthAgo);
+}
+
+const idsOf = (rows, key) => [...new Set((rows || []).map((s) => s[key]).filter(Boolean))];
 function SubmissionsPageContent() {
   const { can, isAdmin } = usePermissions();
   const [submissions, setSubmissions] = useState([]);
@@ -71,7 +86,7 @@ function SubmissionsPageContent() {
   const [formSubmission, setFormSubmission] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [viewType, setViewType] = useState("kanban"); // Default to kanban
+  const [viewType, setViewType] = useState(() => (isPhone() ? "list" : "kanban"));
   const [sortBy, setSortBy] = useState("submitted_date");
   const [sortOrder, setSortOrder] = useState("desc");
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -97,7 +112,21 @@ function SubmissionsPageContent() {
   ]);
 
   const loadSubmissions = useCallback(async () => {
-    setLoading(true);
+    // Paint what the last visit loaded — applications and the candidates/jobs
+    // they point at — then refresh (see entityFactory). Only when all three
+    // are kept; half a row is worse than a spinner.
+    const keptSubs = Submission.peekList("-submitted_date", 200);
+    const peekById = (Entity, ids) =>
+      ids.length ? Entity.peekFilter({ id: { $in: ids } }, "-updated_date", ids.length) : [];
+    const keptCands = keptSubs && peekById(Candidate, idsOf(keptSubs, "candidate_id"));
+    const keptJobs = keptSubs && peekById(Job, idsOf(keptSubs, "job_id"));
+    const painted = Boolean(keptSubs && keptCands && keptJobs);
+    if (painted) {
+      setSubmissions(recentOnly(keptSubs));
+      setCandidates(keptCands);
+      setJobs(keptJobs);
+    }
+    setLoading(!painted);
     setLoadError(null);
     try {
       const [submissionsData, viewsData] = await Promise.all([
@@ -113,12 +142,11 @@ function SubmissionsPageContent() {
       // submissions resolve to a real candidate AND a real job in the DB),
       // purely a fetch that never asked for the right rows. Fetching by id
       // also means future growth can't reintroduce it.
-      const idsOf = (key) => [...new Set((submissionsData || []).map((s) => s[key]).filter(Boolean))];
       const byId = (Entity, ids) =>
         ids.length ? Entity.filter({ id: { $in: ids } }, "-updated_date", ids.length).catch(() => []) : Promise.resolve([]);
 
-      const candidateIds = idsOf("candidate_id");
-      const jobIds = idsOf("job_id");
+      const candidateIds = idsOf(submissionsData, "candidate_id");
+      const jobIds = idsOf(submissionsData, "job_id");
 
       const [candidatesData, jobsData] = await Promise.all([
         byId(Candidate, candidateIds),
@@ -126,11 +154,13 @@ function SubmissionsPageContent() {
       ]);
 
       // Companies hang off the jobs, so their ids are only known once jobs are.
+      // They only feed a subtitle and the details panel, so the list renders
+      // without waiting for this third round trip; names fill in after.
       const companyIds = [...new Set([
         ...(jobsData || []).map((j) => j.company_id).filter(Boolean),
         ...(submissionsData || []).map((s) => s.company_id).filter(Boolean),
       ])];
-      const companiesData = await byId(Company, companyIds);
+      byId(Company, companyIds).then((companiesData) => setCompanies(companiesData || []));
 
       // Whole-table count — the `jobs` array above is deliberately scoped to
       // the submissions on screen, so it cannot answer "how many open roles".
@@ -138,20 +168,9 @@ function SubmissionsPageContent() {
         .then((openRoles) => setMetrics((m) => ({ ...m, openRoles })))
         .catch(() => { /* header metric only — never break the page */ });
 
-      // Filter submissions to only show past 1 month
-      const oneMonthAgo = new Date();
-      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-
-      const recentSubmissions = (submissionsData || []).filter(submission => {
-        if (!submission.submitted_date) return true; // Include if no date
-        const submittedDate = new Date(submission.submitted_date);
-        return submittedDate >= oneMonthAgo;
-      });
-
-      setSubmissions(recentSubmissions);
+      setSubmissions(recentOnly(submissionsData));
       setCandidates(candidatesData || []);
       setJobs(jobsData || []);
-      setCompanies(companiesData || []);
       setViews(viewsData || []);
       
       // Only apply saved view if there's an explicitly marked default view
@@ -193,12 +212,9 @@ function SubmissionsPageContent() {
     if (view.visible_columns) {
       setVisibleColumns(view.visible_columns);
     }
-    // Always respect the view's view_type if it exists, otherwise default to kanban
-    if (view.view_type) {
-      setViewType(view.view_type);
-    } else {
-      setViewType("kanban"); // Fallback to kanban
-    }
+    // Respect the view's view_type (kanban by default) — except on a phone,
+    // where a saved kanban view would open clipped; the toggle still offers it.
+    setViewType(isPhone() ? "list" : (view.view_type || "kanban"));
     setCurrentPage(1); // Reset pagination when view is applied
   };
 
@@ -516,9 +532,9 @@ function SubmissionsPageContent() {
         <>
           <div style={{ background: "#fff", borderRadius: 16, boxShadow: "0 2px 12px rgba(0,0,0,.07),0 0 0 .5px rgba(0,0,0,.05)", overflow: "hidden" }}>
             {/* Table header */}
-            <div className="rx-listgrid" style={{ display: "grid", gridTemplateColumns: "40px 1.8fr 1.4fr 120px 120px 120px 36px", padding: "9px 20px", borderBottom: "1px solid #E2E8F0", background: "#FAFAFA" }}>
+            <div className="rx-listgrid rx-listgrid-apps" style={{ display: "grid", gridTemplateColumns: "40px 1.8fr 1.4fr 120px 120px 120px 36px", padding: "9px 20px", borderBottom: "1px solid #E2E8F0", background: "#FAFAFA" }}>
               {["", "CANDIDATE", "JOB", "STATUS", "SUBMITTED", "MATCH", ""].map((h, i) => (
-                <div key={i} style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".04em", color: "#94A3B8", display: "flex", alignItems: "center", gap: i === 0 ? 0 : 0 }}>
+                <div key={i} className={[2, 4, 5].includes(i) ? "rxlp-col-hide" : undefined} style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".04em", color: "#94A3B8", display: "flex", alignItems: "center", gap: i === 0 ? 0 : 0 }}>
                   {i === 0 ? <Checkbox checked={allVisibleSelected} onCheckedChange={c => toggleSelectAllVisible(!!c)} /> : h}
                 </div>
               ))}
@@ -537,7 +553,7 @@ function SubmissionsPageContent() {
 
               return (
                 <div key={submission.id} onClick={() => setSelectedSubmission(submission)}
-                  className="rx-listgrid" style={{ display: "grid", gridTemplateColumns: "40px 1.8fr 1.4fr 120px 120px 120px 36px", padding: "10px 20px", borderBottom: idx < paginatedSubmissions.length - 1 ? "1px solid #F2F2F7" : "none", alignItems: "center", cursor: "pointer", background: highlightedSubmission?.id === submission.id ? "rgba(0,113,227,.04)" : "transparent", transition: "background 100ms" }}
+                  className="rx-listgrid rx-listgrid-apps" style={{ display: "grid", gridTemplateColumns: "40px 1.8fr 1.4fr 120px 120px 120px 36px", padding: "10px 20px", borderBottom: idx < paginatedSubmissions.length - 1 ? "1px solid #F2F2F7" : "none", alignItems: "center", cursor: "pointer", background: highlightedSubmission?.id === submission.id ? "rgba(0,113,227,.04)" : "transparent", transition: "background 100ms" }}
                   onMouseEnter={e => { if (highlightedSubmission?.id !== submission.id) e.currentTarget.style.background = "#F9F9FB"; }}
                   onMouseLeave={e => { e.currentTarget.style.background = highlightedSubmission?.id === submission.id ? "rgba(0,113,227,.04)" : "transparent"; }}>
                   <div onClick={e => e.stopPropagation()}>
@@ -547,16 +563,19 @@ function SubmissionsPageContent() {
                     <div style={{ width: 32, height: 32, borderRadius: "50%", background: grad, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{ini}</div>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 13.5, fontWeight: 600, color: "#0F172A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{candName}</div>
-                      <div style={{ fontSize: 11.5, color: "#94A3B8" }}>{candidate?.current_title || candidate?.email || "—"}</div>
+                      <div className="rxlp-col-hide" style={{ fontSize: 11.5, color: "#94A3B8" }}>{candidate?.current_title || candidate?.email || "—"}</div>
+                      <div className="rxlp-sm-block" style={{ fontSize: 11.5, color: "#94A3B8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {[job?.title, company?.name].filter(Boolean).join(" · ") || "—"}
+                      </div>
                     </div>
                   </div>
-                  <div style={{ minWidth: 0 }}>
+                  <div className="rxlp-col-hide" style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: "#0F172A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{job?.title || "—"}</div>
                     <div style={{ fontSize: 11.5, color: "#94A3B8" }}>{company?.name || job?.hiring_manager || "—"}</div>
                   </div>
                   <div><span style={{ fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: sb.bg, color: sb.c }}>{(submission.status||"").replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase())}</span></div>
-                  <div style={{ fontSize: 12, color: "#94A3B8" }}>{submission.submitted_date ? new Date(submission.submitted_date).toLocaleDateString() : "—"}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: submission.match_score != null ? "#9333EA" : "#94A3B8" }}>{submission.match_score != null ? submission.match_score : "—"}</div>
+                  <div className="rxlp-col-hide" style={{ fontSize: 12, color: "#94A3B8" }}>{submission.submitted_date ? new Date(submission.submitted_date).toLocaleDateString() : "—"}</div>
+                  <div className="rxlp-col-hide" style={{ fontSize: 13, fontWeight: 600, color: submission.match_score != null ? "#9333EA" : "#94A3B8" }}>{submission.match_score != null ? submission.match_score : "—"}</div>
                   <div onClick={e => e.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -657,80 +676,92 @@ function SubmissionsPageContent() {
         />
       )}
 
-      {selectedSubmission && (
-        <div className="fixed inset-y-0 right-0 z-[100] pointer-events-auto">
-          <div className="absolute right-0 top-0 h-full w-full sm:w-[420px] bg-white border-l border-slate-200 shadow-xl">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="font-semibold text-slate-900">Application Details</h3>
-              <button onClick={() => setSelectedSubmission(null)} className="p-2 rounded hover:bg-slate-100">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="h-[calc(100%-56px)] overflow-auto p-4">
-              {(() => {
-                const candidate = candidates.find(c => c.id === selectedSubmission.candidate_id);
-                const job = jobs.find(j => j.id === selectedSubmission.job_id);
-                return (
-                  <div className="space-y-4">
-                    <Card>
-                      <CardContent className="p-4 space-y-3">
-                        <div>
-                          <p className="text-xs text-slate-500 mb-1">Candidate</p>
-                          <p className="font-medium">{candidate ? `${candidate.first_name} ${candidate.last_name}` : "—"}</p>
-                          {candidate?.email && <p className="text-sm text-slate-600">{candidate.email}</p>}
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 mb-1">Job</p>
-                          <p className="font-medium">{job?.title || "—"}</p>
-                          {job?.location && <p className="text-sm text-slate-600">{job.location}</p>}
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 mb-1">Status</p>
-                          <Badge className={getStatusColor(selectedSubmission.status)}>
-                            {selectedSubmission.status?.replace("_", " ")}
-                          </Badge>
-                        </div>
-                        {selectedSubmission.submitted_date && (
-                          <div>
-                            <p className="text-xs text-slate-500 mb-1">Submitted</p>
-                            <p className="text-sm">{new Date(selectedSubmission.submitted_date).toLocaleDateString()}</p>
-                          </div>
-                        )}
-                        {selectedSubmission.notes && (
-                          <div>
-                            <p className="text-xs text-slate-500 mb-1">Notes</p>
-                            <p className="text-sm text-slate-700">{selectedSubmission.notes}</p>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => {
-                          setFormSubmission(selectedSubmission);
-                          setShowForm(true);
-                          setSelectedSubmission(null);
-                        }}
-                        className="flex-1 gap-2"
-                      >
-                        <Edit className="w-4 h-4" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => setSelectedSubmission(null)}
-                        className="flex-1"
-                      >
-                        Close
-                      </Button>
-                    </div>
+      <RightPreviewPanel open={!!selectedSubmission && !showForm} title="Application Details" onClose={() => setSelectedSubmission(null)}>
+        {selectedSubmission && (() => {
+          const candidate = candidates.find(c => c.id === selectedSubmission.candidate_id);
+          const job = jobs.find(j => j.id === selectedSubmission.job_id);
+          const company = companies.find(c => c.id === (job?.company_id || selectedSubmission.company_id));
+          // Hand off to the shared record preview (Layout) for the linked
+          // candidate/job, closing this one so the two panels never stack.
+          const openRecord = (entity, id) => {
+            setSelectedSubmission(null);
+            window.dispatchEvent(new CustomEvent("preview:open", { detail: { entity, id } }));
+          };
+          const submitted = selectedSubmission.submitted_date || selectedSubmission.submitted_at;
+          return (
+            <div className="space-y-4">
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Candidate</p>
+                    {candidate ? (
+                      <button type="button" onClick={() => openRecord("Candidate", candidate.id)} className="font-medium text-left text-purple-700 hover:underline">
+                        {personName(candidate)}
+                      </button>
+                    ) : <p className="font-medium">—</p>}
+                    {candidate?.email && <p className="text-sm text-slate-600 break-all">{candidate.email}</p>}
                   </div>
-                );
-              })()}
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Job</p>
+                    {job ? (
+                      <button type="button" onClick={() => openRecord("Job", job.id)} className="font-medium text-left text-purple-700 hover:underline">
+                        {job.title}
+                      </button>
+                    ) : <p className="font-medium">—</p>}
+                    {(company?.name || job?.location) && (
+                      <p className="text-sm text-slate-600">{[company?.name, job?.location].filter(Boolean).join(" · ")}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-4">
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">Status</p>
+                      <Badge className={getStatusColor(selectedSubmission.status)}>
+                        {(selectedSubmission.status || "").replace(/_/g, " ")}
+                      </Badge>
+                    </div>
+                    {selectedSubmission.match_score != null && (
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Match</p>
+                        <p className="text-sm font-semibold text-purple-700">{selectedSubmission.match_score}</p>
+                      </div>
+                    )}
+                    {submitted && (
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Submitted</p>
+                        <p className="text-sm">{new Date(submitted).toLocaleDateString()}</p>
+                      </div>
+                    )}
+                  </div>
+                  {selectedSubmission.notes && (
+                    <div>
+                      <p className="text-xs text-slate-500 mb-1">Notes</p>
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{selectedSubmission.notes}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              <div className="flex gap-2">
+                {can("Submission", "update") && (
+                  <Button
+                    onClick={() => {
+                      setFormSubmission(selectedSubmission);
+                      setShowForm(true);
+                      setSelectedSubmission(null);
+                    }}
+                    className="flex-1 gap-2"
+                  >
+                    <Edit className="w-4 h-4" />
+                    Edit
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => setSelectedSubmission(null)} className="flex-1">
+                  Close
+                </Button>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          );
+        })()}
+      </RightPreviewPanel>
     </div>
   );
 }

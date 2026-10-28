@@ -104,10 +104,13 @@ export default function CompaniesPage() { // Renamed component
   const { listFilterFor, me } = usePermissions();
 
   const loadCompanies = useCallback(async (force = false) => { // Renamed from loadData, added force parameter
-    setLoading(true);
+    const companyFilter = listFilterFor("Company");
+    // Paint what the last visit loaded, then refresh (see entityFactory).
+    const kept = companyFilter ? Company.peekFilter(companyFilter, "-created_date", 200) : Company.peekList("-created_date", 200);
+    if (kept) { setCompanies(kept); setJobs(Job.peekList("-created_date", 100) || []); }
+    setLoading(!kept);
     setLoadError(null);
     try {
-      const companyFilter = listFilterFor("Company");
       const [companiesData, jobsData, usersData] = await Promise.all([
         companyFilter ? Company.filter(companyFilter, "-created_date", 200) : Company.list("-created_date", 200),
         Job.list("-created_date", 100),
@@ -227,6 +230,9 @@ export default function CompaniesPage() { // Renamed component
     { key: "added", label: "ADDED", sort: "created_date", def: "80px" },
     { key: "actions", label: "", sort: null, def: "36px" },
   ];
+  // On a phone only name / status / actions keep a column; industry and open
+  // jobs move into the name's subtitle.
+  const CONN_PHONE_HIDDEN = new Set(["industry", "primary_contact", "open_jobs", "added"]);
   const { widthFor: connWidthFor, ResizeHandle: ConnResizeHandle } = useColumnResize("companies");
   const connGridTemplate = connColumns
     .map((c) => { const w = connWidthFor(c.key); return w ? `${w}px` : c.def; })
@@ -720,11 +726,11 @@ export default function CompaniesPage() { // Renamed component
       <div style={{ padding:"20px 24px 40px" }}>
         <div style={{ background:"#fff", borderRadius:16, boxShadow:"0 2px 12px rgba(0,0,0,.07),0 0 0 .5px rgba(0,0,0,.05)", overflow:"hidden" }}>
           {/* Header */}
-          <div className="rx-listgrid" style={{ display:"grid", gridTemplateColumns:connGridTemplate, gap:0, padding:"9px 20px", borderBottom:"1px solid #E2E8F0", background:"#FAFAFA" }}>
+          <div className="rx-listgrid rx-listgrid-companies" style={{ display:"grid", gridTemplateColumns:connGridTemplate, gap:0, padding:"9px 20px", borderBottom:"1px solid #E2E8F0", background:"#FAFAFA" }}>
             {connColumns.map((col,i) => {
               const active = col.sort && sortBy === col.sort;
               return (
-                <div key={col.key} className="group" onClick={col.sort ? () => handleSort(col.sort) : undefined}
+                <div key={col.key} className={CONN_PHONE_HIDDEN.has(col.key) ? "group rxlp-col-hide" : "group"} onClick={col.sort ? () => handleSort(col.sort) : undefined}
                   style={{ position:"relative", fontSize:11, fontWeight:600, letterSpacing:".04em", color: active ? "#475569" : "#94A3B8", display:"flex", alignItems:"center", gap:i===0?8:4, cursor: col.sort ? "pointer" : "default", userSelect:"none" }}>
                   {i===0 && <span onClick={e=>e.stopPropagation()} style={{ display:"inline-flex" }}><Checkbox checked={allVisibleSelected} onCheckedChange={c=>toggleSelectAllVisible(!!c)} /></span>}
                   {col.label}
@@ -756,7 +762,7 @@ export default function CompaniesPage() { // Renamed component
 
             return (
               <div key={company.id} onClick={() => { setSelectedCompany(company); window.dispatchEvent(new CustomEvent("preview:open", { detail: { entity: "Company", id: company.id } })); }}
-                className="rx-listgrid" style={{ display:"grid", gridTemplateColumns:connGridTemplate, gap:0, padding:"10px 20px", borderBottom:idx<paginatedConn.length-1?"1px solid #F2F2F7":"none", alignItems:"center", cursor:"pointer", background:isSelected?"rgba(0,113,227,.05)":"transparent", transition:"background 100ms" }}
+                className="rx-listgrid rx-listgrid-companies" style={{ display:"grid", gridTemplateColumns:connGridTemplate, gap:0, padding:"10px 20px", borderBottom:idx<paginatedConn.length-1?"1px solid #F2F2F7":"none", alignItems:"center", cursor:"pointer", background:isSelected?"rgba(0,113,227,.05)":"transparent", transition:"background 100ms" }}
                 onMouseEnter={e => { if(!isSelected) e.currentTarget.style.background="#F9F9FB"; }}
                 onMouseLeave={e => { e.currentTarget.style.background=isSelected?"rgba(0,113,227,.05)":"transparent"; }}>
 
@@ -770,16 +776,19 @@ export default function CompaniesPage() { // Renamed component
                     <div style={{ fontSize:13.5, fontWeight:600, color:"#0F172A", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                       {company.name}
                     </div>
-                    <div style={{ fontSize:11.5, color:"#94A3B8" }}>{company.location || "—"}</div>
+                    <div className="rxlp-col-hide" style={{ fontSize:11.5, color:"#94A3B8" }}>{company.location || "—"}</div>
+                    <div className="rxlp-sm-block" style={{ fontSize:11.5, color:"#94A3B8", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                      {[company.industry || company.location, openJobsCount > 0 ? `${openJobsCount} open job${openJobsCount === 1 ? "" : "s"}` : null].filter(Boolean).join(" · ") || "—"}
+                    </div>
                   </div>
                 </div>
-                <div style={{ fontSize:12.5, color:"#64748B", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{company.industry || "—"}</div>
-                <div style={{ fontSize:12.5, color:"#64748B", minWidth:0 }}>
+                <div className="rxlp-col-hide" style={{ fontSize:12.5, color:"#64748B", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{company.industry || "—"}</div>
+                <div className="rxlp-col-hide" style={{ fontSize:12.5, color:"#64748B", minWidth:0 }}>
                   {primaryContact ? <div><div style={{ fontWeight:600, color:"#0F172A", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{primaryContact.name}</div><div style={{ fontSize:11 }}>{primaryContact.email || "—"}</div></div> : "—"}
                 </div>
-                <div style={{ fontSize:13, fontWeight:600, color:openJobsCount>0?"#9333EA":"#94A3B8" }}>{openJobsCount > 0 ? openJobsCount : "—"}</div>
+                <div className="rxlp-col-hide" style={{ fontSize:13, fontWeight:600, color:openJobsCount>0?"#9333EA":"#94A3B8" }}>{openJobsCount > 0 ? openJobsCount : "—"}</div>
                 <div><span style={{ fontSize:11.5, fontWeight:600, padding:"3px 10px", borderRadius:20, background:sb.bg, color:sb.c }}>{(company.status||"").replace(/\b\w/g,l=>l.toUpperCase()) || "—"}</span></div>
-                <div style={{ fontSize:12, color:"#94A3B8" }}>{company.created_date ? timeAgo(company.created_date) : "—"}</div>
+                <div className="rxlp-col-hide" style={{ fontSize:12, color:"#94A3B8" }}>{company.created_date ? timeAgo(company.created_date) : "—"}</div>
                 <div onClick={e=>e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

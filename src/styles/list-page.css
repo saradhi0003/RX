@@ -14,6 +14,10 @@
  * The pages keep inline styles for values that never vary (brand colors,
  * per-row hover/selected backgrounds, dynamic borders).
  *
+ * Loaded once from main.jsx, not per page: Applications, Tasks and Companies
+ * use .rxlp-col-hide / .rxlp-sm-only too, and a page-level import only lands
+ * when that page's chunk does — opening Applications first left them undefined.
+ *
  * Breakpoint is 767px to match `useDevice`'s MOBILE_BREAKPOINT and the app
  * shell's own phone rules, so JS, the shell, and page bodies all agree on
  * where "phone" starts.
@@ -80,7 +84,7 @@
 .rxlp-grid-jobs { grid-template-columns: 1.6fr 140px 100px 110px 100px 80px 80px 36px; }
 
 /* Content that only makes sense once its own column is gone (see below). */
-.rxlp-sm-only { display: none; }
+.rxlp-sm-only, .rxlp-sm-block { display: none; }
 
 @media (max-width: 767px) {
   /* Four 42px numbers in 390pt leaves ~40px of content per cell. */
@@ -114,4 +118,6 @@
   .rxlp-col-hide { display: none !important; }
 
   .rxlp-sm-only { display: inline; }
+  /* A whole subtitle line (ellipsis needs a block box). */
+  .rxlp-sm-block { display: block; }
 }

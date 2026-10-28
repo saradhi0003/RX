@@ -73,7 +73,7 @@ export default function CompanyPreview({ id }) {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
               <h2 style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{company.name}</h2>
-              <Link to={createPageUrl(`CompanyDetails?id=${company.id}`)} title="Open full details">
+              <Link to={createPageUrl(`CompanyDetails?id=${company.id}`)} data-no-preview="true" title="Open full details">
                 <ArrowUpRight style={{ width: 14, height: 14, color: "#94A3B8" }} />
               </Link>
             </div>

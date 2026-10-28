@@ -42,8 +42,6 @@ import PermissionGate from "@/components/common/PermissionGate";
 import PageHeader from "@/components/common/PageHeader";
 import KanbanBoard from "../components/tasks/KanbanBoard";
 import ViewSettingsModal from "../components/tasks/ViewSettingsModal";
-import { Link } from "react-router-dom";
-import { createPageUrl } from "@/utils";
 import { usePermissions } from "@/components/common/PermissionsContext";
 import {
   DropdownMenu,
@@ -57,6 +55,16 @@ import { addNotification } from "@/components/notifications/NotificationToast";
 import { useColumnResize } from "@/hooks/useColumnResize";
 
 import EmptyState from "@/components/common/EmptyState";
+
+// A board on a 390pt screen shows one clipped column; phones open in List,
+// and Board stays one tap away.
+const isPhone = () =>
+  typeof window !== "undefined" && window.matchMedia?.("(max-width: 767px)").matches;
+const defaultMode = (viewType) => (isPhone() ? "list" : viewType || "board");
+
+// Same record pop-up every list page uses (RightPreviewPanel in Layout).
+const previewTask = (task) =>
+  window.dispatchEvent(new CustomEvent("preview:open", { detail: { entity: "Task", id: task.id } }));
 // Placeholder for SkeletonTable if not imported
 const SkeletonTable = ({ rows, cols }) => (
   <Card>
@@ -177,7 +185,7 @@ export default function Tasks() {
   const [views, setViews] = useState([]);
   const [selectedViewId, setSelectedViewId] = useState(null);
   const [showViewSettings, setShowViewSettings] = useState(false);
-  const [mode, setMode] = useState("board");
+  const [mode, setMode] = useState(() => defaultMode());
   const [showDelete, setShowDelete] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -198,10 +206,13 @@ export default function Tasks() {
 
   const loadTasks = useCallback(async (force = false) => {
     if (!force && tasks.length > 0) return;
-    setLoading(true);
+    const filter = listFilterFor("Task");
+    // Paint what the last visit loaded, then refresh (see entityFactory).
+    const kept = filter ? Task.peekFilter(filter, "-created_date", 200) : Task.peekList("-created_date", 200);
+    if (kept) setTasks(kept);
+    setLoading(!kept);
     setLoadError(null);
     try {
-      const filter = listFilterFor("Task");
       const tasksData = await (filter ? Task.filter(filter, "-created_date", 200) : Task.list("-created_date", 200));
       setTasks(tasksData);
     } catch (error) {
@@ -212,21 +223,20 @@ export default function Tasks() {
     }
   }, [listFilterFor, tasks.length]);
 
+  // Users (assignee names) load once, alongside the tasks rather than before
+  // them. This used to be one effect keyed on loadTasks, whose identity changes
+  // with tasks.length, so every load re-fetched the whole users list.
   useEffect(() => {
-    const initialFullLoad = async () => {
-      setLoading(true);
-      try {
-        const usersData = await User.list();
-        setUsers(usersData);
-        await loadTasks();
-      } catch (error) {
-        console.error("Error during initial full data load:", error);
-        addNotification({ type: "error", title: "Error", message: "Failed initial data load" });
-      } finally {
-        setLoading(false);
-      }
-    };
-    initialFullLoad();
+    User.list()
+      .then(setUsers)
+      .catch((error) => {
+        console.error("Error loading users:", error);
+        addNotification({ type: "error", title: "Error", message: "Failed to load users" });
+      });
+  }, []);
+
+  useEffect(() => {
+    loadTasks();
   }, [loadTasks]);
 
   useEffect(() => {
@@ -245,10 +255,10 @@ export default function Tasks() {
         const def = visibleViews.find(v => v.is_default) || visibleViews[0] || null;
         if (def) {
           setSelectedViewId(def.id);
-          setMode(def.view_type || "board");
+          setMode(defaultMode(def.view_type));
         } else {
           setSelectedViewId(null);
-          setMode("board");
+          setMode(defaultMode());
         }
       } catch (e) {
         console.error("Error loading task views:", e);
@@ -296,6 +306,10 @@ export default function Tasks() {
       setSortOrder("asc");
     }
   };
+
+  // On a phone only select / title / status / actions keep a column; due date
+  // and priority move into the title's subtitle.
+  const TASK_PHONE_HIDDEN = new Set(["assignee", "priority", "due", "related"]);
 
   // List-view columns: `key` drives saved widths + header-click sort, `def` is
   // the fallback grid track. The select/actions columns are fixed (no handle).
@@ -454,10 +468,6 @@ export default function Tasks() {
 
   const allVisibleSelected = paginatedTasks.length > 0 && paginatedTasks.every(t => selectedIds.has(t.id));
   const someVisibleSelected = paginatedTasks.some(t => selectedIds.has(t.id)) && !allVisibleSelected;
-
-  const openTask = (task) => {
-    window.location.href = createPageUrl(`TaskDetails?id=${task.id}`);
-  };
 
   const onDragEnd = async (result) => {
     const { destination, source, draggableId } = result;
@@ -667,7 +677,7 @@ export default function Tasks() {
             columns={boardColumns}
             tasks={filteredTasks}
             onDragEnd={onDragEnd}
-            onCardClick={(task) => { window.location.href = createPageUrl(`TaskDetails?id=${task.id}`); }}
+            onCardClick={previewTask}
           />
         ) : paginatedTasks.length > 0 ? (
           <>
@@ -683,11 +693,11 @@ export default function Tasks() {
                 </div>
               )}
               {/* Header */}
-              <div className="rx-listgrid" style={{ display: "grid", gridTemplateColumns: taskGridTemplate, padding: "9px 20px", borderBottom: "1px solid #E2E8F0", background: "#FAFAFA" }}>
+              <div className="rx-listgrid rx-listgrid-tasks" style={{ display: "grid", gridTemplateColumns: taskGridTemplate, padding: "9px 20px", borderBottom: "1px solid #E2E8F0", background: "#FAFAFA" }}>
                 {taskColumns.map((col, i) => {
                   const active = col.sort && sortBy === col.sort;
                   return (
-                    <div key={col.key} className="group" onClick={col.sort ? () => handleSort(col.sort) : undefined}
+                    <div key={col.key} className={TASK_PHONE_HIDDEN.has(col.key) ? "group rxlp-col-hide" : "group"} onClick={col.sort ? () => handleSort(col.sort) : undefined}
                       style={{ position: "relative", fontSize: 11, fontWeight: 600, letterSpacing: ".04em", color: active ? "#475569" : "#94A3B8", display: "flex", alignItems: "center", gap: 4, cursor: col.sort ? "pointer" : "default", userSelect: "none" }}>
                       {i === 0
                         ? <span onClick={e => e.stopPropagation()} style={{ display: "inline-flex" }}><Checkbox checked={allVisibleSelected} onCheckedChange={c => toggleSelectAllVisible(!!c)} /></span>
@@ -706,23 +716,26 @@ export default function Tasks() {
                 const ini = (t.assigned_to || "?").slice(0,1).toUpperCase();
 
                 return (
-                  <div key={t.id} onClick={() => setSelectedTask(t)}
-                    className="rx-listgrid" style={{ display: "grid", gridTemplateColumns: taskGridTemplate, padding: "10px 20px", borderBottom: idx < paginatedTasks.length - 1 ? "1px solid #F2F2F7" : "none", alignItems: "center", cursor: "pointer", background: highlightedTask?.id === t.id ? "rgba(0,113,227,.04)" : "transparent", transition: "background 100ms" }}
+                  <div key={t.id} onClick={() => { setSelectedTask(t); previewTask(t); }}
+                    className="rx-listgrid rx-listgrid-tasks" style={{ display: "grid", gridTemplateColumns: taskGridTemplate, padding: "10px 20px", borderBottom: idx < paginatedTasks.length - 1 ? "1px solid #F2F2F7" : "none", alignItems: "center", cursor: "pointer", background: highlightedTask?.id === t.id ? "rgba(0,113,227,.04)" : "transparent", transition: "background 100ms" }}
                     onMouseEnter={e => { if (highlightedTask?.id !== t.id) e.currentTarget.style.background = "#F9F9FB"; }}
                     onMouseLeave={e => { e.currentTarget.style.background = highlightedTask?.id === t.id ? "rgba(0,113,227,.04)" : "transparent"; }}>
                     <div onClick={e => e.stopPropagation()}><Checkbox checked={selectedIds.has(t.id)} onCheckedChange={() => toggleSelect(t.id)} /></div>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 13.5, fontWeight: 600, color: "#0F172A", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.title}</div>
-                      {t.description && <div style={{ fontSize: 11.5, color: "#94A3B8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.description.slice(0, 60)}</div>}
+                      {t.description && <div className="rxlp-col-hide" style={{ fontSize: 11.5, color: "#94A3B8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{t.description.slice(0, 60)}</div>}
+                      <div className="rxlp-sm-block" style={{ fontSize: 11.5, color: isOverdue ? "#EF4444" : "#94A3B8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {[t.due_date ? `Due ${new Date(t.due_date).toLocaleDateString()}${isOverdue ? " ⚠" : ""}` : null, t.priority].filter(Boolean).join(" · ") || "—"}
+                      </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div className="rxlp-col-hide" style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <div style={{ width: 24, height: 24, borderRadius: "50%", background: "linear-gradient(135deg,#9333EA,#6366F1)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>{ini}</div>
                       <span style={{ fontSize: 12, color: "#0F172A", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.assigned_to?.split("@")[0] || "—"}</span>
                     </div>
-                    <div><span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: priBadge.bg, color: priBadge.c }}>{t.priority}</span></div>
+                    <div className="rxlp-col-hide"><span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: priBadge.bg, color: priBadge.c }}>{t.priority}</span></div>
                     <div><span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: staBadge.bg, color: staBadge.c }}>{(t.status||"").replace(/_/g," ").replace(/\b\w/g,l=>l.toUpperCase())}</span></div>
-                    <div style={{ fontSize: 12, color: isOverdue ? "#EF4444" : "#94A3B8", fontWeight: isOverdue ? 600 : 400 }}>{t.due_date ? new Date(t.due_date).toLocaleDateString() : "—"}{isOverdue ? " ⚠" : ""}</div>
-                    <div style={{ fontSize: 11.5, color: "#94A3B8" }}>{t.related_entity || "—"}</div>
+                    <div className="rxlp-col-hide" style={{ fontSize: 12, color: isOverdue ? "#EF4444" : "#94A3B8", fontWeight: isOverdue ? 600 : 400 }}>{t.due_date ? new Date(t.due_date).toLocaleDateString() : "—"}{isOverdue ? " ⚠" : ""}</div>
+                    <div className="rxlp-col-hide" style={{ fontSize: 11.5, color: "#94A3B8" }}>{t.related_entity || "—"}</div>
                     <div onClick={e => e.stopPropagation()}>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -731,7 +744,7 @@ export default function Tasks() {
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild><Link to={createPageUrl(`TaskDetails?id=${t.id}`)}><Eye className="w-4 h-4 mr-2"/>View</Link></DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => previewTask(t)}><Eye className="w-4 h-4 mr-2"/>View Details</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleHighlightTask(t)}><Zap className="w-4 h-4 mr-2"/>Quick Edit</DropdownMenuItem>
                           <PermissionGate entity="Task" action="delete">
                             <DropdownMenuItem className="text-red-600" onClick={() => { setTaskToDelete(t); setShowDelete(true); }}><Trash2 className="w-4 h-4 mr-2"/>Delete</DropdownMenuItem>
