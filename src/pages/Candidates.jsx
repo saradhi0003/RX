@@ -71,6 +71,7 @@ import Breadcrumbs from "@/components/common/Breadcrumbs";
 import BulkResumeUpload from "@/components/candidates/BulkResumeUpload";
 import PasteToAddCandidate from "../components/candidates/PasteToAddCandidate";
 
+import EmptyState from "@/components/common/EmptyState";
 const EmailModal = ({ open, onClose, recipient }) => {
   if (!open) return null;
   return (
@@ -136,6 +137,7 @@ export default function Candidates() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get("q") || "");
   const [showForm, setShowForm] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState(null);
@@ -198,6 +200,7 @@ export default function Candidates() {
 
     loadGuard.current.inFlight = true;
     setLoading(true);
+    setLoadError(null);
     try {
       const filter = listFilterFor("Candidate");
       const data = filter
@@ -206,6 +209,7 @@ export default function Candidates() {
       setCandidates(data);
     } catch (error) {
       console.warn("Error loading candidates:", error?.message || error);
+      setLoadError(error?.message || "request failed");
       setCandidates([]);
     } finally {
       setLoading(false);
@@ -626,6 +630,8 @@ export default function Candidates() {
               <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color:"#9333EA" }} />
               <div style={{ fontSize:13 }}>Loading candidates…</div>
             </div>
+          ) : loadError ? (
+            <EmptyState error={`Could not load candidates: ${loadError}`} action={{ label: "Retry", fn: () => loadCandidates(true) }} />
           ) : paginatedStage.length === 0 ? (
             <div style={{ padding:"60px", textAlign:"center" }}>
               <Users style={{ width:36, height:36, color:"#94A3B8", margin:"0 auto 12px" }} />

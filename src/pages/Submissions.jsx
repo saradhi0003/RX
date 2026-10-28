@@ -58,6 +58,7 @@ import { addNotification } from "@/components/notifications/NotificationToast";
 import { executeAutomationRules } from "@/components/automation/executeAutomation";
 import { personName } from "@/lib/names";
 
+import EmptyState from "@/components/common/EmptyState";
 function SubmissionsPageContent() {
   const { can, isAdmin } = usePermissions();
   const [submissions, setSubmissions] = useState([]);
@@ -65,6 +66,7 @@ function SubmissionsPageContent() {
   const [jobs, setJobs] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [formSubmission, setFormSubmission] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -96,6 +98,7 @@ function SubmissionsPageContent() {
 
   const loadSubmissions = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [submissionsData, viewsData] = await Promise.all([
         Submission.list("-submitted_date", 200),
@@ -163,7 +166,7 @@ function SubmissionsPageContent() {
       }
     } catch (error) {
       console.error("Error loading submissions:", error);
-      addNotification({ type: "error", title: "Error", message: "Failed to load applications: " + error.message });
+      setLoadError(error?.message || "request failed");
     }
     setLoading(false);
   }, [activeView]);
@@ -492,7 +495,9 @@ function SubmissionsPageContent() {
       {/* ── Content area ── */}
       <div style={{ padding: "20px 24px 60px" }}>
 
-      {viewType === "kanban" ? (
+      {loadError ? (
+        <EmptyState error={`Could not load applications: ${loadError}`} action={{ label: "Retry", fn: loadSubmissions }} />
+      ) : viewType === "kanban" ? (
         <KanbanBoard
           submissions={filteredAndSortedSubmissions}
           candidates={candidates}

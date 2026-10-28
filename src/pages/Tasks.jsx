@@ -56,6 +56,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import { useColumnResize } from "@/hooks/useColumnResize";
 
+import EmptyState from "@/components/common/EmptyState";
 // Placeholder for SkeletonTable if not imported
 const SkeletonTable = ({ rows, cols }) => (
   <Card>
@@ -167,6 +168,7 @@ export default function Tasks() {
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const debounceTimeoutRef = useRef(null);
@@ -197,13 +199,14 @@ export default function Tasks() {
   const loadTasks = useCallback(async (force = false) => {
     if (!force && tasks.length > 0) return;
     setLoading(true);
+    setLoadError(null);
     try {
       const filter = listFilterFor("Task");
       const tasksData = await (filter ? Task.filter(filter, "-created_date", 200) : Task.list("-created_date", 200));
       setTasks(tasksData);
     } catch (error) {
       console.error("Error loading tasks:", error);
-      addNotification({ type: "error", title: "Error", message: "Failed to load tasks" });
+      setLoadError(error?.message || "request failed");
     } finally {
       setLoading(false);
     }
@@ -657,6 +660,8 @@ export default function Tasks() {
             <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color: "#9333EA" }} />
             <div style={{ fontSize: 13 }}>Loading tasks…</div>
           </div>
+        ) : loadError ? (
+          <EmptyState error={`Could not load tasks: ${loadError}`} action={{ label: "Retry", fn: () => loadTasks(true) }} />
         ) : mode === "board" ? (
           <KanbanBoard
             columns={boardColumns}

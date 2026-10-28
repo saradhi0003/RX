@@ -66,11 +66,13 @@ import useDebouncedValue from "@/components/common/useDebouncedValue";
 import { addNotification } from "@/components/notifications/NotificationToast";
 import { emitEntityChanged } from "@/components/common/refreshBus";
 
+import EmptyState from "@/components/common/EmptyState";
 export default function CompaniesPage() { // Renamed component
   const [companies, setCompanies] = useState([]);
   const [jobs, setJobs] = useState([]);
   const [filteredCompanies, setFilteredCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearch = useDebouncedValue(searchTerm, 300);
   const [showForm, setShowForm] = useState(false);
@@ -103,6 +105,7 @@ export default function CompaniesPage() { // Renamed component
 
   const loadCompanies = useCallback(async (force = false) => { // Renamed from loadData, added force parameter
     setLoading(true);
+    setLoadError(null);
     try {
       const companyFilter = listFilterFor("Company");
       const [companiesData, jobsData, usersData] = await Promise.all([
@@ -115,6 +118,7 @@ export default function CompaniesPage() { // Renamed component
       setUsers(usersData || []);
     } catch (error) {
       console.error("Error loading data:", error);
+      setLoadError(error?.message || "request failed");
     }
     setLoading(false);
   }, [listFilterFor]);
@@ -736,6 +740,8 @@ export default function CompaniesPage() { // Renamed component
               <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color:"#9333EA" }} />
               <div style={{ fontSize:13 }}>Loading connections…</div>
             </div>
+          ) : loadError ? (
+            <EmptyState error={`Could not load companies: ${loadError}`} action={{ label: "Retry", fn: () => loadCompanies(true) }} />
           ) : paginatedConn.length === 0 ? (
             <div style={{ padding:"60px", textAlign:"center" }}>
               <Building2 style={{ width:36, height:36, color:"#94A3B8", margin:"0 auto 12px" }} />

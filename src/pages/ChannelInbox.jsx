@@ -12,6 +12,7 @@ import { InvokeFunction } from "@/integrations/Core";
 import { usePermissions } from "@/components/common/PermissionsContext";
 import { Card, CardContent } from "@/components/ui/card";
 
+import EmptyState from "@/components/common/EmptyState";
 const PAGE_SIZE = 50;
 const POLL_INTERVAL_MS = 30000;
 
@@ -19,6 +20,7 @@ export default function ChannelInbox() {
   const { isAdmin } = usePermissions();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [selected, setSelected] = useState(null);
   const [channelFilter, setChannelFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -31,8 +33,11 @@ export default function ChannelInbox() {
     try {
       const data = await InboundChannelMessage.list("-received_at", PAGE_SIZE);
       setMessages(data || []);
-    } catch {
-      if (!silent) addNotification({ type: "error", title: "Error", message: "Could not load messages" });
+      setLoadError(null);
+    } catch (error) {
+      // A failed background poll keeps the messages already on screen; only a
+      // foreground load replaces the list with the error.
+      if (!silent) setLoadError(error?.message || "request failed");
     }
     if (!silent) setLoading(false);
   }, []);
@@ -115,12 +120,16 @@ export default function ChannelInbox() {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
-          <MessageList
-            messages={filtered}
-            selectedId={selected?.id}
-            onSelect={handleSelect}
-            loading={loading}
-          />
+          {loadError ? (
+            <EmptyState error={`Could not load messages: ${loadError}`} action={{ label: "Retry", fn: () => loadMessages() }} />
+          ) : (
+            <MessageList
+              messages={filtered}
+              selectedId={selected?.id}
+              onSelect={handleSelect}
+              loading={loading}
+            />
+          )}
         </div>
       </div>
 

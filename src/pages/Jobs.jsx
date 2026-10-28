@@ -68,6 +68,7 @@ import { emitEntityChanged } from "@/components/common/refreshBus";
 import RecommendedCandidates from "../components/ai/RecommendedCandidates";
 import "@/styles/list-page.css";
 
+import EmptyState from "@/components/common/EmptyState";
 function exportJobsToCSV(rows) {
   const headers = [
     "Title", "Company", "Location", "Type", "Status", "Priority",
@@ -104,6 +105,7 @@ export default function JobsPage() {
   const [companies, setCompanies] = useState([]);
   const [filteredJobs, setFilteredJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [recruiters, setRecruiters] = useState([]);
   const [candidates, setCandidates] = useState([]);
@@ -158,6 +160,7 @@ export default function JobsPage() {
     if (!force && now - jobsGuard.current.ts < 10000) return;
     jobsGuard.current.inFlight = true;
     setLoading(true);
+    setLoadError(null);
 
     try {
       const jobFilter = listFilterFor("Job");
@@ -171,7 +174,7 @@ export default function JobsPage() {
       setCompanies(companiesData);
     } catch (error) {
       console.error("Error loading jobs:", error);
-      addNotification({ type: "error", title: "Error", message: "Failed to load jobs." });
+      setLoadError(error?.message || "request failed");
     } finally {
       setLoading(false);
       jobsGuard.current.inFlight = false;
@@ -677,6 +680,8 @@ export default function JobsPage() {
               <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" style={{ color:"#9333EA" }} />
               <div style={{ fontSize:13 }}>Loading jobs…</div>
             </div>
+          ) : loadError ? (
+            <EmptyState error={`Could not load jobs: ${loadError}`} action={{ label: "Retry", fn: () => loadData(true) }} />
           ) : paginatedStatusJobs.length === 0 ? (
             <div style={{ padding:"60px", textAlign:"center" }}>
               <Briefcase style={{ width:36, height:36, color:"#94A3B8", margin:"0 auto 12px" }} />
