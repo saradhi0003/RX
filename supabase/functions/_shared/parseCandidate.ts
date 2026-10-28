@@ -59,6 +59,11 @@ export async function parseResumeText(
 
   let candidateId = opts.candidateId || null;
 
+  // The prompt's `current_role` key is stored in `current_position`, the
+  // column the UI reads. `candidates` has no `current_role` column — writing
+  // one made PostgREST reject every parsed resume (email, channel and upload
+  // paths alike), so no candidate was ever created by this function.
+
   if (candidateId) {
     // full_name is NOT NULL with no default: writing the parser's empty string
     // back over an existing name would either blank it or reject the whole
@@ -75,7 +80,7 @@ export async function parseResumeText(
         skills: parsed.skills || [],
         experience_years: parsed.experience_years,
         current_company: parsed.current_company || undefined,
-        current_role: parsed.current_role || undefined,
+        current_position: parsed.current_role || undefined,
         linkedin_url: parsed.linkedin_url || undefined,
       })
       .eq("id", candidateId);
@@ -93,7 +98,7 @@ export async function parseResumeText(
         skills: parsed.skills || [],
         experience_years: parsed.experience_years,
         current_company: parsed.current_company || null,
-        current_role: parsed.current_role || null,
+        current_position: parsed.current_role || null,
         linkedin_url: parsed.linkedin_url || null,
         source: opts.source || "imported",
         status: "active",
