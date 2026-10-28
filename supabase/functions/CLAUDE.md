@@ -18,6 +18,9 @@ Server-side logic and the place API keys live. Called from the app via
 - **emailOAuthStart** (admin) / **emailOAuthCallback** (`verify_jwt = false`) /
   **pollEmailInboxes** (cron) / **reprocessInboundEmail** — the connected-mailbox
   intake; see "Email intake" below.
+- **botIngest** (`verify_jwt = false`, `x-webhook-secret` = `BOT_WEBHOOK_SECRET`,
+  fails closed) — an external bot (the Grok routine) POSTs mail it fetched
+  itself; same intake path. Contract: [../../docs/BOT_INGEST.md](../../docs/BOT_INGEST.md).
 - **createWhatsappRegistrationCode / validateWhatsappRegistrationCode**,
   **parseResumeFile**, **healthCheck** (integrations liveness).
 - **notifySignupRequest** — emails the admins when a signup lands at
@@ -77,8 +80,9 @@ recognises the **service key as a trusted internal caller** — required because
 with `Bearer $SERVICE_KEY` and there is no end user in that chain.
 
 ## Email intake — connected mailboxes (migration 032)
-Two entry points, **one intake path**: `inboundEmailWebhook` (Postmark) and
-`pollEmailInboxes` (Gmail/Zoho OAuth polling) both hand off to
+Three entry points, **one intake path**: `inboundEmailWebhook` (Postmark),
+`pollEmailInboxes` (Gmail/Zoho OAuth polling) and `botIngest` (a bot POSTing
+mail it read itself) all hand off to
 `_shared/emailProcessor.ts`, which classifies → routes:
 reply stops the follow-up sequence; job/resume at **≥ 0.7 confidence**
 (`CONFIDENCE_THRESHOLD` in `emailNormalizers.ts`) creates the record through the
@@ -132,6 +136,14 @@ pending/processed/failed/ignored, and there is no `processed` column), so it
 threw on its first statement every time, then routed on two hardcoded legacy
 inbox addresses no polled mail can match. Classification belongs where the model
 keys, the cost ceiling and the workspace stamping are.
+
+**Provenance (migration 036):** `inbound_emails.ingest_channel`
+(`postmark_webhook` / `mailbox_poll` / `bot_ingest` / `manual`) and `source`
+(`postmark` / `gmail` / `zoho` / `bot`). Only botIngest writes them; a BEFORE
+INSERT trigger derives them for every other writer, so the older functions
+never name a column that might not exist yet. botIngest namespaces its
+`message_id` the way the poller does (`gmail-<id>`), so a message seen by both
+dedupes instead of creating two records.
 
 **Connecting a mailbox:** `emailOAuthStart` (**admin only** — a mailbox imports
 data for the whole workspace) returns the provider consent URL carrying an

@@ -25,7 +25,11 @@ shipped migration — add a new one.
   029 self-bootstrap `workspace_id` fix · 030 audit-log `workspace_id` ·
   031 LLM fallback chain · **032 email accounts** (connected Gmail/Zoho
   mailboxes + `inbound_emails` classification columns) ·
-  **033 email_accounts anon revoke** · **034 email_accounts narrow UPDATE**.
+  **033 email_accounts anon revoke** · **034 email_accounts narrow UPDATE** ·
+  **035 agent-table tenancy** (the branch's "025", applied live but never merged
+  — ported 2026-10-28; idempotent) · **036 inbound-email provenance**
+  (`source` + `ingest_channel` on `inbound_emails`; **not yet applied** — needed
+  before `botIngest` is deployed).
   017–**034** are **APPLIED** to the live project (017–022 on 2026-07-27;
   023 + 024 on 2026-08-03, re-verified 2026-08-08 — earlier revisions of this
   file wrongly called 023 "staged"). **032 verified applied 2026-08-14** by
