@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,26 @@ import { addNotification } from "@/components/notifications/NotificationToast";
 import PageHeader from "@/components/common/PageHeader";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { useEntityList } from "@/hooks/useEntityList";
+import EmptyState from "@/components/common/EmptyState";
+import { cn } from "@/lib/utils";
+
+/**
+ * How an inbound email reached the app (`inbound_emails.ingest_channel`,
+ * migration 036). Rows written before 036 have no channel; a linked mailbox
+ * still identifies the poller, anything else is unknown.
+ */
+const CHANNELS = {
+  bot_ingest: { label: "Bot", className: "bg-violet-100 text-violet-800" },
+  mailbox_poll: { label: "Mailbox", className: "bg-sky-100 text-sky-800" },
+  postmark_webhook: { label: "Postmark", className: "bg-amber-100 text-amber-800" },
+  manual: { label: "Manual", className: "bg-slate-100 text-slate-700" },
+};
+const SOURCE_LABELS = { gmail: "Gmail", zoho: "Zoho" };
+
+function channelOf(email) {
+  return email.ingest_channel || (email.email_account_id ? "mailbox_poll" : null);
+}
 
 function detectRemoteType(s = "") {
   const t = (s || "").toLowerCase();
@@ -63,8 +83,13 @@ function extractJobIdFromSubject(subject = "") {
 }
 
 export default function EmailInbox() {
-  const [emails, setEmails] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: emails,
+    loading,
+    error: loadError,
+    reload: loadEmails,
+  } = useEntityList(() => InboundEmail.list("-created_date", 100));
+  const [channelFilter, setChannelFilter] = useState("all");
   const [processing, setProcessing] = useState(false);
   
   // Manual paste/upload form
@@ -84,23 +109,6 @@ export default function EmailInbox() {
   const [parsedJobs, setParsedJobs] = useState([]);
   const [creatingJobs, setCreatingJobs] = useState(false);
   const [jobsCreated, setJobsCreated] = useState(0);
-
-  const loadEmails = async () => {
-    setLoading(true);
-    try {
-      const data = await InboundEmail.list("-created_date", 100);
-      setEmails(data || []);
-    } catch (error) {
-      console.error("Error loading emails:", error);
-      addNotification({ type: "error", title: "Load failed", message: "Could not load emails" });
-      setEmails([]);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    loadEmails();
-  }, []);
 
   const handleFileUpload = async (e) => {
     const f = e.target.files?.[0];
@@ -742,6 +750,9 @@ Talent Stack Team`;
     return <Badge className={colors[status] || "bg-gray-100 text-gray-800"}>{status}</Badge>;
   };
 
+  const visibleEmails =
+    channelFilter === "all" ? emails : emails.filter((e) => channelOf(e) === channelFilter);
+
   return (
     <div className="p-6 space-y-6">
       <PageHeader
@@ -999,23 +1010,60 @@ Talent Stack Team`;
               </CardTitle>
             </CardHeader>
             <CardContent>
+              {!loading && !loadError && emails.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-4" role="group" aria-label="Filter by how the email arrived">
+                  {[["all", "All"], ...Object.entries(CHANNELS).map(([key, c]) => [key, c.label])].map(([key, label]) => {
+                    const count = key === "all" ? emails.length : emails.filter((e) => channelOf(e) === key).length;
+                    const active = channelFilter === key;
+                    return (
+                      <Button
+                        key={key}
+                        size="sm"
+                        variant={active ? "default" : "outline"}
+                        aria-pressed={active}
+                        className={cn("h-8 rounded-full", active && "bg-purple-600 hover:bg-purple-700")}
+                        onClick={() => setChannelFilter(key)}
+                      >
+                        {label}
+                        <span className="ml-1.5 text-xs opacity-70">{count}</span>
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
               {loading ? (
                 <div className="flex items-center justify-center p-8">
                   <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
                 </div>
-              ) : emails.length === 0 ? (
-                <div className="text-center p-8 text-slate-600">
-                  <Mail className="w-12 h-12 mx-auto mb-4 text-slate-400" />
-                  <p>No emails processed yet</p>
-                </div>
+              ) : loadError ? (
+                <EmptyState
+                  error={`Could not load emails: ${loadError}`}
+                  action={{ label: "Retry", fn: loadEmails }}
+                />
+              ) : visibleEmails.length === 0 ? (
+                <EmptyState
+                  icon={Mail}
+                  title={channelFilter === "all" ? "No emails yet" : `No ${CHANNELS[channelFilter].label} emails`}
+                  description={
+                    channelFilter === "all"
+                      ? "Mail from Postmark, connected mailboxes and the intake bot appears here as it arrives."
+                      : "Nothing has arrived this way in the latest 100 emails."
+                  }
+                />
               ) : (
                 <div className="space-y-3">
-                  {emails.map((email) => (
+                  {visibleEmails.map((email) => (
                     <Card key={email.id} className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
                             {getStatusBadge(email.processing_status)}
+                            {CHANNELS[channelOf(email)] && (
+                              <Badge className={CHANNELS[channelOf(email)].className}>
+                                {CHANNELS[channelOf(email)].label}
+                                {SOURCE_LABELS[email.source] && ` · ${SOURCE_LABELS[email.source]}`}
+                              </Badge>
+                            )}
                             {email.classification && (
                               <Badge className={
                                 email.classification === "job" ? "bg-blue-100 text-blue-800" :
@@ -1041,6 +1089,11 @@ Talent Stack Team`;
                           <p className="text-xs text-slate-500 mt-1">
                             {new Date(email.created_date).toLocaleString()}
                           </p>
+                          {email.processing_status === "failed" && email.error_message && (
+                            <p className="text-xs text-red-700 mt-2 bg-red-50 p-2 rounded">
+                              {email.error_message}
+                            </p>
+                          )}
                           {email.processing_notes && (
                             <p className="text-xs text-slate-600 mt-2 bg-slate-50 p-2 rounded">
                               {email.processing_notes}
@@ -1135,7 +1188,7 @@ Talent Stack Team`;
               <div>
                 <p className="text-sm font-medium">Body:</p>
                 <div className="bg-slate-50 p-3 rounded text-sm whitespace-pre-wrap max-h-96 overflow-auto">
-                  {selectedEmail.body}
+                  {selectedEmail.body_text || selectedEmail.body}
                 </div>
               </div>
               {selectedEmail.processing_notes && (
