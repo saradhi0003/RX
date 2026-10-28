@@ -40,13 +40,18 @@ Return JSON exactly matching:
   "openings": 1
 }`;
 
+const MAX_JOB_TEXT_CHARS = 40_000;
+
 export async function parseJobText(
   jobText: string,
   model: string,
   opts: { source?: string; workspaceId: string; runId?: string | null },
 ): Promise<{ jobId: string; parsed: ParsedJob }> {
+  // Bounded: invokeLLM throws past LLM_MAX_PROMPT_CHARS (48k), and an email
+  // that quotes a long thread would otherwise fail outright instead of parsing
+  // the JD at the top. raw_text below still keeps the whole thing.
   const parsed = await invokeLLMJson<ParsedJob>(
-    `Parse this job description:\n\n${jobText}`,
+    `Parse this job description:\n\n${jobText.slice(0, MAX_JOB_TEXT_CHARS)}`,
     SYSTEM,
     model,
   );
