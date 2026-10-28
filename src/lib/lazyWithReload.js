@@ -47,10 +47,16 @@ function flag(action, value) {
 /**
  * @template {{default: any}} T
  * @param {() => Promise<T>} factory
- * @returns {React.LazyExoticComponent<any>}
+ * @returns {React.LazyExoticComponent<any> & { preload: () => Promise<unknown> }}
  */
 export function lazyWithReload(factory) {
-  return lazy(() =>
+  // preload() fetches the chunk ahead of the first render (the browser's module
+  // map then serves React.lazy's import instantly). It deliberately bypasses
+  // the reload-on-stale-chunk path below: a background prefetch that fails is
+  // not a reason to reload the page out from under the user — the real render
+  // will hit the same error and recover through that path if it matters.
+  const preload = () => factory().catch(() => undefined);
+  return Object.assign(lazy(() =>
     factory().then(
       (mod) => {
         // A chunk loaded, so whatever went wrong before is behind us and the
@@ -70,5 +76,5 @@ export function lazyWithReload(factory) {
         return new Promise(() => {});
       }
     )
-  );
+  ), { preload });
 }
