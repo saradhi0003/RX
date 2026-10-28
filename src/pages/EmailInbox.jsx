@@ -1054,8 +1054,8 @@ Talent Stack Team`;
                 <div className="space-y-3">
                   {visibleEmails.map((email) => (
                     <Card key={email.id} className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2 mb-2">
                             {getStatusBadge(email.processing_status)}
                             {CHANNELS[channelOf(email)] && (
@@ -1083,7 +1083,7 @@ Talent Stack Team`;
                             )}
                           </div>
                           <p className="font-medium">{email.subject}</p>
-                          <p className="text-sm text-slate-600">
+                          <p className="text-sm text-slate-600 break-words">
                             From: {email.from_email} → To: {email.to_email}
                           </p>
                           <p className="text-xs text-slate-500 mt-1">
@@ -1107,7 +1107,7 @@ Talent Stack Team`;
                             </p>
                           )}
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex shrink-0 gap-2">
                           <Button
                             variant="outline"
                             size="sm"
