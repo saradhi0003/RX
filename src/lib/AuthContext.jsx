@@ -1,5 +1,7 @@
 import { createContext, useState, useContext, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
+import { fetchOwnProfile, invalidateUserCache } from "@/lib/appCache";
+import { clearEntitySnapshots } from "@/lib/entityFactory";
 import { mfaStatus } from "@/lib/mfa";
 import { useIdleLogout, resetIdleClock } from "@/hooks/useIdleLogout";
 
@@ -16,11 +18,7 @@ export const AuthProvider = ({ children }) => {
 
   const loadUserWithProfile = useCallback(async (authUser) => {
     try {
-      const { data: profile, error } = await supabase
-        .from("user_profiles")
-        .select("*")
-        .eq("id", authUser.id)
-        .single();
+      const { data: profile, error } = await fetchOwnProfile(authUser.id);
 
       // Auto-heal zombie sessions: a locally-cached session whose JWT the
       // backend rejects (e.g. minted before a signing-key rotation) makes the
@@ -51,6 +49,9 @@ export const AuthProvider = ({ children }) => {
           })
           .select()
           .single();
+        // The shared profile fetch just answered "no row"; drop that answer so
+        // the next reader sees the row this insert created.
+        invalidateUserCache();
         if (insertError) {
           // The fallback below used to run unconditionally on any failure —
           // a NOT NULL/RLS/trigger error on the insert (migration 029 fixed
@@ -116,6 +117,9 @@ export const AuthProvider = ({ children }) => {
       if (session?.user) {
         loadUserWithProfile(session.user);
       } else {
+        // Kept list reads belong to the user who just left (entityFactory).
+        clearEntitySnapshots();
+        invalidateUserCache();
         setUser(null);
         setIsAuthenticated(false);
         setMfaChallengeRequired(false);

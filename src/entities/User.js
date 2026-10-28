@@ -3,6 +3,7 @@
  * Base44-compatible: .me(), .list(), .update()
  */
 import { supabase } from "@/lib/supabase";
+import { fetchOwnProfile } from "@/lib/appCache";
 
 function normalize(row) {
   return { ...row, created_date: row.created_at };
@@ -10,13 +11,12 @@ function normalize(row) {
 
 export const User = {
   async me() {
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (error || !user) return null;
-    const { data: profile } = await supabase
-      .from("user_profiles")
-      .select("*")
-      .eq("id", user.id)
-      .single();
+    // Local session + the shared profile fetch (see appCache): a dozen
+    // components call me() and each one used to cost two round trips.
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
+    if (!user) return null;
+    const { data: profile } = await fetchOwnProfile(user.id);
     return normalize({ ...user, ...profile });
   },
 

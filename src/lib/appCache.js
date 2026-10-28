@@ -6,6 +6,41 @@
 
 import { supabase } from "@/lib/supabase";
 
+// ─── Own profile: one request, shared ──────────────────────────────────────────
+// AuthContext, this cache and User.me() each used to fetch the signed-in
+// user's user_profiles row themselves, and AuthContext did it twice (once from
+// getSession, once from the INITIAL_SESSION event) — four identical requests
+// on every app load, all on the path to first paint. Concurrent callers now
+// share one request, and a successful answer is reused briefly. A failed one
+// is never reused, so the next caller retries (see the PGRST116 note below).
+const PROFILE_REUSE_MS = 10 * 1000;
+/** @type {Map<string, { promise: Promise<any>, pending: boolean, ts: number }>} */
+const profileFetches = new Map();
+
+/** @param {string} userId → `{ data, error }`, exactly as `.single()` returns it */
+export function fetchOwnProfile(userId) {
+  const hit = profileFetches.get(userId);
+  if (hit && (hit.pending || Date.now() - hit.ts < PROFILE_REUSE_MS)) return hit.promise;
+
+  const entry = { promise: /** @type {Promise<any>} */ (Promise.resolve()), pending: true, ts: 0 };
+  entry.promise = Promise.resolve(
+    supabase.from("user_profiles").select("*").eq("id", userId).single(),
+  ).then(
+    (res) => {
+      entry.pending = false;
+      entry.ts = Date.now();
+      if (res?.error) profileFetches.delete(userId);
+      return res;
+    },
+    (err) => {
+      profileFetches.delete(userId);
+      throw err;
+    },
+  );
+  profileFetches.set(userId, entry);
+  return entry.promise;
+}
+
 // ─── User + Role cache ─────────────────────────────────────────────────────────
 const USER_TTL = 5 * 60 * 1000; // 5 minutes
 
@@ -21,12 +56,17 @@ export async function getUserCached() {
 
   userCache.promise = (async () => {
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+      // The local session, not getUser(): getUser() is a network round trip
+      // to re-validate a JWT that AuthContext has already accepted, and it sat
+      // in front of every page's first data load. This only decides what the
+      // UI shows — every row is still authorised by RLS against that JWT.
+      const { data: { session } } = await supabase.auth.getSession();
+      const authUser = session?.user;
       if (!authUser) { userCache.promise = null; return { user: null, role: null }; }
 
       // Pull profile + role definitions in parallel.
       const [profileRes, rolesRes] = await Promise.all([
-        supabase.from("user_profiles").select("*").eq("id", authUser.id).single(),
+        fetchOwnProfile(authUser.id),
         supabase.from("app_settings").select("value").eq("key", "roles_definitions").maybeSingle(),
       ]);
 
@@ -70,6 +110,7 @@ export async function getUserCached() {
 
 export function invalidateUserCache() {
   userCache = { user: null, role: null, ts: 0, promise: null };
+  profileFetches.clear();
 }
 
 export function getCachedUser() {

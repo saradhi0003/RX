@@ -57,6 +57,61 @@ function applyFilters(query, filters = {}) {
   return query;
 }
 
+// ── Read sharing ────────────────────────────────────────────────────────────
+// Pages, Layout and widgets ask for the same rows at the same moment (opening
+// Candidates fired the identical 200-row query three times within 30ms), and
+// every navigation threw away what the last visit had already loaded. Two
+// small mechanisms, neither of which changes what a caller gets back:
+//   - an identical read already in flight is shared, not repeated;
+//   - the last result of each read is kept as a snapshot, so a page being
+//     revisited can paint it immediately (`peekList` / `peekFilter`) while its
+//     normal load fetches fresh rows. Reads themselves always hit the network.
+// Any write through this factory drops that table's snapshots, and bumps a
+// generation so a read that started before the write can't restore them.
+/** @type {Map<string, Promise<any[]>>} */
+const inflightReads = new Map();
+/** @type {Map<string, any[]>} */
+const readSnapshots = new Map();
+/** @type {Map<string, number>} */
+const tableGeneration = new Map();
+
+/**
+ * @param {string} table
+ * @param {string} key
+ * @param {() => Promise<any[]>} run
+ */
+function sharedRead(table, key, run) {
+  const pending = inflightReads.get(key);
+  if (pending) return pending.then((rows) => rows.slice());
+  const generation = tableGeneration.get(table) || 0;
+  const p = run().then(
+    (rows) => {
+      inflightReads.delete(key);
+      if ((tableGeneration.get(table) || 0) === generation) readSnapshots.set(key, rows);
+      return rows;
+    },
+    (err) => {
+      inflightReads.delete(key);
+      throw err;
+    },
+  );
+  inflightReads.set(key, p);
+  // Each caller gets its own array: pages sort and splice what they receive.
+  return p.then((rows) => rows.slice());
+}
+
+/** @param {string} table */
+function dropSnapshots(table) {
+  tableGeneration.set(table, (tableGeneration.get(table) || 0) + 1);
+  for (const key of readSnapshots.keys()) if (key.startsWith(`${table}|`)) readSnapshots.delete(key);
+}
+
+/** Forget every kept read — call on sign-out so the next user starts clean. */
+export function clearEntitySnapshots() {
+  readSnapshots.clear();
+  inflightReads.clear();
+}
+
 /**
  * @param {string} tableName
  * @param {{beforeWrite?: (fields: object, op: "create"|"update") => object,
@@ -84,29 +139,52 @@ export function createEntity(
   { beforeWrite = (f) => f, afterRead = (r) => r, columns = "*" } = {},
 ) {
   const shape = (row) => (row ? afterRead(normalize(row)) : row);
+  const listKey = (sortField, limit) => `${tableName}|${columns}|list|${sortField}|${limit}`;
+  const filterKey = (conditions, sortField, limit) =>
+    `${tableName}|${columns}|filter|${JSON.stringify(conditions)}|${sortField}|${limit}`;
+  const peek = (key) => {
+    const rows = readSnapshots.get(key);
+    return rows ? rows.slice() : undefined;
+  };
   return {
     /** list(sortField?, limit?) */
-    async list(sortField = "-created_at", limit = 200) {
-      const { column, ascending } = parseSortField(sortField);
-      const { data, error } = await supabase
-        .from(tableName)
-        .select(columns)
-        .order(column, { ascending })
-        .limit(limit);
-      if (error) throw error;
-      return (data || []).map(shape);
+    list(sortField = "-created_at", limit = 200) {
+      return sharedRead(tableName, listKey(sortField, limit), async () => {
+        const { column, ascending } = parseSortField(sortField);
+        const { data, error } = await supabase
+          .from(tableName)
+          .select(columns)
+          .order(column, { ascending })
+          .limit(limit);
+        if (error) throw error;
+        return (data || []).map(shape);
+      });
     },
 
     /** filter(conditions, sortField?, limit?) */
-    async filter(conditions = {}, sortField = "-created_at", limit = 200) {
-      const { column, ascending } = parseSortField(sortField);
-      let query = supabase.from(tableName).select(columns);
-      query = applyFilters(query, conditions);
-      const { data, error } = await query
-        .order(column, { ascending })
-        .limit(limit);
-      if (error) throw error;
-      return (data || []).map(shape);
+    filter(conditions = {}, sortField = "-created_at", limit = 200) {
+      return sharedRead(tableName, filterKey(conditions, sortField, limit), async () => {
+        const { column, ascending } = parseSortField(sortField);
+        let query = supabase.from(tableName).select(columns);
+        query = applyFilters(query, conditions);
+        const { data, error } = await query
+          .order(column, { ascending })
+          .limit(limit);
+        if (error) throw error;
+        return (data || []).map(shape);
+      });
+    },
+
+    /**
+     * The rows the last identical list()/filter() returned, or undefined.
+     * Synchronous and network-free: for painting a revisited page at once,
+     * never as a substitute for the read that follows.
+     */
+    peekList(sortField = "-created_at", limit = 200) {
+      return peek(listKey(sortField, limit));
+    },
+    peekFilter(conditions = {}, sortField = "-created_at", limit = 200) {
+      return peek(filterKey(conditions, sortField, limit));
     },
 
     /**
@@ -149,6 +227,7 @@ export function createEntity(
         .insert(beforeWrite(clean, "create"))
         .select(columns)
         .single();
+      dropSnapshots(tableName);
       if (error) throw error;
       return shape(data);
     },
@@ -162,6 +241,7 @@ export function createEntity(
         .eq("id", id)
         .select(columns)
         .single();
+      dropSnapshots(tableName);
       if (error) throw error;
       return shape(data);
     },
@@ -169,6 +249,7 @@ export function createEntity(
     /** delete(id) */
     async delete(id) {
       const { error } = await supabase.from(tableName).delete().eq("id", id);
+      dropSnapshots(tableName);
       if (error) throw error;
       return { id };
     },
